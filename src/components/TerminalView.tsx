@@ -1767,10 +1767,18 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
             if (isBootSign) {
               return (
                 <div key={log.id} className="ascii-boot ascii-glow opacity-90" style={glowStyle}>
-                  <pre className="ascii-sign ascii-sign-wide font-mono select-none" aria-hidden="true">
+                  <pre
+                    className="ascii-sign ascii-sign-wide font-mono select-none"
+                    aria-hidden="true"
+                    data-text={log.output}
+                  >
                     {log.output}
                   </pre>
-                  <pre className="ascii-sign ascii-sign-compact font-mono select-none" aria-hidden="true">
+                  <pre
+                    className="ascii-sign ascii-sign-compact font-mono select-none"
+                    aria-hidden="true"
+                    data-text={BOOT_ASCII_COMPACT}
+                  >
                     {BOOT_ASCII_COMPACT}
                   </pre>
                   <div

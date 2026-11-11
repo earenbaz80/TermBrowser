@@ -107,7 +107,8 @@
 /* CRT glass over the whole app (toggleable) */
 .crt-effect {
   position: relative;
-  border-radius: 0;
+  border-radius: 14px;
+  overflow: hidden;
 }
 
 /* Aperture grille: scanlines plus the faint RGB stripes of a colour tube */
@@ -119,15 +120,15 @@
   border-radius: inherit;
   pointer-events: none;
   background:
-    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.3) 0 1px, rgba(0, 0, 0, 0) 1px 3px),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.12) 0 1px, rgba(0, 0, 0, 0) 1px 4px),
     repeating-linear-gradient(
       90deg,
-      rgba(255, 60, 60, 0.04) 0 1px,
-      rgba(60, 255, 120, 0.015) 1px 2px,
-      rgba(60, 120, 255, 0.04) 2px 3px
+      rgba(255, 60, 60, 0.022) 0 1px,
+      rgba(60, 255, 120, 0.01) 1px 2px,
+      rgba(60, 120, 255, 0.022) 2px 3px
     );
-  background-size: 100% 3px, 3px 100%;
-  opacity: 0.8;
+  background-size: 100% 4px, 3px 100%;
+  opacity: 1;
 }
 
 /* CRT glass: phosphor bloom, rim shading and a soft reflection */
@@ -140,43 +141,29 @@
   pointer-events: none;
   background:
     linear-gradient(
-      118deg,
-      rgba(225, 255, 242, 0.08) 0%,
-      rgba(225, 255, 242, 0.015) 18%,
-      transparent 36%,
-      transparent 70%,
-      rgba(0, 0, 0, 0.16) 100%
+      116deg,
+      rgba(225, 255, 242, 0.06) 0%,
+      rgba(225, 255, 242, 0.012) 16%,
+      transparent 34%,
+      transparent 78%,
+      rgba(0, 0, 0, 0.14) 100%
     ),
-    radial-gradient(ellipse 72% 42% at 26% -6%, rgba(205, 255, 232, 0.18), transparent 64%),
-    radial-gradient(ellipse 42% 26% at 78% 4%, rgba(255, 255, 255, 0.05), transparent 70%),
-    radial-gradient(ellipse 58% 40% at 50% 45%, rgba(255, 255, 255, 0.035), transparent 74%),
-    radial-gradient(
-      ellipse 88% 84% at 50% 48%,
-      transparent 50%,
-      rgba(0, 0, 0, 0.14) 72%,
-      rgba(0, 0, 0, 0.55) 100%
-    ),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.34), transparent 10%, transparent 90%, rgba(0, 0, 0, 0.34)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 9%, transparent 86%, rgba(0, 0, 0, 0.32)),
-    radial-gradient(70% 70% at 0% 0%, rgba(0, 0, 0, 0.4), transparent 72%),
-    radial-gradient(70% 70% at 100% 0%, rgba(0, 0, 0, 0.44), transparent 72%),
-    radial-gradient(70% 70% at 0% 100%, rgba(0, 0, 0, 0.46), transparent 72%),
-    radial-gradient(70% 70% at 100% 100%, rgba(0, 0, 0, 0.46), transparent 72%);
+    radial-gradient(ellipse 90% 80% at 50% 46%, transparent 61%, rgba(0, 0, 0, 0.24) 100%),
+    radial-gradient(ellipse 52% 28% at 24% -8%, rgba(205, 255, 232, 0.1), transparent 66%);
   box-shadow:
-    inset 0 1px 0 rgba(225, 255, 240, 0.16),
-    inset 0 0 0 1px rgba(190, 255, 220, 0.24),
-    inset 0 0 0 10px rgba(2, 6, 5, 0.66),
-    inset 0 0 30px 14px rgba(0, 0, 0, 0.55),
-    inset 0 0 140px 42px rgba(0, 0, 0, 0.32),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.8);
-  animation: crt-flicker 9s ease-in-out infinite;
+    inset 0 1px 0 rgba(225, 255, 240, 0.1),
+    inset 0 0 0 1px rgba(190, 255, 220, 0.1),
+    inset 0 0 28px 8px rgba(0, 0, 0, 0.22),
+    inset 0 0 90px 28px rgba(0, 0, 0, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+  animation: crt-flicker 10s ease-in-out infinite;
 }
 
 @keyframes crt-flicker {
-  0%, 100% { opacity: 1; }
-  45% { opacity: 0.94; }
-  50% { opacity: 0.99; }
-  62% { opacity: 0.96; }
+  0%, 100% { opacity: 0.995; }
+  46% { opacity: 0.985; }
+  50% { opacity: 0.995; }
+  63% { opacity: 0.99; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -211,11 +198,81 @@
 }
 
 .ascii-sign {
+  position: relative;
   font-size: min(10px, calc((100vw - 2rem) / 70));
   line-height: 1.05;
   max-width: 100%;
   overflow-x: hidden;
   white-space: pre;
+  animation: ascii-corrupt-jitter 6s steps(1, end) infinite;
+  will-change: transform;
+}
+
+/* Corrupted-terminal burst: the original sign stays readable while two clipped
+   colour ghosts briefly jump out of register. */
+.ascii-sign::before,
+.ascii-sign::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  white-space: pre;
+  pointer-events: none;
+  opacity: 0;
+  text-shadow: none;
+}
+
+.ascii-sign::before {
+  color: #ff4d6d;
+  animation: ascii-corrupt-slice-a 6s steps(1, end) infinite;
+}
+
+.ascii-sign::after {
+  color: #3ee8ff;
+  animation: ascii-corrupt-slice-b 6s steps(1, end) infinite;
+}
+
+@keyframes ascii-corrupt-jitter {
+  0%, 74%, 82%, 100% { transform: translate(0, 0); }
+  75% { transform: translate(-1px, 0); }
+  76% { transform: translate(2px, -1px); }
+  77% { transform: translate(-2px, 1px); }
+  78% { transform: translate(1px, 0); }
+  79% { transform: translate(-1px, 0); }
+  80% { transform: translate(2px, 0); }
+  81% { transform: translate(0, 0); }
+}
+
+@keyframes ascii-corrupt-slice-a {
+  0%, 74%, 82%, 100% { opacity: 0; transform: translate(0, 0); clip-path: inset(0 0 100% 0); }
+  75% { opacity: .8; transform: translate(-3px, 0); clip-path: inset(8% 0 66% 0); }
+  76% { opacity: .55; transform: translate(3px, 0); clip-path: inset(38% 0 42% 0); }
+  77% { opacity: .8; transform: translate(-2px, 0); clip-path: inset(62% 0 16% 0); }
+  78% { opacity: .45; transform: translate(2px, -1px); clip-path: inset(18% 0 58% 0); }
+  79% { opacity: 0; }
+}
+
+@keyframes ascii-corrupt-slice-b {
+  0%, 74%, 82%, 100% { opacity: 0; transform: translate(0, 0); clip-path: inset(0 0 100% 0); }
+  76% { opacity: .65; transform: translate(2px, 0); clip-path: inset(20% 0 54% 0); }
+  77% { opacity: .75; transform: translate(-3px, 0); clip-path: inset(52% 0 26% 0); }
+  78% { opacity: .5; transform: translate(3px, 1px); clip-path: inset(72% 0 8% 0); }
+  79% { opacity: .7; transform: translate(-1px, 0); clip-path: inset(4% 0 78% 0); }
+  80% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ascii-sign,
+  .ascii-sign::before,
+  .ascii-sign::after {
+    animation: none;
+  }
+
+  .ascii-sign::before,
+  .ascii-sign::after {
+    display: none;
+  }
 }
 
 .ascii-sign-wide {
@@ -303,8 +360,13 @@
   min-height: 420px;
   margin: 0.35em 0;
   border: 1px solid;
+  border-radius: 22px / 26px;
   background: #000;
   overflow: hidden;
+  box-shadow:
+    0 0 0 2px rgba(0, 0, 0, 0.78),
+    0 0 0 4px rgba(235, 255, 245, 0.06),
+    0 18px 38px rgba(0, 0, 0, 0.42);
 }
 .tb-web-frame {
   display: block;
@@ -318,30 +380,45 @@
 .tb-crt-dim {
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   pointer-events: none;
-  background: var(--tb-crt-dim, rgba(0, 0, 0, 0.56));
+  background: var(--tb-crt-dim, rgba(0, 0, 0, 0.12));
 }
 .tb-crt-tint-layer {
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   pointer-events: none;
   /* Plain alpha tint: blending modes over a cross-origin iframe force very expensive compositing */
   background: var(--tb-crt-tint, #22c55e);
-  opacity: var(--tb-crt-tint-opacity, 0.34);
+  opacity: var(--tb-crt-tint-opacity, 0.14);
 }
 .tb-crt-overlay {
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   pointer-events: none;
   background:
-    radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 52%, var(--tb-crt-vignette, rgba(0, 0, 0, 0.6)) 100%),
+    linear-gradient(
+      118deg,
+      rgba(255, 255, 255, 0.07) 0%,
+      transparent 18%,
+      transparent 82%,
+      rgba(0, 0, 0, 0.12) 100%
+    ),
+    radial-gradient(ellipse 46% 30% at 26% -7%, rgba(255, 255, 255, 0.09), transparent 66%),
+    radial-gradient(ellipse 66% 52% at 50% 40%, rgba(255, 255, 255, 0.025), transparent 72%),
+    radial-gradient(ellipse 102% 90% at 50% 46%, transparent 58%, var(--tb-crt-vignette, rgba(0, 0, 0, 0.3)) 100%),
     repeating-linear-gradient(
       0deg,
-      rgba(0, 0, 0, 0.52) 0px,
-      rgba(0, 0, 0, 0.52) 1px,
+      rgba(0, 0, 0, 0.16) 0px,
+      rgba(0, 0, 0, 0.16) 1px,
       rgba(0, 0, 0, 0) 1px,
-      rgba(0, 0, 0, 0) 3px
+      rgba(0, 0, 0, 0) 4px
     );
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+    inset 0 0 26px 8px rgba(0, 0, 0, 0.18);
 }
 
 /* Retro structural page view: the original page structure painted with the terminal palette */

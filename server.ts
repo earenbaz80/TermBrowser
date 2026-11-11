@@ -229,6 +229,34 @@ async function startServer() {
   const API_TOKEN = crypto.randomBytes(32).toString('hex');
   const SESSION_ID = crypto.randomBytes(32).toString('hex');
 
+  // The proxied document is sandboxed without allow-same-origin. Its image
+  // requests are cross-site and do not carry our SameSite=Strict cookie, so
+  // each view gets a short-lived capability for /api/image only.
+  const IMAGE_TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
+  const IMAGE_TOKEN_SECRET = crypto.randomBytes(32);
+  const issueImageToken = (view: string): string => {
+    const expires = Date.now() + IMAGE_TOKEN_TTL_MS;
+    const signature = crypto
+      .createHmac('sha256', IMAGE_TOKEN_SECRET)
+      .update(`image:${view}:${expires}`)
+      .digest('base64url');
+    return `${expires}.${signature}`;
+  };
+  const isValidImageToken = (view: string | undefined, token: string | undefined): boolean => {
+    if (!view || !token) return false;
+    const separator = token.indexOf('.');
+    if (separator <= 0) return false;
+    const expires = Number(token.slice(0, separator));
+    if (!Number.isSafeInteger(expires) || expires < Date.now()) return false;
+    const expected = crypto
+      .createHmac('sha256', IMAGE_TOKEN_SECRET)
+      .update(`image:${view}:${expires}`)
+      .digest('base64url');
+    const actualBuffer = Buffer.from(token.slice(separator + 1));
+    const expectedBuffer = Buffer.from(expected);
+    return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+  };
+
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -268,10 +296,19 @@ async function startServer() {
   // Local APIs are same-origin only. The token is required for filesystem and
   // vault operations; resource routes can use the HttpOnly session cookie alone.
   app.use('/api', (req, res, next) => {
-    if (!hasApiSessionCookie(req.headers.cookie)) {
+    const imageAuth =
+      req.path === '/image' &&
+      isValidImageToken(
+        typeof req.query.view === 'string' ? req.query.view : undefined,
+        typeof req.query.token === 'string' ? req.query.token : undefined
+      );
+    if (!imageAuth && !hasApiSessionCookie(req.headers.cookie)) {
       return res.status(401).json({ error: 'Sesión local no inicializada. Recarga la aplicación.' });
     }
-    if (!isSameOriginRequest(req.get('origin'), req.get('host'), req.get('sec-fetch-site'))) {
+    if (
+      !imageAuth &&
+      !isSameOriginRequest(req.get('origin'), req.get('host'), req.get('sec-fetch-site'))
+    ) {
       return res.status(403).json({ error: 'Origen no autorizado.' });
     }
     if (/^\/(?:local-fs|vault)(?:\/|$)/.test(req.path) && req.get(API_TOKEN_HEADER) !== API_TOKEN) {
@@ -596,7 +633,10 @@ async function startServer() {
       // The proxied CSP no longer allows arbitrary image origins. Public images
       // still load through the guarded /api/image endpoint, whose fetchRemote()
       // applies the same private-network policy and DNS pinning as the page.
-      html = rewriteProxiedImageSources(html, response.url, requestOrigin);
+      html = rewriteProxiedImageSources(html, response.url, requestOrigin, {
+        view: nonce,
+        token: issueImageToken(nonce),
+      });
       html = proxiedPage(html, response.url, nonce, mode === 'dark');
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');

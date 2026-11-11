@@ -28,13 +28,13 @@ interface CrtLook {
 
 /** Each theme gets its own phosphor, so the CRT effect matches the terminal palette */
 const CRT_LOOKS: Record<ThemeId, CrtLook> = {
-  'monochrome-green': { tint: '#33ff77', tintOpacity: 0.32, dim: 'rgba(0, 0, 0, 0.55)', vignette: 'rgba(0, 0, 0, 0.62)' },
-  'amber-crt': { tint: '#ffb000', tintOpacity: 0.34, dim: 'rgba(10, 5, 0, 0.55)', vignette: 'rgba(0, 0, 0, 0.62)' },
-  'cyberpunk-obsidian': { tint: '#ff2d95', tintOpacity: 0.28, dim: 'rgba(6, 0, 16, 0.56)', vignette: 'rgba(0, 0, 0, 0.64)' },
-  'retro-futurista': { tint: '#67e8f9', tintOpacity: 0.28, dim: 'rgba(0, 8, 24, 0.58)', vignette: 'rgba(0, 0, 0, 0.66)' },
-  'ms-dos': { tint: '#4da3ff', tintOpacity: 0.3, dim: 'rgba(0, 0, 20, 0.55)', vignette: 'rgba(0, 0, 0, 0.6)' },
-  'matrix-dark': { tint: '#00ff41', tintOpacity: 0.34, dim: 'rgba(0, 8, 0, 0.55)', vignette: 'rgba(0, 0, 0, 0.64)' },
-  'black-and-white': { tint: '#ffffff', tintOpacity: 0.1, dim: 'rgba(0, 0, 0, 0.66)', vignette: 'rgba(0, 0, 0, 0.7)' },
+  'monochrome-green': { tint: '#33ff77', tintOpacity: 0.14, dim: 'rgba(0, 0, 0, 0.12)', vignette: 'rgba(0, 0, 0, 0.3)' },
+  'amber-crt': { tint: '#ffb000', tintOpacity: 0.14, dim: 'rgba(10, 5, 0, 0.12)', vignette: 'rgba(0, 0, 0, 0.3)' },
+  'cyberpunk-obsidian': { tint: '#ff2d95', tintOpacity: 0.12, dim: 'rgba(6, 0, 16, 0.12)', vignette: 'rgba(0, 0, 0, 0.32)' },
+  'retro-futurista': { tint: '#67e8f9', tintOpacity: 0.12, dim: 'rgba(0, 8, 24, 0.12)', vignette: 'rgba(0, 0, 0, 0.32)' },
+  'ms-dos': { tint: '#4da3ff', tintOpacity: 0.13, dim: 'rgba(0, 0, 20, 0.12)', vignette: 'rgba(0, 0, 0, 0.3)' },
+  'matrix-dark': { tint: '#00ff41', tintOpacity: 0.14, dim: 'rgba(0, 8, 0, 0.12)', vignette: 'rgba(0, 0, 0, 0.3)' },
+  'black-and-white': { tint: '#ffffff', tintOpacity: 0.04, dim: 'rgba(0, 0, 0, 0.16)', vignette: 'rgba(0, 0, 0, 0.34)' },
 };
 
 /**

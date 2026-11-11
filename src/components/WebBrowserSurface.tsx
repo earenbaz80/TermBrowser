@@ -948,10 +948,18 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center font-mono">
             <div className="ascii-boot ascii-glow" style={glowStyle}>
-              <pre className="ascii-sign ascii-sign-wide select-none font-mono" aria-hidden="true">
+              <pre
+                className="ascii-sign ascii-sign-wide select-none font-mono"
+                aria-hidden="true"
+                data-text={BOOT_ASCII}
+              >
                 {BOOT_ASCII}
               </pre>
-              <pre className="ascii-sign ascii-sign-compact select-none font-mono" aria-hidden="true">
+              <pre
+                className="ascii-sign ascii-sign-compact select-none font-mono"
+                aria-hidden="true"
+                data-text={BOOT_ASCII_COMPACT}
+              >
                 {BOOT_ASCII_COMPACT}
               </pre>
               <div
