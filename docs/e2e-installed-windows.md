@@ -71,15 +71,15 @@ En **Settings → Secrets and variables → Actions → Variables** crea:
 
 Recomendación: deja `TERMINUS_RUN_INSTALLED_E2E` sin definir y lanza el E2E solo con `workflow_dispatch`. Así el runner interactivo no ejecuta la prueba en cada cambio.
 
-`TERMINUS_CI_RUNNER` debe contener **una sola etiqueta**. El workflow usa:
+`TERMINUS_CI_RUNNER` debe contener **una sola etiqueta**. El workflow usa la etiqueta configurada para `push`, `workflow_dispatch` y PRs del mismo repositorio, pero **nunca** la usa para un PR desde un fork:
 
 ```yaml
-runs-on: ${{ vars.TERMINUS_CI_RUNNER || 'windows-latest' }}
+runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'windows-latest' || vars.TERMINUS_CI_RUNNER || 'windows-latest' }}
 ```
 
-Si la variable no existe, el job usa `windows-latest`; allí el E2E se omite porque no hay escritorio interactivo.
+Si la variable no existe, el job usa `windows-latest`; allí el E2E se omite porque no hay escritorio interactivo. Los pasos de instalación y del E2E también se omiten en PRs desde forks, incluso si `TERMINUS_RUN_INSTALLED_E2E` está activo.
 
-> **Seguridad:** al definir `TERMINUS_CI_RUNNER`, todo el job de CI se ejecuta en ese runner, no solo el E2E. No configures un runner autoalojado para un repositorio público que acepte PRs de desconocidos. Usa un repositorio privado, un runner dedicado y, preferiblemente, una VM desechable o una instantánea restaurable.
+> **Seguridad:** al definir `TERMINUS_CI_RUNNER`, los jobs de `push`, `workflow_dispatch` y PRs del mismo repositorio se ejecutan en ese runner, no solo el E2E. El workflow fuerza `windows-latest` para PRs desde forks, pero un runner autoalojado sigue siendo una superficie de riesgo. No lo configures para un repositorio público que acepte PRs de desconocidos; usa un runner dedicado y, preferiblemente, una VM desechable o una instantánea restaurable.
 
 ## Disparar la ejecución
 

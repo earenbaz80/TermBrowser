@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ThemeConfig, ThemeId, WebpagePayload } from '../types';
+import { isPrivateTargetUrl } from '../utils/networkPolicy';
+import { expectedFrameMessageOrigin, isTrustedFrameMessage } from '../utils/frameMessageSecurity';
 import { soundEffects } from '../utils/soundEffects';
 
 interface TerminalWebpageViewProps {
@@ -43,11 +45,13 @@ const CRT_LOOKS: Record<ThemeId, CrtLook> = {
  */
 export const TerminalWebpageView: React.FC<TerminalWebpageViewProps> = ({ theme, webpage, onNavigate, isLatest = true }) => {
   const [enlargedImage, setEnlargedImage] = useState<{ src: string; alt?: string; direct?: boolean } | null>(null);
+  const frameRef = useRef<HTMLIFrameElement>(null);
 
   // Every live iframe keeps a whole site running in memory, so only the newest page may have one.
   // Sites that forbid framing are shown through our own /api/view proxy instead of falling to text.
   const canFrame = isLatest;
-  const directFrame = Boolean(webpage.frameable);
+  // The proxy is the only path that may reach a private destination.
+  const directFrame = Boolean(webpage.frameable && !isPrivateTargetUrl(webpage.url));
   const webSrc = directFrame ? webpage.url : `/api/view?url=${encodeURIComponent(webpage.url)}`;
   const hasStructured = Boolean(webpage.structuredHtml && webpage.structuredHtml.trim());
   const available: PageView[] = [...(canFrame ? (['web'] as PageView[]) : []), ...(hasStructured ? (['retro'] as PageView[]) : []), 'texto'];
@@ -100,9 +104,17 @@ export const TerminalWebpageView: React.FC<TerminalWebpageViewProps> = ({ theme,
     }
   };
 
-  // The proxied document is sandboxed, so its link clicks arrive here as messages
+  const expectedFrameOrigin = expectedFrameMessageOrigin(webpage.url, !directFrame);
+
+  // Link clicks arrive from the iframe as messages. Require both the exact
+  // contentWindow and the origin implied by the current view (opaque for the
+  // sandboxed proxy, the site origin for REAL).
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      // Navigation messages are emitted only by the proxy shim. A REAL frame
+      // navigates itself and must not be able to drive the terminal browser.
+      if (expectedFrameOrigin !== 'null') return;
+      if (!isTrustedFrameMessage(event, frameRef.current, expectedFrameOrigin)) return;
       const data = event.data;
       if (!data || data.source !== 'termbrowser-view' || typeof data.url !== 'string') return;
       if (!/^https?:\/\//i.test(data.url)) return;
@@ -110,13 +122,28 @@ export const TerminalWebpageView: React.FC<TerminalWebpageViewProps> = ({ theme,
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [onNavigate]);
+  }, [onNavigate, expectedFrameOrigin]);
 
   const crtLook: CrtLook = CRT_LOOKS[theme.id] || {
     tint: theme.accent,
     tintOpacity: 0.34,
     dim: 'rgba(0, 0, 0, 0.56)',
     vignette: 'rgba(0, 0, 0, 0.6)',
+  };
+
+  const applyProxiedCosmetics = async () => {
+    if (directFrame) return;
+    const frame = frameRef.current;
+    const api = window.terminusDesktop;
+    if (!frame?.contentWindow || !api?.getAdblockCosmetics) return;
+    try {
+      const css = await api.getAdblockCosmetics(webpage.url);
+      if (css.trim()) {
+        frame.contentWindow.postMessage({ source: 'termbrowser-cosmetics', css }, '*');
+      }
+    } catch {
+      // The blocker is optional; the page still renders without cosmetics.
+    }
   };
 
   const proxiedImage = (src: string) =>
@@ -273,7 +300,9 @@ export const TerminalWebpageView: React.FC<TerminalWebpageViewProps> = ({ theme,
           }
         >
           <iframe
+            ref={frameRef}
             src={webSrc}
+            onLoad={applyProxiedCosmetics}
             title={`Página original: ${webpage.title || webpage.url}`}
             className="tb-web-frame"
             referrerPolicy="no-referrer"

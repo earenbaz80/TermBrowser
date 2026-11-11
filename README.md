@@ -52,32 +52,45 @@ npm run lint                  # tsc --noEmit
 npm test                      # Vitest
 npm run build                 # cliente Vite con code-splitting
 npm run build:server
+npm run test:e2e:adblock     # Electron empaquetado: red, popups y cosméticos
 npm run test:e2e:installed    # Windows: Ctrl+F y búsqueda OSCURO/TEXTO
 npm run test:e2e:python-sandbox # Chromium real; requiere npx playwright install chromium
 ```
 
 Estado esperado: typecheck limpio, pruebas de unidad en verde y ambos builds correctos.
 
-`test:e2e:installed` requiere Windows, una sesión de escritorio interactiva y la app instalada a partir del build actual. Arranca una copia aislada con perfil temporal, sirve un fixture local cross-origin, envía `Ctrl+F` con `SendKeys` y comprueba una búsqueda real en las vistas OSCURO y TEXTO. Si el ejecutable está en otra ruta, define `TERMINUS_INSTALLED_EXE`.
+`test:e2e:adblock` arranca `release/win-unpacked/Terminus.exe` con Playwright, sirve un fixture local de anuncios y comprueba el bloqueo de red y de popups. Después navega a `https://example.com/` para verificar que los cosméticos de EasyList se aplican al iframe proxificado; el fixture local no sirve para cosméticos porque `127.0.0.1` no tiene eTLD. Requiere haber ejecutado `npm run desktop:dir` antes.
+
+`test:e2e:installed` requiere Windows, una sesión de escritorio interactiva y la app instalada a partir del build actual. Arranca una copia aislada con perfil temporal, usa `https://example.com/` para el iframe REAL cross-origin y un fixture local para las vistas proxificadas, envía `Ctrl+F` con `SendKeys` y comprueba una búsqueda real en OSCURO y TEXTO. Si el ejecutable está en otra ruta, define `TERMINUS_INSTALLED_EXE`.
 
 Para preparar un runner de GitHub Actions con escritorio interactivo, configurar las etiquetas y lanzar el E2E manualmente, consulta [docs/e2e-installed-windows.md](docs/e2e-installed-windows.md).
 
 ## Seguridad
 
+- Este es un proyecto personal y no ha sido auditado por terceros. La revisión incluida en `docs/security-review-proxy-iframes.md` es interna y de alcance limitado. Úsalo bajo tu propio criterio y no lo presentes como un navegador auditado.
+- Para reportar una vulnerabilidad, usa el canal privado descrito en [SECURITY.md](SECURITY.md); no abras un issue público.
 - El servidor escucha en `127.0.0.1` por defecto.
 - Las APIs `/api/*` requieren una cookie de sesión `HttpOnly`, `SameSite=Strict` y comprobación de `Origin`/`Sec-Fetch-Site`.
 - Los endpoints de sistema de archivos y bóveda requieren además el token de la sesión local (`X-Terminus-Token`), obtenido de `/api/session`.
 - Las rutas de workspace se validan con `path.relative` para impedir path traversal.
 - Los proxies tienen timeout, límite de tamaño (4 MB de texto, 50 MB de descarga) y bloqueo de endpoints de metadata cloud.
-- Con `TERMINUS_BLOCK_PRIVATE=1` (o `TERMINUS_NETWORK_POLICY=public`) los proxies solo aceptan destinos públicos y validan cada redirección.
-- Las páginas servidas por `/api/view` pierden scripts, handlers inline, iframes, `base` y refresh; se sirven con CSP de nonce y `frame-ancestors 'self'`.
+- Por defecto, los proxies y el endpoint DNS rechazan destinos privados (loopback, RFC1918, link-local y CGNAT) y validan cada redirección. Cada hostname se resuelve una vez y la conexión real queda fijada a la IP validada, sin una segunda resolución DNS. Las direcciones IPv4-mapped IPv6 se canonicalizan antes de clasificarlas, incluidas las formas hexadecimales como `::ffff:7f00:1`. La vista REAL tampoco se usa para URLs privadas evidentes: esas pasan por el proxy. Para una intranet o un servidor local, habilita explícitamente `TERMINUS_ALLOW_PRIVATE=1` (o `TERMINUS_BLOCK_PRIVATE=0` / `TERMINUS_NETWORK_POLICY=local`) solo en redes de confianza.
+- Las páginas servidas por `/api/view` pasan por un sanitizador basado en parser (`sanitize-html`) con allowlist de etiquetas y atributos: elimina scripts, iframes, object/embed/portal, SVG/MathML, `srcdoc`, `xlink:href`, `formaction`, handlers inline y esquemas peligrosos. Se sirven con CSP de nonce, `frame-ancestors 'self'` y un `<base>` limitado por CSP al origen final validado. La CSP no permite CSS, fuentes, imágenes ni media remotos: las imágenes se reescriben a `${origen-local}/api/image`, que aplica la misma política de red y el pinning del proxy; el resto de recursos remotos queda bloqueado. Las imágenes inyectadas dinámicamente tampoco pueden saltarse la CSP.
+- En Electron, la vista REAL directa pasa por un forward proxy HTTP/HTTPS en loopback: Chromium solo conecta al proxy, que resuelve una vez, valida todas las direcciones y fija la IP elegida. HTTP se reenvía y HTTPS usa un túnel `CONNECT`, conservando SNI y la validación de certificados. La app en loopback queda fuera del proxy; una IP privada remota también se enruta al proxy y se rechaza. Además, un guard de `webRequest` combina EasyList con el bloqueo de destinos privados, subframes privados o no web y popups privados.
+- Los mensajes de navegación, atajo y resultado de búsqueda de los iframes exigen `event.source === iframe.contentWindow` y el origen esperado. Solo el iframe proxificado con origen opaco (`"null"`) puede controlar el chrome; un iframe REAL que envíe esos mensajes se ignora.
+- Los permisos de Electron se deniegan por defecto. Solo el frame principal del origen local puede solicitar micrófono, notificaciones, portapapeles y acceso a carpetas elegidas por el usuario; los iframes remotos no pueden hacerlo.
+- Electron usa `@ghostery/adblocker-electron` con EasyList/EasyPrivacy y filtros cosméticos, cachea el motor en `userData` y deja una lista local como fallback. En el modo proxy, el proceso principal calcula los cosméticos con la URL remota y los inyecta en el iframe mediante un mensaje de solo CSS. También cancela ventanas emergentes de fondo o `new-window`. Para desactivarlo: `TERMINUS_DISABLE_ADBLOCK=1`; para permitir todas las ventanas: `TERMINUS_ALLOW_POPUPS=1`.
+- En producción, la CSP de la app no permite scripts inline (`script-src 'self'` y `script-src-attr 'none'`). Los estilos inline siguen permitidos porque los temas los usan.
 - La aplicación usa una CSP global y `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`.
+- Hallazgos y recomendaciones del proxy e iframes: [docs/security-review-proxy-iframes.md](docs/security-review-proxy-iframes.md).
 
 ### Limitaciones de seguridad conocidas
 
 - No hay autenticación multiusuario: el modelo de confianza es una sola persona en su equipo.
-- El proxy sigue permitiendo rangos privados por defecto para no romper intranets y `localhost`; usa la política pública cuando no los necesites.
+- El terminal nativo y los comandos que ejecutes en él conservan el acceso a red del usuario; la política de red privada aplica al proxy y a las APIs del navegador.
+- La CSP mantiene `style-src 'unsafe-inline'` por los estilos de los temas; los scripts inline quedan bloqueados en producción.
 - La sanitización HTML es deliberadamente conservadora, pero no sustituye un navegador aislado para contenido hostil.
+- EasyList no genera cosméticos genéricos para `localhost` ni direcciones IP porque no tienen eTLD; en esos casos se aplica el bloqueo de red, pero no el ocultado cosmético. Los dominios públicos sí reciben ambos.
 - Las métricas de red del monitor son parcialmente estimadas; no deben usarse como telemetría de producción.
 
 ## Pruebas manuales recomendadas
@@ -89,7 +102,7 @@ Para preparar un runner de GitHub Actions con escritorio interactivo, configurar
 5. Abrir Terminal y verificar que un comando interno, el historial y el cambio de shell siguen funcionando.
 6. En Electron, abrir CMD/PowerShell/Bash, ejecutar un comando y cerrar/abrir la pestaña para comprobar el ciclo de vida del PTY.
 7. Comprobar que `/api/local-fs/list` responde 403 sin token y 200 con el token de sesión.
-8. Configurar `TERMINUS_BLOCK_PRIVATE=1` y verificar que un destino `127.0.0.1` es rechazado por el proxy.
+8. Sin variables de red, verificar que un destino `127.0.0.1` es rechazado por el proxy y por `/api/dns`; con `TERMINUS_ALLOW_PRIVATE=1`, verificar que se permite de forma explícita.
 
 ### Verificación del atajo en Electron
 
@@ -110,8 +123,9 @@ La prueba automatizada equivalente es `npm run test:e2e:installed`, que además 
 - `server.ts`: Express, proxy, CSP, APIs locales y servidor Vite en desarrollo.
 - `src/utils/serverSecurity.ts`: validación de red, cookies, sanitización y nombres de descarga.
 - `electron/main.cjs`: ventana Electron, PTY, shells nativos y archivos.
+- `electron/forwardProxy.cjs`: forward proxy de REAL con resolución DNS única, pinning de IP y túnel CONNECT.
 - `electron/preload.cjs`: puente IPC con contexto aislado.
 
 ## Licencia
 
-Apache-2.0. Consulta el encabezado de los archivos fuente.
+Apache-2.0. Consulta [LICENSE](LICENSE).

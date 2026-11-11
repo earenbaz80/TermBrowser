@@ -3,6 +3,7 @@ import { Bookmark, BrowserTab, PageMode, ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
 import { BOOT_ASCII, BOOT_ASCII_COMPACT } from '../utils/bootBanner';
 import { getLatencyGlow } from '../utils/latencyGlow';
+import { expectedFrameMessageOrigin, isTrustedFrameMessage } from '../utils/frameMessageSecurity';
 import { RetroAssistantEyes } from './RetroAssistantEyes';
 import {
   HISTORY_STORAGE_KEY,
@@ -31,6 +32,7 @@ import {
 } from 'lucide-react';
 import { TerminusSearchPage } from './TerminusSearchPage';
 import { getTerminusSearchQuery, isTerminusSearchUrl } from '../utils/terminusSearch';
+import { isPrivateTargetUrl } from '../utils/networkPolicy';
 import { ContextMenu, ContextMenuItem } from './ContextMenu';
 
 /** App forwards the standard Ctrl/Cmd+L browser shortcut through this event. */
@@ -445,9 +447,24 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
     setSavedModes({});
   };
 
-  // Proxied pages report link clicks and browser shortcuts through a sandboxed shim
+  const directFrameForMessages = Boolean(
+    mode === 'real' &&
+      tab?.url &&
+      tab.url !== 'about:blank' &&
+      tab.frameable &&
+      !isPrivateTargetUrl(tab.url)
+  );
+  const expectedFrameOrigin = expectedFrameMessageOrigin(tab?.url, !directFrameForMessages);
+
+  // Proxied pages report link clicks and browser shortcuts through a sandboxed shim.
+  // Only the exact iframe window, posting from the expected origin, may navigate.
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      // Only the proxied document has a navigation shim. A direct REAL frame
+      // must navigate itself; accepting its messages would let the remote page
+      // drive the chrome even when source and origin are correct.
+      if (expectedFrameOrigin !== 'null') return;
+      if (!isTrustedFrameMessage(event, iframeRef.current, expectedFrameOrigin)) return;
       const data = event.data;
       if (!data) return;
       if (data.source === 'termbrowser-shortcut') {
@@ -460,7 +477,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [onCommand]);
+  }, [onCommand, expectedFrameOrigin]);
 
   const selectSuggestion = (suggestion: AddressSuggestion) => {
     soundEffects.playKeyClick();
@@ -600,14 +617,16 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
   const currentUrl = hasPage && tab ? tab.url : '';
   const savedBookmark = bookmarks.find((bm) => sameUrl(bm.url, currentUrl));
   const proxied = (view: PageMode) => `/api/view?url=${encodeURIComponent(tab?.url ?? '')}&mode=${view}`;
+  // Never let a stale frameable flag or a persisted tab bypass the network policy.
+  const directFrame = Boolean(hasExternalPage && tab?.frameable && !isPrivateTargetUrl(currentTabUrl));
   const src = !tab
     ? 'about:blank'
     : mode === 'real'
-    ? tab.frameable
+    ? directFrame
       ? tab.url
       : proxied('real')
     : proxied(mode);
-  const usesProxy = Boolean(hasExternalPage && (mode !== 'real' || !tab?.frameable));
+  const usesProxy = Boolean(hasExternalPage && (mode !== 'real' || !directFrame));
   const connection = getConnectionState(address.trim() || currentUrl);
 
   const applyZoom = useCallback((next: number) => {
@@ -630,6 +649,21 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
       '*'
     );
   }, [findQuery, usesProxy]);
+
+  const applyProxiedCosmetics = useCallback(async () => {
+    if (!usesProxy || !tab?.url) return;
+    const frame = iframeRef.current;
+    const api = window.terminusDesktop;
+    if (!frame?.contentWindow || !api?.getAdblockCosmetics) return;
+    try {
+      const css = await api.getAdblockCosmetics(tab.url);
+      if (css.trim()) {
+        frame.contentWindow.postMessage({ source: 'termbrowser-cosmetics', css }, '*');
+      }
+    } catch {
+      // The blocker is optional in a regular browser tab; never break the page for it.
+    }
+  }, [tab?.url, usesProxy]);
 
   // Ctrl/Cmd+F, Ctrl/Cmd+ +/-/0 work in the web surface without opening the terminal menu.
   useEffect(() => {
@@ -681,13 +715,15 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
   // The proxied iframe reports whether window.find() located a match.
   useEffect(() => {
     const handleFindResult = (event: MessageEvent) => {
+      if (expectedFrameOrigin !== 'null') return;
+      if (!isTrustedFrameMessage(event, iframeRef.current, expectedFrameOrigin)) return;
       const data = event.data;
       if (!data || data.source !== 'termbrowser-find-result' || !findOpen) return;
       setFindStatus(data.found ? 'Coincidencia encontrada' : 'Sin coincidencias');
     };
     window.addEventListener('message', handleFindResult);
     return () => window.removeEventListener('message', handleFindResult);
-  }, [findOpen]);
+  }, [findOpen, expectedFrameOrigin]);
 
   useEffect(() => {
     const closeFindWithEscape = (event: KeyboardEvent) => {
@@ -893,17 +929,18 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
             ref={iframeRef}
             key={`${tab.id}-${tab.url}-${mode}`}
             src={src}
+            onLoad={applyProxiedCosmetics}
             title={tab.title || tab.url}
             className="h-full w-full border-0"
             style={
               {
-                backgroundColor: mode === 'real' && tab.frameable ? '#ffffff' : '#080b0a',
+                backgroundColor: mode === 'real' && directFrame ? '#ffffff' : '#080b0a',
                 zoom,
               } as React.CSSProperties
             }
             referrerPolicy="no-referrer"
             sandbox={
-              mode === 'real' && tab.frameable
+              mode === 'real' && directFrame
                 ? 'allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads'
                 : 'allow-scripts'
             }

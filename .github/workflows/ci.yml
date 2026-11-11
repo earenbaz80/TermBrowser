@@ -27,7 +27,9 @@ jobs:
     # El E2E usa SendKeys y necesita una sesión de escritorio interactiva. En
     # windows-latest no hay escritorio, así que solo se ejecuta con una etiqueta
     # self-hosted configurada en TERMINUS_CI_RUNNER o al lanzarlo manualmente.
-    runs-on: ${{ vars.TERMINUS_CI_RUNNER || 'windows-latest' }}
+    # Un PR desde un fork nunca usa un runner autoalojado: podría ejecutar
+    # código no confiable en una máquina con acceso a la red local.
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'windows-latest' || vars.TERMINUS_CI_RUNNER || 'windows-latest' }}
     timeout-minutes: 40
 
     env:
@@ -81,7 +83,7 @@ jobs:
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Preflight de sesión interactiva del E2E
-        if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.run_installed_e2e == 'true') || vars.TERMINUS_RUN_INSTALLED_E2E == 'true' }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.run_installed_e2e == 'true') || (vars.TERMINUS_RUN_INSTALLED_E2E == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) }}
         timeout-minutes: 1
         shell: pwsh
         run: |
@@ -194,7 +196,7 @@ jobs:
           if-no-files-found: error
 
       - name: Instalar el build actual
-        if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.run_installed_e2e == 'true') || vars.TERMINUS_RUN_INSTALLED_E2E == 'true' }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.run_installed_e2e == 'true') || (vars.TERMINUS_RUN_INSTALLED_E2E == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) }}
         shell: pwsh
         run: |
           $installer = Get-ChildItem -LiteralPath release -Filter 'Terminus Setup *.exe' |
@@ -224,7 +226,7 @@ jobs:
 
       - name: E2E en la app instalada
         id: e2e
-        if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.run_installed_e2e == 'true') || vars.TERMINUS_RUN_INSTALLED_E2E == 'true' }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.run_installed_e2e == 'true') || (vars.TERMINUS_RUN_INSTALLED_E2E == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) }}
         timeout-minutes: 10
         shell: pwsh
         run: |

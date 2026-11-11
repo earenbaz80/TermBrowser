@@ -29,6 +29,7 @@ import path from 'node:path';
 const LOG = '[e2e-installed-ctrl-f]';
 const FIND_SHORTCUT_MARKER = 'terminus:find:shortcut';
 const ADDRESS_SELECTOR = 'input[aria-label="Barra de direcciones y búsqueda"]';
+const EXTERNAL_URL = 'https://example.com/';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const installedExe = process.env.TERMINUS_INSTALLED_EXE
@@ -303,6 +304,49 @@ async function selectViewMode(client, mode) {
   return state;
 }
 
+async function navigateToPage(client, url, expectedFramePart) {
+  const address = JSON.stringify(ADDRESS_SELECTOR);
+  await client.evaluate(`(() => {
+    const input = document.querySelector(${address});
+    if (!input) return false;
+    input.focus();
+    input.select();
+    return true;
+  })()`);
+  await client.send('Input.insertText', { text: url });
+  await waitForExpression(
+    client,
+    `document.querySelector(${address})?.value`,
+    (value) => value === url,
+    `la URL ${url} en la barra de direcciones`,
+    5000,
+  );
+  await sleep(200);
+  await client.send('Input.dispatchKeyEvent', {
+    type: 'keyDown',
+    key: 'Enter',
+    code: 'Enter',
+    text: '\r',
+    unmodifiedText: '\r',
+    windowsVirtualKeyCode: 13,
+    nativeVirtualKeyCode: 13,
+  });
+  await client.send('Input.dispatchKeyEvent', {
+    type: 'keyUp',
+    key: 'Enter',
+    code: 'Enter',
+    windowsVirtualKeyCode: 13,
+    nativeVirtualKeyCode: 13,
+  });
+  await waitForExpression(
+    client,
+    `document.querySelector('iframe')?.src ?? null`,
+    (src) => Boolean(src && src.includes(expectedFramePart)),
+    `el iframe ${expectedFramePart}`,
+    20000,
+  );
+}
+
 async function closeFindBar(client) {
   const closed = await client.evaluate(`(() => {
     const button = document.querySelector('button[aria-label="Cerrar búsqueda en la página"]');
@@ -545,12 +589,12 @@ async function main() {
     buttons: 0,
   });
   await cdp.evaluate(`document.querySelector(${address}).select()`);
-  await cdp.send('Input.insertText', { text: fixture.url });
+  await cdp.send('Input.insertText', { text: EXTERNAL_URL });
   await waitForExpression(
     cdp,
     `document.querySelector(${address})?.value`,
-    (value) => value === fixture.url,
-    'la URL del fixture en la barra de direcciones',
+    (value) => value === EXTERNAL_URL,
+    'la URL pública en la barra de direcciones',
     5000,
   );
   // Deja que React aplique el valor antes de enviar Enter; el DOM puede actualizarse antes.
@@ -605,7 +649,7 @@ async function main() {
         rect: rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null,
       };
     })()`,
-    (state) => state.iframe === fixture.url && state.realPressed === 'true' && Boolean(state.rect),
+    (state) => state.iframe === EXTERNAL_URL && state.realPressed === 'true' && Boolean(state.rect),
     'el iframe REAL directo',
     15000,
   );
@@ -686,11 +730,16 @@ async function main() {
   assert.equal(findState.input, true, 'No apareció el campo de búsqueda.');
   assert.equal(findState.focused, true, 'El campo de búsqueda no recibió el foco.');
   assert.equal(findState.expanded, 'true', 'El botón de búsqueda no quedó expandido.');
-  assert.equal(findState.iframe, fixture.url, 'El iframe cambió después de abrir el buscador.');
+  assert.equal(findState.iframe, EXTERNAL_URL, 'El iframe cambió después de abrir el buscador.');
 
   console.log(`${LOG} PASS: Ctrl+F abrió «Buscar en la página» en la app instalada.`);
   console.log(`${LOG} Foco: ${findState.activeElement}`);
   console.log(`${LOG} iframe: ${findState.iframe}`);
+
+  // The local fixture is intentionally private: REAL must keep it on /api/view.
+  // Navigate back to the fixture for the deterministic proxied find tests.
+  await closeFindBar(cdp);
+  await navigateToPage(cdp, fixture.url, '/api/view');
 
   const dark = await searchInView(cdp, 'dark', 'Fixture');
   console.log(`${LOG} PASS: búsqueda en OSCURO (${dark.status}).`);

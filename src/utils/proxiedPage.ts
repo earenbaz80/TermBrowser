@@ -62,12 +62,95 @@ const navigationShim = (nonce: string): string => `<script nonce="${nonce}">
         })();
       </script>`;
 
+/** Applies the cosmetic CSS computed by Electron's EasyList engine to this proxied frame. */
+const cosmeticsShim = (nonce: string): string => `<script nonce="${nonce}">
+  (function(){
+    window.addEventListener('message',function(event){
+      var data=event.data;
+      if(!data||data.source!=='termbrowser-cosmetics'||typeof data.css!=='string')return;
+      var style=document.getElementById('termbrowser-adblock-cosmetics');
+      if(!style){style=document.createElement('style');style.id='termbrowser-adblock-cosmetics';document.head.appendChild(style);}
+      style.textContent=data.css;
+    });
+  })();
+</script>`;
+
+function proxiedImageUrl(rawUrl: string, baseUrl: string, appOrigin?: string): string | null {
+  const value = rawUrl.trim();
+  if (!value || /^(?:data|blob|javascript|vbscript):/i.test(value)) return null;
+
+  let absolute: URL;
+  try {
+    absolute = new URL(value, baseUrl);
+  } catch {
+    return null;
+  }
+  if (!['http:', 'https:'].includes(absolute.protocol)) return null;
+
+  // The proxied document has a remote <base>. A relative /api/image would
+  // therefore resolve against the remote site, not against Terminus. Use the
+  // explicit app origin so the request stays on the local guarded endpoint.
+  const endpoint = appOrigin ? `${appOrigin.replace(/\/$/, '')}/api/image` : '/api/image';
+  return `${endpoint}?url=${encodeURIComponent(absolute.href)}&ref=${encodeURIComponent(baseUrl)}`;
+}
+
+function rewriteSrcset(value: string, baseUrl: string, appOrigin?: string): string | null {
+  // A data: srcset can contain commas that are not candidate separators.
+  if (/^\s*data:/i.test(value)) return null;
+
+  let changed = false;
+  const rewritten = value.split(',').map((part) => {
+    const candidate = part.trim();
+    if (!candidate) return part;
+    const match = candidate.match(/^(\S+)([\s\S]*)$/);
+    if (!match) return part;
+    const proxied = proxiedImageUrl(match[1], baseUrl, appOrigin);
+    if (!proxied) return part;
+    changed = true;
+    return `${proxied}${match[2]}`;
+  });
+
+  return changed ? rewritten.join(', ') : null;
+}
+
+/**
+ * Route images through the same guarded /api/image path as the retro view.
+ * The proxied page CSP is same-origin only, so leaving a remote <img> would
+ * silently drop the image while also leaving the private-network probe path
+ * dependent on the browser's URL parsing. Rewriting keeps public images
+ * working and makes every image request pass through fetchRemote().
+ */
+export function rewriteProxiedImageSources(html: string, baseUrl: string, appOrigin?: string): string {
+  return html.replace(/<img\b[^>]*>/gi, (tag) =>
+    tag
+      .replace(
+        /(\s+src\s*=\s*)(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i,
+        (match, prefix, doubleQuoted, singleQuoted, unquoted) => {
+          const value = doubleQuoted ?? singleQuoted ?? unquoted ?? '';
+          const quote = doubleQuoted !== undefined ? '"' : singleQuoted !== undefined ? "'" : '';
+          const proxied = proxiedImageUrl(value, baseUrl, appOrigin);
+          return proxied ? `${prefix}${quote}${escapeHtmlAttribute(proxied)}${quote}` : match;
+        }
+      )
+      .replace(
+        /(\s+srcset\s*=\s*)(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i,
+        (match, prefix, doubleQuoted, singleQuoted, unquoted) => {
+          const value = doubleQuoted ?? singleQuoted ?? unquoted ?? '';
+          const quote = doubleQuoted !== undefined ? '"' : singleQuoted !== undefined ? "'" : '';
+          const proxied = rewriteSrcset(value, baseUrl, appOrigin);
+          return proxied ? `${prefix}${quote}${escapeHtmlAttribute(proxied)}${quote}` : match;
+        }
+      )
+  );
+}
+
 /** Injects the proxy's base URL, palette and event shims into a sanitized site document. */
 export function proxiedPage(html: string, url: string, nonce: string, dark: boolean): string {
   const injected =
     `<base href="${escapeHtmlAttribute(url)}">` +
     (dark ? DARK_RETRO_HEAD : '') +
     navigationShim(nonce) +
+    cosmeticsShim(nonce) +
     findMessageShim(nonce) +
     findShortcutShim(nonce);
 
