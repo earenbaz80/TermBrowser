@@ -30,6 +30,10 @@ jobs:
     runs-on: ${{ vars.TERMINUS_CI_RUNNER || 'windows-latest' }}
     timeout-minutes: 40
 
+    env:
+      # La firma es opcional: sin el secreto, electron-builder genera un instalador sin firmar.
+      SIGNING_ENABLED: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 != '' }}
+
     steps:
       - name: Registrar inicio del job
         id: job_start
@@ -115,8 +119,71 @@ jobs:
       - name: Prueba Chromium del sandbox Python
         run: npm run test:e2e:python-sandbox
 
+      - name: Preparar certificado de firma
+        if: env.SIGNING_ENABLED == 'true'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_BASE64)) {
+            throw 'WINDOWS_CERTIFICATE_BASE64 está vacío.'
+          }
+
+          try {
+            $bytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_BASE64)
+          } catch {
+            throw 'WINDOWS_CERTIFICATE_BASE64 no es un PFX codificado en base64 válido.'
+          }
+          if ($bytes.Length -eq 0) {
+            throw 'El certificado de firma está vacío.'
+          }
+
+          $certificatePath = Join-Path $env:RUNNER_TEMP 'terminus-signing.pfx'
+          [IO.File]::WriteAllBytes($certificatePath, $bytes)
+          "WIN_CSC_LINK=$certificatePath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host 'Certificado preparado para firmar el instalador.'
+
       - name: Compilar instalador NSIS
+        env:
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         run: npm run desktop:build
+
+      - name: Verificar firma del instalador
+        if: env.SIGNING_ENABLED == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = Get-ChildItem -LiteralPath release -Filter 'Terminus Setup *.exe' |
+            Where-Object { $_.Name -notlike '*.__uninstaller.exe' } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if (-not $installer) {
+            throw 'No se generó el instalador NSIS.'
+          }
+
+          $signature = Get-AuthenticodeSignature -LiteralPath $installer.FullName
+          Write-Host "Instalador: $($installer.FullName)"
+          Write-Host "Estado de firma: $($signature.Status)"
+          Write-Host "Firmante: $($signature.SignerCertificate.Subject)"
+          Write-Host "Sello de tiempo: $($signature.TimeStamperCertificate.Subject)"
+
+          if ($signature.Status -ne 'Valid') {
+            throw "La firma del instalador no es válida: $($signature.Status) - $($signature.StatusMessage)"
+          }
+          if (-not $signature.SignerCertificate) {
+            throw 'El instalador no tiene certificado de firma.'
+          }
+          if (-not $signature.TimeStamperCertificate) {
+            throw 'El instalador no tiene sello de tiempo; la firma caducará con el certificado.'
+          }
+
+      - name: Eliminar certificado temporal
+        if: always() && env.SIGNING_ENABLED == 'true'
+        shell: pwsh
+        run: |
+          $certificatePath = Join-Path $env:RUNNER_TEMP 'terminus-signing.pfx'
+          Remove-Item -LiteralPath $certificatePath -Force -ErrorAction SilentlyContinue
 
       - name: Publicar instalador
         id: upload-installer

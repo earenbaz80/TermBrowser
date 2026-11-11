@@ -43,6 +43,8 @@ npm run desktop:build    # instalador en release/
 
 El instalador de Windows se genera con electron-builder y el icono de `build/icon.ico`.
 
+La firma Authenticode es opcional. Consulta [docs/code-signing-windows.md](docs/code-signing-windows.md) para configurar el certificado y los secretos; sin ellos, el build sigue generando un instalador sin firmar.
+
 ## Scripts de verificación
 
 ```bash
