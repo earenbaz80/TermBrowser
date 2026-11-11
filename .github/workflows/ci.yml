@@ -112,7 +112,7 @@ jobs:
         run: npm run test:coverage
 
       - name: Publicar cobertura
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-lcov
           path: coverage/lcov.info
@@ -189,7 +189,7 @@ jobs:
 
       - name: Publicar instalador
         id: upload-installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: terminus-installer-${{ steps.version.outputs.version }}-run-${{ github.run_number }}-windows
           path: release/Terminus Setup *.exe
@@ -241,7 +241,7 @@ jobs:
       - name: Publicar logs del E2E
         id: upload-e2e-logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-installed-logs
           path: artifacts/e2e/e2e-installed.log

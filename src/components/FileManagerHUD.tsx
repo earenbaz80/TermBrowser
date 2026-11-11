@@ -265,9 +265,9 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
             <pre
               className="m-0 shrink-0 whitespace-pre font-mono text-[10px] leading-tight select-none"
               style={{ color: theme.accent }}
-              aria-label="Terminus File Commander v0.2.1"
+              aria-label="Terminus File Commander v0.2.2"
             >
-              {formatAsciiBox('TERMINUS FILE COMMANDER v0.2.1')}
+              {formatAsciiBox('TERMINUS FILE COMMANDER v0.2.2')}
             </pre>
             <span className="hidden lg:inline text-[11px] opacity-75">
               Navegación Táctil, Mouse & Atajos de Teclado (F3..F8)
