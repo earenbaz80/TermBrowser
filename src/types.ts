@@ -240,6 +240,8 @@ export interface TerminusDesktopApi {
   onFrameContextMenu(listener: (event: FrameContextMenuEvent) => void): () => void;
   /** Ctrl/Cmd+F captured by the desktop shell, including inside direct REAL iframes. */
   onFindShortcut(listener: () => void): () => void;
+  /** Cosmetic CSS computed from EasyList for a proxied page's original URL. */
+  getAdblockCosmetics?(url: string): Promise<string>;
 }
 
 export interface FrameContextMenuEvent {

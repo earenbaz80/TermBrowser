@@ -1,7 +1,13 @@
 'use strict';
 
-const { app, BrowserWindow, dialog, ipcMain, screen, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, screen, session, shell } = require('electron');
+const { ElectronBlocker } = require('@ghostery/adblocker-electron');
+const { parse: parseDomain } = require('tldts-experimental');
+const { isBlockedAdUrl } = require('./adblock.cjs');
+const { isPrivateAddress, isPrivateTargetUrl } = require('./networkPolicy.cjs');
+const { startForwardProxy } = require('./forwardProxy.cjs');
 const { execFileSync, spawn } = require('node:child_process');
+const dns = require('node:dns').promises;
 const fs = require('node:fs');
 const http = require('node:http');
 const net = require('node:net');
@@ -21,6 +27,21 @@ const MAX_SHELL_OUTPUT_BYTES = 1024 * 1024;
 const MAX_PTY_WRITE_LENGTH = 64 * 1024;
 const MAX_PTY_BUFFER_LENGTH = 512 * 1024;
 const SHELL_IDS = new Set(['auto', 'cmd', 'powershell', 'bash']);
+const ADBLOCK_CACHE_FILENAME = 'adblock-engine.bin';
+let adblockBlocker = null;
+let adblockInitialization = null;
+let networkGuardOrigin = null;
+const dnsVerdictCache = new Map();
+const DNS_VERDICT_TTL_MS = 60_000;
+// Only the trusted top-level app frame may use these. Everything else (including
+// remote iframes and proxied documents) is denied by default.
+const APP_PERMISSIONS = new Set([
+  'clipboard-read',
+  'clipboard-sanitized-write',
+  'fileSystem',
+  'media',
+  'notifications',
+]);
 const activeShellChildren = new Set();
 const ptySessions = new Map();
 let ptyModule = null;
@@ -37,6 +58,7 @@ let cachedWindowsDrives = null;
 
 let mainWindow = null;
 let serverProcess = null;
+let forwardProxy = null;
 let isQuitting = false;
 
 function getFreePort() {
@@ -1263,10 +1285,212 @@ function registerWindowIpc() {
     if (!win) return { ok: false, error: 'Origen no autorizado.' };
     return createArchiveRequest(win, request);
   });
+
+  ipcMain.handle('terminus:adblock:cosmetics', (event, rawUrl) => {
+    if (!windowForEvent(event)) return '';
+    return getAdblockCosmetics(rawUrl);
+  });
+}
+
+function isAppOriginUrl(value, appOrigin) {
+  try {
+    return new URL(value).origin === appOrigin;
+  } catch {
+    return false;
+  }
+}
+
+function getAdblockCosmetics(rawUrl) {
+  if (!adblockBlocker || typeof rawUrl !== 'string') return '';
+  let target;
+  try {
+    target = new URL(rawUrl);
+  } catch {
+    return '';
+  }
+  if (!['http:', 'https:'].includes(target.protocol)) return '';
+
+  const parsed = parseDomain(target.href);
+  const hostname = parsed.hostname || target.hostname;
+  const domain = parsed.domain || hostname;
+  try {
+    const { active, styles } = adblockBlocker.getCosmeticsFilters({
+      domain,
+      hostname,
+      url: target.href,
+      getBaseRules: true,
+      getInjectionRules: true,
+      getExtendedRules: false,
+      getRulesFromHostname: true,
+      getRulesFromDOM: false,
+    });
+    return active ? String(styles || '') : '';
+  } catch {
+    return '';
+  }
+}
+
+function configureSessionPermissions(appOrigin) {
+  const appSession = session.defaultSession;
+  const isTrustedPermission = (permission, requestingUrl, details) => {
+    if (!APP_PERMISSIONS.has(permission)) return false;
+    if (!isAppOriginUrl(requestingUrl, appOrigin)) return false;
+    // Chromium reports fileSystem checks with isMainFrame=false even for the
+    // top-level document, so validate those by origin only.
+    return permission === 'fileSystem' || details?.isMainFrame === true;
+  };
+
+  appSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    const requestingUrl = details?.requestingUrl || webContents?.getURL() || '';
+    callback(isTrustedPermission(permission, requestingUrl, details));
+  });
+
+  appSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
+    if (!webContents) return false;
+    const requestingUrl = details?.requestingUrl || webContents.getURL() || requestingOrigin;
+    return isTrustedPermission(permission, requestingUrl, details);
+  });
+}
+
+function isIpLiteralHostname(hostname) {
+  return net.isIP(hostname.replace(/^\[|\]$/g, '')) !== 0;
+}
+
+async function hostnameResolvesToPrivate(hostname) {
+  const key = hostname.toLowerCase().replace(/\.$/, '');
+  const now = Date.now();
+  const cached = dnsVerdictCache.get(key);
+  if (cached && cached.expiresAt > now) return cached.isPrivate;
+
+  let verdict = false;
+  try {
+    const addresses = await dns.lookup(key, { all: true, verbatim: true });
+    verdict = addresses.some((entry) => isPrivateAddress(entry.address));
+  } catch {
+    // Chromium will surface its own DNS failure; an unresolved hostname is not
+    // a private target until it resolves to one.
+  }
+
+  dnsVerdictCache.set(key, { isPrivate: verdict, expiresAt: now + DNS_VERDICT_TTL_MS });
+  return verdict;
+}
+
+async function isBlockedRemoteRequest(rawUrl) {
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) return false;
+  if (isPrivateTargetUrl(rawUrl)) return true;
+
+  const hostname = parsed.hostname.replace(/^\[|\]$/g, '');
+  if (isIpLiteralHostname(hostname)) return false;
+  return hostnameResolvesToPrivate(hostname);
+}
+
+function configureNetworkGuard(appOrigin) {
+  networkGuardOrigin = appOrigin;
+  session.defaultSession.webRequest.onBeforeRequest(
+    { urls: ['http://*/*', 'https://*/*'] },
+    (details, callback) => {
+      // The local SPA, its API and its proxied pages must always load.
+      if (isAppOriginUrl(details.url, appOrigin)) {
+        callback({});
+        return;
+      }
+
+      // Remote pages may not probe the host's private network, even in REAL
+      // mode where the server-side proxy policy is not in the request path.
+      void isBlockedRemoteRequest(details.url)
+        .then((blocked) => {
+          if (blocked) {
+            callback({ cancel: true });
+            return;
+          }
+          // Delegate to the easyList engine installed by Ghostery. This also
+          // preserves its startup fallback when the engine is still loading.
+          if (adblockBlocker) {
+            try {
+              adblockBlocker.onBeforeRequest(details, callback);
+            } catch {
+              callback({});
+            }
+            return;
+          }
+          callback(isBlockedAdUrl(details.url) ? { cancel: true } : {});
+        })
+        .catch(() => callback({}));
+    }
+  );
+}
+
+function isBlockedSubframeNavigation(rawUrl, appOrigin) {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.origin === appOrigin) return false;
+    if (parsed.protocol === 'about:') return rawUrl !== 'about:blank';
+    if (!['http:', 'https:'].includes(parsed.protocol)) return true;
+    return isPrivateTargetUrl(rawUrl);
+  } catch {
+    return true;
+  }
+}
+
+async function initializeAdblock() {
+  if (process.env.TERMINUS_DISABLE_ADBLOCK === '1') return null;
+  if (adblockBlocker) return adblockBlocker;
+  if (adblockInitialization) return adblockInitialization;
+
+  adblockInitialization = (async () => {
+    if (typeof fetch !== 'function') {
+      throw new Error('fetch no está disponible en el proceso principal.');
+    }
+
+    // The serialized engine makes subsequent launches offline-friendly. The
+    // package falls back to downloading EasyList/EasyPrivacy if the cache is
+    // missing, stale or corrupt.
+    const blocker = await ElectronBlocker.fromPrebuiltAdsAndTracking(fetch, {
+      path: path.join(app.getPath('userData'), ADBLOCK_CACHE_FILENAME),
+      read: (file) => fs.promises.readFile(file),
+      write: (file, buffer) => fs.promises.writeFile(file, buffer),
+    });
+    blocker.enableBlockingInSession(session.defaultSession);
+    adblockBlocker = blocker;
+    // Install the shared guard after Ghostery: Electron allows only one
+    // onBeforeRequest listener, and ours wraps the adblock callback.
+    if (networkGuardOrigin) configureNetworkGuard(networkGuardOrigin);
+    return blocker;
+  })().catch((error) => {
+    adblockInitialization = null;
+    console.warn(
+      '[Terminus] No se pudo cargar EasyList/EasyPrivacy; se usará la lista local.',
+      error
+    );
+    return null;
+  });
+
+  return adblockInitialization;
+}
+
+async function configureRealNetworkProxy(appUrl, proxyPort) {
+  const host = new URL(appUrl).hostname;
+  const bypassRules = ['127.0.0.1', 'localhost', '[::1]', host].filter(Boolean);
+  await session.defaultSession.setProxy({
+    mode: 'fixed_servers',
+    // Chromium only ever connects to this loopback proxy. The proxy resolves
+    // each remote hostname, validates every answer and connects to that exact
+    // IP; CONNECT keeps TLS/SNI and certificate validation in Chromium.
+    proxyRules: `http=127.0.0.1:${proxyPort};https=127.0.0.1:${proxyPort}`,
+    proxyBypassRules: [...new Set(bypassRules)].join(';'),
+  });
 }
 
 function createWindow(appUrl) {
   const appOrigin = new URL(appUrl).origin || APP_ORIGIN_FALLBACK;
+  configureSessionPermissions(appOrigin);
+  configureNetworkGuard(appOrigin);
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -1305,7 +1529,19 @@ function createWindow(appUrl) {
     mainWindow = null;
   });
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  mainWindow.webContents.setWindowOpenHandler(({ url, disposition }) => {
+    if (isPrivateTargetUrl(url)) {
+      return { action: 'deny' };
+    }
+    const adBlocked =
+      process.env.TERMINUS_DISABLE_ADBLOCK !== '1' && isBlockedAdUrl(url);
+    // Background tabs and explicit popup windows are usually ads or tracking
+    // flows. A normal foreground link may still open in the system browser.
+    const unnecessaryPopup =
+      process.env.TERMINUS_ALLOW_POPUPS !== '1' && disposition !== 'foreground-tab';
+    if (adBlocked || unnecessaryPopup) {
+      return { action: 'deny' };
+    }
     if (/^https?:\/\//i.test(url)) {
       void shell.openExternal(url);
     }
@@ -1350,6 +1586,16 @@ function createWindow(appUrl) {
     }
   });
 
+  // A public page in REAL mode may navigate its iframe to a private target even
+  // though the top-level document is confined to the app origin. Block private
+  // and non-web subframe navigations here; webRequest catches the network side.
+  mainWindow.webContents.on('will-frame-navigate', (event, url, isMainFrame) => {
+    if (isMainFrame) return;
+    if (!isBlockedSubframeNavigation(url, appOrigin)) return;
+    event.preventDefault();
+    console.warn(`[Terminus] Navegación de subframe bloqueada: ${url}`);
+  });
+
   mainWindow.webContents.on('will-attach-webview', (event) => {
     event.preventDefault();
   });
@@ -1380,6 +1626,14 @@ if (!hasSingleInstanceLock) {
 
     try {
       const appUrl = await resolveAppUrl();
+      forwardProxy = await startForwardProxy();
+      await configureRealNetworkProxy(appUrl, forwardProxy.port);
+      // Give the cached engine a short head start so cosmetic filters exist on
+      // the first paint. The download may continue in the background if slow.
+      await Promise.race([
+        initializeAdblock(),
+        new Promise((resolve) => setTimeout(resolve, 3000)),
+      ]);
       createWindow(appUrl);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -1401,6 +1655,10 @@ if (!hasSingleInstanceLock) {
 
   app.on('before-quit', () => {
     isQuitting = true;
+    if (forwardProxy) {
+      void forwardProxy.close();
+      forwardProxy = null;
+    }
     killAllPtySessions();
     for (const child of activeShellChildren) killShellProcess(child);
     activeShellChildren.clear();

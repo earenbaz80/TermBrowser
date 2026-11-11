@@ -55,6 +55,7 @@ contextBridge.exposeInMainWorld('terminusDesktop', {
       ipcRenderer.removeListener(FIND_SHORTCUT_CHANNEL, listener);
     };
   },
+  getAdblockCosmetics: (url) => ipcRenderer.invoke('terminus:adblock:cosmetics', url),
 });
 
 contextBridge.exposeInMainWorld('terminusShell', {

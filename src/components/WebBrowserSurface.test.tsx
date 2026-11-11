@@ -218,16 +218,96 @@ describe('WebBrowserSurface', () => {
 
   it('opens the in-page find bar when Ctrl+F is captured inside a proxied page', () => {
     renderSurface(pageTab);
+    const frame = document.querySelector('iframe');
+    if (!frame) throw new Error('No se encontró el iframe de la página.');
 
     fireEvent(
       window,
       new MessageEvent('message', {
         data: { source: 'termbrowser-shortcut', action: 'find' },
+        source: frame.contentWindow,
+        origin: 'null',
       })
     );
 
     expect(screen.getByRole('dialog', { name: 'Buscar en la página' })).toBeTruthy();
     expect(screen.getByRole('textbox', { name: 'Texto a buscar en la página' })).toBeTruthy();
+  });
+
+  it('rejects navigation messages from another window or origin', () => {
+    const { onCommand } = renderSurface(pageTab);
+    const frame = document.querySelector('iframe');
+    if (!frame) throw new Error('No se encontró el iframe de la página.');
+
+    const forged = (source: MessageEventSource | null, origin: string, url: string) =>
+      fireEvent(
+        window,
+        new MessageEvent('message', {
+          data: { source: 'termbrowser-view', url },
+          source,
+          origin,
+        })
+      );
+
+    forged(window, 'null', 'https://wrong-source.example/');
+    forged(frame.contentWindow, 'https://wrong-origin.example', 'https://wrong-origin.example/');
+    expect(onCommand).not.toHaveBeenCalled();
+
+    forged(frame.contentWindow, 'null', 'https://example.com/next');
+    expect(onCommand).toHaveBeenCalledWith('goto https://example.com/next');
+  });
+
+  it('keeps a frameable tab on the proxy origin while OSCURO is selected', () => {
+    const { onCommand } = renderSurface({ ...pageTab, frameable: true });
+    const frame = document.querySelector('iframe');
+    if (!frame) throw new Error('No se encontró el iframe de la página.');
+
+    fireEvent(
+      window,
+      new MessageEvent('message', {
+        data: { source: 'termbrowser-view', url: 'https://example.com/next' },
+        source: frame.contentWindow,
+        origin: 'https://example.com',
+      })
+    );
+    expect(onCommand).not.toHaveBeenCalled();
+
+    fireEvent(
+      window,
+      new MessageEvent('message', {
+        data: { source: 'termbrowser-view', url: 'https://example.com/next' },
+        source: frame.contentWindow,
+        origin: 'null',
+      })
+    );
+    expect(onCommand).toHaveBeenCalledWith('goto https://example.com/next');
+  });
+
+  it('ignores navigation and shortcut messages from a direct REAL frame', () => {
+    const { onCommand } = renderSurface({ ...pageTab, frameable: true });
+    fireEvent.click(screen.getByRole('button', { name: 'REAL' }));
+    const frame = document.querySelector('iframe');
+    if (!frame) throw new Error('No se encontró el iframe de la página.');
+
+    fireEvent(
+      window,
+      new MessageEvent('message', {
+        data: { source: 'termbrowser-view', url: 'https://example.com/next' },
+        source: frame.contentWindow,
+        origin: 'https://example.com',
+      })
+    );
+    fireEvent(
+      window,
+      new MessageEvent('message', {
+        data: { source: 'termbrowser-shortcut', action: 'find' },
+        source: frame.contentWindow,
+        origin: 'https://example.com',
+      })
+    );
+
+    expect(onCommand).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'Buscar en la página' })).toBeNull();
   });
 
   it('opens the in-page find bar when the desktop shell forwards Ctrl+F', async () => {

@@ -8,6 +8,7 @@ import path from 'path';
 import {
   API_SESSION_COOKIE,
   API_TOKEN_HEADER,
+  assertRemoteTarget,
   fetchRemote,
   hasApiSessionCookie,
   isMetadataHost,
@@ -16,7 +17,8 @@ import {
   safeDownloadFilename,
   sanitizeProxiedHtml,
 } from './src/utils/serverSecurity';
-import { proxiedPage, textOnlyPage } from './src/utils/proxiedPage';
+import { proxiedPage, rewriteProxiedImageSources, textOnlyPage } from './src/utils/proxiedPage';
+import { buildProxiedCsp } from './src/utils/proxiedCsp';
 import { decodeHtmlEntities } from './src/utils/htmlEntities';
 import { htmlToRetroMarkup } from './src/utils/retroHtml';
 import { pythonRunnerPage, PYTHON_RUNNER_CSP } from './src/utils/pythonRunnerPage';
@@ -153,28 +155,18 @@ const APP_CSP = [
   "base-uri 'self'",
   "object-src 'none'",
   "frame-ancestors 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  // Vite's React refresh preamble is inline in development. Production bundles use
+  // an external module script, so scripts are strict there.
+  ...(process.env.NODE_ENV === 'production'
+    ? ["script-src 'self'", "script-src-attr 'none'"]
+    : ["script-src 'self' 'unsafe-inline'"]),
+  // React themes use style attributes; keep styles inline but never allow inline scripts.
   "style-src 'self' 'unsafe-inline' https:",
   "img-src 'self' data: blob: https: http:",
   "font-src 'self' data: https:",
   "connect-src 'self' ws: wss:",
   "frame-src 'self' https: http:",
   "form-action 'self'",
-].join('; ');
-
-const PROXIED_CSP = (nonce: string) => [
-  "default-src 'none'",
-  "base-uri 'self'",
-  "object-src 'none'",
-  "frame-ancestors 'self'",
-  `script-src 'nonce-${nonce}'`,
-  "style-src 'self' 'unsafe-inline' https: http:",
-  "img-src 'self' data: blob: https: http:",
-  "font-src 'self' data: https: http:",
-  "media-src 'self' https: http:",
-  "connect-src 'none'",
-  "frame-src 'none'",
-  "form-action 'none'",
 ].join('; ');
 
 function isForbiddenMetadataHost(url: URL): boolean {
@@ -570,6 +562,13 @@ async function startServer() {
       }
 
       const mode = String(req.query.mode || 'real').toLowerCase();
+      const requestOrigin = (() => {
+        try {
+          return new URL(`${req.protocol}://${req.get('host')}`).origin;
+        } catch {
+          return undefined;
+        }
+      })();
       const { text: htmlSource, truncated } = await readTextWithLimit(response);
       let html = htmlSource;
       const nonce = crypto.randomBytes(16).toString('base64');
@@ -578,7 +577,7 @@ async function startServer() {
         const readable = htmlToReadableText(html, response.url);
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-        res.setHeader('Content-Security-Policy', PROXIED_CSP(nonce));
+        res.setHeader('Content-Security-Policy', buildProxiedCsp(nonce, undefined, requestOrigin));
         res.setHeader('Cache-Control', 'no-store');
         return res.send(textOnlyPage(response.url, readable.text, nonce));
       }
@@ -594,11 +593,15 @@ async function startServer() {
       html = html.replace(/\son[a-z]+\s*=\s*'[^']*'/gi, '');
       html = html.replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, '');
 
+      // The proxied CSP no longer allows arbitrary image origins. Public images
+      // still load through the guarded /api/image endpoint, whose fetchRemote()
+      // applies the same private-network policy and DNS pinning as the page.
+      html = rewriteProxiedImageSources(html, response.url, requestOrigin);
       html = proxiedPage(html, response.url, nonce, mode === 'dark');
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-      res.setHeader('Content-Security-Policy', PROXIED_CSP(nonce));
+      res.setHeader('Content-Security-Policy', buildProxiedCsp(nonce, response.url, requestOrigin));
       res.setHeader('Cache-Control', 'no-store');
       if (truncated) res.setHeader('X-Terminus-Truncated', '1');
       return res.send(html);
@@ -756,6 +759,14 @@ async function startServer() {
 
     try {
       const cleanHost = host.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
+      try {
+        await assertRemoteTarget(new URL(`http://${cleanHost}`));
+      } catch (error: any) {
+        return res.status(403).json({
+          error: 'DNS target blocked by network policy',
+          message: error.message,
+        });
+      }
       const startTime = Date.now();
       const lookupResult = await dns.lookup(cleanHost, { all: true });
       const latencyMs = Date.now() - startTime;

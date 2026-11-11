@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
-import { proxiedPage, textOnlyPage } from './proxiedPage';
+import { proxiedPage, rewriteProxiedImageSources, textOnlyPage } from './proxiedPage';
 
 type JsdomInstance = {
   window: Window & typeof globalThis;
@@ -113,6 +113,35 @@ describe('text-only proxy page', () => {
   });
 });
 
+describe('proxied image rewriting', () => {
+  it('routes relative, absolute and srcset images through /api/image', () => {
+    const html = [
+      '<img id="relative" src="/foto.jpg" alt="Foto">',
+      '<img id="absolute" src="https://cdn.example.com/foto.jpg">',
+      '<img id="srcset" srcset="/uno.jpg 1x, https://cdn.example.com/dos.jpg 2x">',
+      '<img id="inline" src="data:image/png;base64,AAAA">',
+    ].join('');
+
+    const result = rewriteProxiedImageSources(html, 'https://example.com/nota', 'http://127.0.0.1:3000');
+
+    expect(result).toContain('src="http://127.0.0.1:3000/api/image?url=https%3A%2F%2Fexample.com%2Ffoto.jpg&amp;ref=https%3A%2F%2Fexample.com%2Fnota"');
+    expect(result).toContain('src="http://127.0.0.1:3000/api/image?url=https%3A%2F%2Fcdn.example.com%2Ffoto.jpg&amp;ref=https%3A%2F%2Fexample.com%2Fnota"');
+    expect(result).toContain('srcset="http://127.0.0.1:3000/api/image?url=https%3A%2F%2Fexample.com%2Funo.jpg&amp;ref=https%3A%2F%2Fexample.com%2Fnota 1x, http://127.0.0.1:3000/api/image?url=https%3A%2F%2Fcdn.example.com%2Fdos.jpg&amp;ref=https%3A%2F%2Fexample.com%2Fnota 2x"');
+    expect(result).toContain('src="data:image/png;base64,AAAA"');
+  });
+
+  it('does not let a private image URL reach the browser directly', () => {
+    const result = rewriteProxiedImageSources(
+      '<img src="http://127.0.0.1:9000/private.png">',
+      'https://example.com/nota',
+      'http://127.0.0.1:3000'
+    );
+
+    expect(result).toContain('src="http://127.0.0.1:3000/api/image?url=http%3A%2F%2F127.0.0.1%3A9000%2Fprivate.png');
+    expect(result).not.toContain('src="http://127.0.0.1:9000');
+  });
+});
+
 describe('dark proxy page', () => {
   it.each([
     { name: 'Ctrl', init: { ctrlKey: true } },
@@ -148,6 +177,21 @@ describe('dark proxy page', () => {
       { source: 'termbrowser-view', url: 'https://example.com/destino' },
       '*'
     );
+    dom.window.close();
+  });
+
+  it('applies cosmetic CSS received from the browser chrome', () => {
+    const dom = loadDarkPage();
+    const { window } = dom;
+
+    window.dispatchEvent(
+      new window.MessageEvent('message', {
+        data: { source: 'termbrowser-cosmetics', css: '.adsbygoogle{display:none!important}' },
+      })
+    );
+
+    const style = window.document.getElementById('termbrowser-adblock-cosmetics');
+    expect(style?.textContent).toBe('.adsbygoogle{display:none!important}');
     dom.window.close();
   });
 

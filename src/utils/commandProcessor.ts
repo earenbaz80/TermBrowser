@@ -574,6 +574,7 @@ Comandos en español que puedes usar:
               url: targetUrl,
               displayUrl: targetUrl,
               isLoading: true,
+              frameable: false,
               historyIndex: historyOverride.historyIndex,
             };
           }
@@ -583,6 +584,7 @@ Comandos en español que puedes usar:
             url: targetUrl,
             displayUrl: targetUrl,
             isLoading: true,
+            frameable: false,
             history: newHist,
             historyIndex: newHist.length - 1,
           };
