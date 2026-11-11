@@ -17,20 +17,19 @@ const BOOT_INNER_WIDTH = Math.max(
   ...BOOT_ART.map((line) => line.length),
   BOOT_SUBTITLE.length,
   BOOT_FEATURES.length
-) + 2;
+);
 
 const centerInBanner = (text: string): string => {
   const padding = Math.max(0, BOOT_INNER_WIDTH - text.length);
   const left = Math.floor(padding / 2);
-  return `${' '.repeat(left)}${text}${' '.repeat(padding - left)}`;
+  return `${' '.repeat(left)}${text}`.trimEnd();
 };
 
+// No outer frame: the ANSI Shadow artwork is the sign itself.
 export const BOOT_ASCII = [
-  `╔${'═'.repeat(BOOT_INNER_WIDTH)}╗`,
-  ...BOOT_ART.map((line) => `║  ${line.padEnd(BOOT_INNER_WIDTH - 2)}║`),
-  `║${centerInBanner(BOOT_SUBTITLE)}║`,
-  `║${centerInBanner(BOOT_FEATURES)}║`,
-  `╚${'═'.repeat(BOOT_INNER_WIDTH)}╝`,
+  ...BOOT_ART,
+  centerInBanner(BOOT_SUBTITLE),
+  centerInBanner(BOOT_FEATURES),
 ].join('\n');
 
 const COMPACT_INNER_WIDTH = 34;
@@ -38,14 +37,12 @@ const COMPACT_INNER_WIDTH = 34;
 const centerInCompact = (text: string): string => {
   const padding = Math.max(0, COMPACT_INNER_WIDTH - text.length);
   const left = Math.floor(padding / 2);
-  return `${' '.repeat(left)}${text}${' '.repeat(padding - left)}`;
+  return `${' '.repeat(left)}${text}`.trimEnd();
 };
 
 /** Narrow-screen sign: retains the ASCII identity without shrinking to illegibility. */
 export const BOOT_ASCII_COMPACT = [
-  `╔${'═'.repeat(COMPACT_INNER_WIDTH)}╗`,
-  `║${centerInCompact('TERMINUS')}║`,
-  `║${centerInCompact('NAVEGADOR WEB DE COMANDOS')}║`,
-  `║${centerInCompact('[AES-256] · [MFA] · [CLI]')}║`,
-  `╚${'═'.repeat(COMPACT_INNER_WIDTH)}╝`,
+  centerInCompact('TERMINUS'),
+  centerInCompact('NAVEGADOR WEB DE COMANDOS'),
+  centerInCompact('[AES-256] · [MFA] · [CLI]'),
 ].join('\n');

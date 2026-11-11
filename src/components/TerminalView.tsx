@@ -1766,7 +1766,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
             const isBootSign = log.output.includes('NAVEGADOR WEB BASADO EN LÍNEA DE COMANDOS');
             if (isBootSign) {
               return (
-                <div key={log.id} className="ascii-boot ascii-glow opacity-90" style={glowStyle}>
+                <div key={log.id} className="ascii-boot opacity-90" style={glowStyle}>
                   <pre
                     className="ascii-sign ascii-sign-wide font-mono select-none"
                     aria-hidden="true"
@@ -1783,10 +1783,10 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                   </pre>
                   <div
                     className="ascii-latency"
-                    title={`Glow ${latencyGlow.label} · Latencia de red actual: ${latencyLabel}`}
+                    title={`Latencia de red actual: ${latencyLabel}`}
                   >
                     <span className="ascii-latency-dot" aria-hidden="true" />
-                    <span>[ GLOW ] · [ LATENCIA {latencyLabel} ]</span>
+                    <span>[ LATENCIA {latencyLabel} ]</span>
                   </div>
                 </div>
               );

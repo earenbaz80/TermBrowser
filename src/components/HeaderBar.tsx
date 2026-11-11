@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { BrowserTab, TabKind, ThemeConfig, ThemeId } from '../types';
-import { THEMES } from '../utils/themes';
-import { soundEffects, SoundTheme } from '../utils/soundEffects';
+import { SettingsMenu } from './SettingsMenu';
+import { soundEffects } from '../utils/soundEffects';
+import { WindowControls } from './WindowControls';
 import {
   Activity,
   Blocks,
@@ -15,8 +16,6 @@ import {
   Shield,
   Terminal,
   Trash2,
-  Volume2,
-  VolumeX,
   X,
   Zap,
 } from 'lucide-react';
@@ -70,13 +69,9 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   surface,
   onSelectSurface,
 }) => {
-  const [soundTheme, setSoundTheme] = useState<SoundTheme>(() => soundEffects.getSoundTheme());
   const [newTabMenuOpen, setNewTabMenuOpen] = useState(false);
   const [systemMenuOpen, setSystemMenuOpen] = useState(false);
-  const [audioOpen, setAudioOpen] = useState(false);
   const activeKind: TabKind = tabs.find((t) => t.id === activeTabId)?.kind === 'terminal' ? 'terminal' : 'web';
-  const [customWavName, setCustomWavName] = useState<string | null>(() => soundEffects.getCustomSoundName());
-  const wavInputRef = useRef<HTMLInputElement>(null);
   const quickActions = [
     { id: 'monitor', label: 'Monitor', icon: Activity, color: '#34d399', onSelect: onOpenMonitor },
     { id: 'scripts', label: 'Scripts', icon: Zap, color: '#fbbf24', onSelect: onOpenScripts },
@@ -99,7 +94,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
       }}
     >
       {/* Zone 1: Brand Wordmark (Single text element) */}
-      <div className="flex items-center gap-2 whitespace-nowrap shrink-0">
+      <div className="tb-window-drag flex items-center gap-2 whitespace-nowrap shrink-0">
         <span
           className="font-bold tracking-tight text-sm flex items-center gap-2"
           style={{ color: theme.accent }}
@@ -306,7 +301,6 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           onClick={() => {
             soundEffects.playKeyClick();
             setNewTabMenuOpen(false);
-            setAudioOpen(false);
             setSystemMenuOpen((open) => !open);
           }}
           className="flex cursor-pointer items-center gap-1 rounded-xs border px-2 py-1 text-[10px] font-bold hover:opacity-80"
@@ -390,189 +384,18 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           ))}
         </div>
 
-        {/* Theme Picker Dropdown */}
-        <select
-          value={currentThemeId}
-          onChange={(e) => {
-            soundEffects.playKeyClick();
-            onSelectTheme(e.target.value as ThemeId);
-          }}
-          className="px-2 py-1 text-[11px] font-bold border rounded-xs cursor-pointer focus:outline-hidden"
-          style={{
-            backgroundColor: theme.bg,
-            borderColor: theme.border,
-            color: theme.accent,
-          }}
-          title="Seleccionar tema estético de terminal"
-        >
-          {Object.values(THEMES).map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </select>
-
-        {/* Quick Pure Black & White Visual Mode Toggle */}
-        <button
-          onClick={() => {
-            soundEffects.playKeyClick();
-            onSelectTheme(currentThemeId === 'black-and-white' ? 'cyberpunk-obsidian' : 'black-and-white');
-          }}
-          className={`px-2 py-1 border text-[11px] font-bold rounded-xs cursor-pointer transition-colors ${
-            currentThemeId === 'black-and-white'
-              ? 'bg-white text-black border-white'
-              : 'opacity-75 hover:opacity-100'
-          }`}
-          style={{
-            borderColor: currentThemeId === 'black-and-white' ? '#ffffff' : theme.border,
-          }}
-          title="Activar/Desactivar modo visual 100% Blanco y Negro (Comando: bw o theme bw)"
-        >
-          B&amp;W
-        </button>
-
-        {/* CRT Scanline Toggle */}
-        <button
-          onClick={() => {
-            soundEffects.playKeyClick();
-            onToggleCrt();
-          }}
-          className={`px-2 py-1 border text-[11px] font-bold rounded-xs cursor-pointer transition-colors ${
-            crtEnabled ? 'bg-white/15' : 'opacity-60 hover:opacity-100'
-          }`}
-          style={{ borderColor: theme.border }}
-          title="Alternar filtro CRT de fósforo"
-        >
-          CRT
-        </button>
-
-        <input
-          ref={wavInputRef}
-          type="file"
-          accept=".wav,audio/*"
-          className="hidden"
-          onChange={async (e) => {
-            const file = e.target.files?.[0];
-            if (file) {
-              const res = await soundEffects.loadCustomWavFile(file);
-              if (res.success) {
-                setCustomWavName(file.name);
-              } else {
-                alert(res.message);
-              }
-            }
-          }}
+      </div>
+      <div className="ml-auto flex shrink-0 items-stretch -my-2 -mr-3">
+        <SettingsMenu
+          theme={theme}
+          currentThemeId={currentThemeId}
+          onSelectTheme={onSelectTheme}
+          isMuted={isMuted}
+          onToggleMute={onToggleMute}
+          crtEnabled={crtEnabled}
+          onToggleCrt={onToggleCrt}
         />
-
-        {/* Audio: synthesizer, notification WAV and mute in one compact panel */}
-        <div className="relative shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              soundEffects.playKeyClick();
-              setSystemMenuOpen(false);
-              setAudioOpen((open) => !open);
-            }}
-            className="relative flex cursor-pointer items-center gap-1 rounded-xs border px-2 py-1 text-[10px] font-bold hover:opacity-80"
-            style={{
-              borderColor: audioOpen ? theme.accent : theme.border,
-              backgroundColor: isMuted ? 'rgba(239, 68, 68, 0.15)' : theme.bg,
-              color: isMuted ? '#fca5a5' : theme.accent,
-            }}
-            title={isMuted ? 'Audio silenciado · abrir ajustes' : 'Ajustes de audio y notificaciones'}
-            aria-haspopup="dialog"
-            aria-expanded={audioOpen}
-          >
-            {isMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-            <span className="hidden sm:inline">AUDIO</span>
-            {customWavName && (
-              <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full" style={{ backgroundColor: theme.accent }} />
-            )}
-          </button>
-
-          {audioOpen && (
-            <>
-              <button
-                type="button"
-                aria-label="Cerrar ajustes de audio"
-                onClick={() => setAudioOpen(false)}
-                className="fixed inset-0 z-40 cursor-default"
-              />
-              <div
-                className="absolute bottom-full right-0 z-50 mb-1 w-64 rounded-xs border p-2 font-mono text-[10px] shadow-[0_12px_32px_rgba(0,0,0,0.5)]"
-                style={{ backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }}
-                role="dialog"
-                aria-label="Ajustes de audio"
-              >
-                <div className="mb-2 flex items-center justify-between border-b pb-1.5 text-[9px] uppercase tracking-[0.14em] opacity-60" style={{ borderColor: theme.border }}>
-                  <span>Audio / notificaciones</span>
-                  <span>{isMuted ? 'OFF' : 'ON'}</span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={onToggleMute}
-                  className="mb-2 flex w-full items-center justify-between border px-2 py-1.5 cursor-pointer hover:bg-white/5"
-                  style={{ borderColor: theme.border }}
-                >
-                  <span>{isMuted ? 'Activar sonido' : 'Silenciar sonido'}</span>
-                  {isMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-                </button>
-
-                <label className="mb-1 block text-[9px] uppercase tracking-wide opacity-50" htmlFor="terminus-sound-theme">
-                  Sintetizador
-                </label>
-                <select
-                  id="terminus-sound-theme"
-                  value={soundTheme}
-                  onChange={(e) => {
-                    const val = e.target.value as SoundTheme;
-                    soundEffects.setSoundTheme(val);
-                    setSoundTheme(val);
-                  }}
-                  className="mb-2 w-full border px-2 py-1 text-[11px] cursor-pointer focus:outline-hidden"
-                  style={{ backgroundColor: theme.bg, borderColor: theme.border, color: theme.accent }}
-                >
-                  <option value="ibm-pc">IBM PC Speaker</option>
-                  <option value="c64-synth">Commodore 64 Synth</option>
-                  <option value="modern-ui">Modern UI</option>
-                </select>
-
-                <div className="mb-1 text-[9px] uppercase tracking-wide opacity-50">Notificación WAV</div>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      soundEffects.playKeyClick();
-                      wavInputRef.current?.click();
-                    }}
-                    className="min-w-0 flex-1 cursor-pointer truncate border px-2 py-1 text-left hover:bg-white/5"
-                    style={{ borderColor: customWavName ? theme.accent : theme.border, color: theme.text }}
-                    title={customWavName ? `WAV activo: ${customWavName}` : 'Cargar un WAV corto'}
-                  >
-                    {customWavName ? `WAV: ${customWavName}` : 'Cargar WAV…'}
-                  </button>
-                  {customWavName && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        soundEffects.playKeyClick();
-                        soundEffects.clearCustomSound();
-                        setCustomWavName(null);
-                      }}
-                      className="shrink-0 cursor-pointer border px-1.5 py-1 text-red-400 hover:text-red-300"
-                      style={{ borderColor: theme.border }}
-                      title="Quitar WAV personalizado"
-                      aria-label="Quitar WAV personalizado"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+        <WindowControls theme={theme} />
       </div>
     </header>
   );

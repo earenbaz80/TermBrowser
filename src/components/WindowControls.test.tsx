@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { WindowTitleBar } from './WindowTitleBar';
+import { WindowControls } from './WindowControls';
 import { TerminusDesktopApi, ThemeConfig } from '../types';
 
 const theme: ThemeConfig = {
@@ -22,7 +22,7 @@ afterEach(() => {
   delete window.terminusDesktop;
 });
 
-describe('WindowTitleBar', () => {
+describe('WindowControls', () => {
   it('drives minimize, maximize and close through the desktop bridge', async () => {
     let maximized = false;
     const listeners = new Set<(value: boolean) => void>();
@@ -46,7 +46,7 @@ describe('WindowTitleBar', () => {
     };
 
     window.terminusDesktop = desktop;
-    render(<WindowTitleBar theme={theme} />);
+    render(<WindowControls theme={theme} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Minimizar ventana' }));
     expect(desktop.minimize).toHaveBeenCalledTimes(1);
@@ -60,7 +60,7 @@ describe('WindowTitleBar', () => {
   });
 
   it('shows inactive controls when the desktop bridge is not available', () => {
-    render(<WindowTitleBar theme={theme} />);
+    render(<WindowControls theme={theme} />);
 
     const minimize = screen.getByRole('button', { name: 'Minimizar ventana' });
     const maximize = screen.getByRole('button', { name: 'Maximizar ventana' });

@@ -50,15 +50,8 @@
   }
 }
 
-/* Custom frameless window chrome. The titlebar drags the native window;
-   the buttons are explicitly excluded from the draggable region. */
-.tb-window-bar {
-  -webkit-app-region: drag;
-  app-region: drag;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
+/* Custom frameless window chrome. The brand area of the header drags the native
+   window; the window buttons are explicitly excluded from the draggable region. */
 .tb-window-drag {
   -webkit-app-region: drag;
   app-region: drag;
@@ -107,7 +100,6 @@
 /* CRT glass over the whole app (toggleable) */
 .crt-effect {
   position: relative;
-  border-radius: 14px;
   overflow: hidden;
 }
 
@@ -140,22 +132,30 @@
   border-radius: inherit;
   pointer-events: none;
   background:
+    radial-gradient(ellipse 82% 40% at 50% -8%, rgba(232, 255, 246, 0.2), transparent 66%),
+    radial-gradient(ellipse 36% 22% at 18% 3%, rgba(205, 255, 238, 0.08), transparent 72%),
+    radial-gradient(ellipse 34% 20% at 78% 2%, rgba(255, 255, 255, 0.1), transparent 72%),
     linear-gradient(
       116deg,
-      rgba(225, 255, 242, 0.06) 0%,
-      rgba(225, 255, 242, 0.012) 16%,
-      transparent 34%,
-      transparent 78%,
-      rgba(0, 0, 0, 0.14) 100%
+      rgba(225, 255, 242, 0.2) 0%,
+      rgba(225, 255, 242, 0.04) 14%,
+      transparent 32%,
+      transparent 68%,
+      rgba(0, 0, 0, 0.36) 100%
     ),
-    radial-gradient(ellipse 90% 80% at 50% 46%, transparent 61%, rgba(0, 0, 0, 0.24) 100%),
-    radial-gradient(ellipse 52% 28% at 24% -8%, rgba(205, 255, 232, 0.1), transparent 66%);
+    radial-gradient(
+      ellipse 92% 84% at 50% 46%,
+      transparent 38%,
+      rgba(0, 0, 0, 0.2) 66%,
+      rgba(0, 0, 0, 0.64) 100%
+    ),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.5), transparent 8%, transparent 92%, rgba(0, 0, 0, 0.5)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 9%, transparent 83%, rgba(0, 0, 0, 0.4) 100%);
   box-shadow:
-    inset 0 1px 0 rgba(225, 255, 240, 0.1),
-    inset 0 0 0 1px rgba(190, 255, 220, 0.1),
-    inset 0 0 28px 8px rgba(0, 0, 0, 0.22),
-    inset 0 0 90px 28px rgba(0, 0, 0, 0.1),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+    inset 0 0 34px 12px rgba(0, 0, 0, 0.38),
+    inset 0 0 110px 38px rgba(0, 0, 0, 0.26),
+    inset 7px 8px 24px -16px rgba(225, 255, 242, 0.34),
+    inset -8px -10px 30px -18px rgba(0, 0, 0, 0.82);
   animation: crt-flicker 10s ease-in-out infinite;
 }
 
@@ -192,24 +192,22 @@
   margin: 0;
 }
 
-.ascii-glow {
-  text-shadow: 0 0 2px var(--ascii-glow-color, currentColor), 0 0 10px var(--ascii-glow-color, currentColor);
-  transition: text-shadow 350ms ease;
-}
-
 .ascii-sign {
   position: relative;
   font-size: min(10px, calc((100vw - 2rem) / 70));
   line-height: 1.05;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow: hidden;
   white-space: pre;
-  animation: ascii-corrupt-jitter 6s steps(1, end) infinite;
-  will-change: transform;
+  animation:
+    ascii-glitch-shift 4.2s steps(1, end) infinite,
+    ascii-glitch-flicker 4.2s steps(1, end) infinite,
+    ascii-glitch-chroma 4.2s steps(1, end) infinite;
+  will-change: transform, opacity;
 }
 
-/* Corrupted-terminal burst: the original sign stays readable while two clipped
-   colour ghosts briefly jump out of register. */
+/* Corruption burst: the readable sign stays in place while two ghost copies,
+   sliced into horizontal scan bands, tear out of register in colour. */
 .ascii-sign::before,
 .ascii-sign::after {
   content: attr(data-text);
@@ -221,58 +219,139 @@
   pointer-events: none;
   opacity: 0;
   text-shadow: none;
+  mix-blend-mode: screen;
+  background-repeat: no-repeat;
 }
 
 .ascii-sign::before {
   color: #ff4d6d;
-  animation: ascii-corrupt-slice-a 6s steps(1, end) infinite;
+  -webkit-mask-image: repeating-linear-gradient(180deg, #000 0 6px, transparent 6px 14px);
+  mask-image: repeating-linear-gradient(180deg, #000 0 6px, transparent 6px 14px);
+  animation: ascii-glitch-tear-a 4.2s steps(1, end) infinite;
 }
 
 .ascii-sign::after {
   color: #3ee8ff;
-  animation: ascii-corrupt-slice-b 6s steps(1, end) infinite;
+  -webkit-mask-image: repeating-linear-gradient(180deg, transparent 0 5px, #000 5px 12px);
+  mask-image: repeating-linear-gradient(180deg, transparent 0 5px, #000 5px 12px);
+  animation: ascii-glitch-tear-b 4.2s steps(1, end) infinite;
 }
 
-@keyframes ascii-corrupt-jitter {
-  0%, 74%, 82%, 100% { transform: translate(0, 0); }
-  75% { transform: translate(-1px, 0); }
-  76% { transform: translate(2px, -1px); }
-  77% { transform: translate(-2px, 1px); }
-  78% { transform: translate(1px, 0); }
-  79% { transform: translate(-1px, 0); }
-  80% { transform: translate(2px, 0); }
-  81% { transform: translate(0, 0); }
+@keyframes ascii-glitch-shift {
+  0%, 7%, 9%, 27%, 36%, 48%, 50%, 73%, 80%, 100% { transform: translate(0, 0) skewX(0); }
+  8% { transform: translate(1px, 0) skewX(0); }
+  28% { transform: translate(-2px, 0) skewX(-0.6deg); }
+  29% { transform: translate(-8px, 0) skewX(-2deg); }
+  30% { transform: translate(11px, -2px) skewX(2.4deg); }
+  31% { transform: translate(-13px, 1px) skewX(-3deg); }
+  32% { transform: translate(7px, 2px) skewX(1.4deg); }
+  33% { transform: translate(-4px, -1px) skewX(-1deg); }
+  34%, 35% { transform: translate(2px, 0) skewX(0); }
+  49% { transform: translate(-2px, 0) skewX(-0.5deg); }
+  74% { transform: translate(2px, 0) skewX(0.6deg); }
+  75% { transform: translate(12px, -1px) skewX(3deg); }
+  76% { transform: translate(-12px, 2px) skewX(-3deg); }
+  77% { transform: translate(6px, -2px) skewX(1.2deg); }
+  78% { transform: translate(-3px, 1px) skewX(-0.8deg); }
+  79% { transform: translate(1px, 0) skewX(0.3deg); }
 }
 
-@keyframes ascii-corrupt-slice-a {
-  0%, 74%, 82%, 100% { opacity: 0; transform: translate(0, 0); clip-path: inset(0 0 100% 0); }
-  75% { opacity: .8; transform: translate(-3px, 0); clip-path: inset(8% 0 66% 0); }
-  76% { opacity: .55; transform: translate(3px, 0); clip-path: inset(38% 0 42% 0); }
-  77% { opacity: .8; transform: translate(-2px, 0); clip-path: inset(62% 0 16% 0); }
-  78% { opacity: .45; transform: translate(2px, -1px); clip-path: inset(18% 0 58% 0); }
-  79% { opacity: 0; }
+@keyframes ascii-glitch-flicker {
+  0%, 27%, 36%, 73%, 80%, 100% { opacity: 1; }
+  28% { opacity: .5; }
+  29% { opacity: .95; }
+  30% { opacity: .32; }
+  31% { opacity: .9; }
+  32% { opacity: .55; }
+  33% { opacity: 1; }
+  74% { opacity: .45; }
+  75% { opacity: 1; }
+  76% { opacity: .28; }
+  77% { opacity: .88; }
+  78% { opacity: .6; }
+  79% { opacity: 1; }
 }
 
-@keyframes ascii-corrupt-slice-b {
-  0%, 74%, 82%, 100% { opacity: 0; transform: translate(0, 0); clip-path: inset(0 0 100% 0); }
-  76% { opacity: .65; transform: translate(2px, 0); clip-path: inset(20% 0 54% 0); }
-  77% { opacity: .75; transform: translate(-3px, 0); clip-path: inset(52% 0 26% 0); }
-  78% { opacity: .5; transform: translate(3px, 1px); clip-path: inset(72% 0 8% 0); }
-  79% { opacity: .7; transform: translate(-1px, 0); clip-path: inset(4% 0 78% 0); }
-  80% { opacity: 0; }
+@keyframes ascii-glitch-chroma {
+  0%, 27%, 36%, 73%, 80%, 100% { text-shadow: none; }
+  28% { text-shadow: -3px 0 rgba(255, 77, 109, 0.9), 3px 0 rgba(62, 232, 255, 0.9); }
+  29% { text-shadow: 7px 0 rgba(255, 77, 109, 0.85), -7px 0 rgba(62, 232, 255, 0.85); }
+  30% { text-shadow: -9px 1px rgba(255, 77, 109, 0.9), 9px -1px rgba(62, 232, 255, 0.9); }
+  31% { text-shadow: 8px -1px rgba(255, 77, 109, 0.8), -8px 1px rgba(62, 232, 255, 0.8); }
+  32% { text-shadow: -5px 0 rgba(255, 77, 109, 0.7), 5px 0 rgba(62, 232, 255, 0.7); }
+  33% { text-shadow: 4px 0 rgba(255, 77, 109, 0.55), -4px 0 rgba(62, 232, 255, 0.55); }
+  74% { text-shadow: 4px 0 rgba(255, 77, 109, 0.85), -4px 0 rgba(62, 232, 255, 0.85); }
+  75% { text-shadow: -8px 1px rgba(255, 77, 109, 0.9), 8px -1px rgba(62, 232, 255, 0.9); }
+  76% { text-shadow: 10px -1px rgba(255, 77, 109, 0.9), -10px 1px rgba(62, 232, 255, 0.9); }
+  77% { text-shadow: -6px 0 rgba(255, 77, 109, 0.75), 6px 0 rgba(62, 232, 255, 0.75); }
+  78% { text-shadow: 3px 0 rgba(255, 77, 109, 0.6), -3px 0 rgba(62, 232, 255, 0.6); }
+  79% { text-shadow: none; }
 }
 
+/* Ghost copies: whole scan bands of the sign jump sideways, so horizontal strips
+   of the artwork appear displaced while the base text stays put. */
+@keyframes ascii-glitch-tear-a {
+  0%, 27%, 36%, 73%, 80%, 100% { opacity: 0; transform: translate(0, 0); }
+  28% { opacity: .85; transform: translate(-6px, 1px); }
+  29% { opacity: .7; transform: translate(9px, -2px); }
+  30% { opacity: .9; transform: translate(-14px, 2px); }
+  31% { opacity: .6; transform: translate(12px, -1px); }
+  32% { opacity: .8; transform: translate(-7px, 1px); }
+  33% { opacity: .45; transform: translate(5px, 0); }
+  34%, 35% { opacity: 0; transform: translate(0, 0); }
+  74% { opacity: .8; transform: translate(8px, -1px); }
+  75% { opacity: .65; transform: translate(-12px, 2px); }
+  76% { opacity: .9; transform: translate(14px, 0); }
+  77% { opacity: .55; transform: translate(-9px, -2px); }
+  78% { opacity: .7; transform: translate(4px, 1px); }
+  79% { opacity: 0; transform: translate(0, 0); }
+}
+
+@keyframes ascii-glitch-tear-b {
+  0%, 27%, 36%, 73%, 80%, 100% { opacity: 0; transform: translate(0, 0); }
+  28% { opacity: .5; transform: translate(5px, -1px); }
+  29% { opacity: .75; transform: translate(-8px, 2px); }
+  30% { opacity: .55; transform: translate(12px, -2px); }
+  31% { opacity: .8; transform: translate(-13px, 1px); }
+  32% { opacity: .6; transform: translate(6px, -1px); }
+  33% { opacity: .4; transform: translate(-4px, 0); }
+  34%, 35% { opacity: 0; transform: translate(0, 0); }
+  74% { opacity: .7; transform: translate(-7px, 1px); }
+  75% { opacity: .8; transform: translate(11px, -2px); }
+  76% { opacity: .6; transform: translate(-14px, 1px); }
+  77% { opacity: .85; transform: translate(8px, 2px); }
+  78% { opacity: .5; transform: translate(-5px, 0); }
+  79% { opacity: 0; transform: translate(0, 0); }
+}
+
+/* Reduced motion keeps the corruption readable without moving the sign: the
+   torn bands stay at a fixed offset and only their brightness pulses. */
 @media (prefers-reduced-motion: reduce) {
-  .ascii-sign,
-  .ascii-sign::before,
-  .ascii-sign::after {
-    animation: none;
+  .ascii-sign {
+    animation: ascii-glitch-chroma-soft 4.2s steps(1, end) infinite;
   }
 
-  .ascii-sign::before,
-  .ascii-sign::after {
-    display: none;
+  .ascii-sign::before {
+    transform: translate(-6px, 1px);
+    animation: ascii-glitch-blink 4.2s steps(1, end) infinite;
   }
+
+  .ascii-sign::after {
+    transform: translate(7px, -1px);
+    animation: ascii-glitch-blink 4.2s steps(1, end) infinite;
+  }
+}
+
+@keyframes ascii-glitch-chroma-soft {
+  0%, 27%, 36%, 73%, 80%, 100% { text-shadow: none; }
+  28%, 33% { text-shadow: -2px 0 rgba(255, 77, 109, 0.6), 2px 0 rgba(62, 232, 255, 0.6); }
+  74%, 79% { text-shadow: 2px 0 rgba(255, 77, 109, 0.6), -2px 0 rgba(62, 232, 255, 0.6); }
+}
+
+@keyframes ascii-glitch-blink {
+  0%, 27%, 36%, 73%, 80%, 100% { opacity: 0; }
+  28%, 30%, 32% { opacity: 0.55; }
+  74%, 76%, 78% { opacity: 0.45; }
 }
 
 .ascii-sign-wide {
@@ -321,8 +400,7 @@
   flex: 0 0 auto;
   border-radius: 999px;
   background: var(--ascii-glow-color, currentColor);
-  box-shadow: 0 0 6px var(--ascii-glow-color, currentColor);
-  transition: background-color 350ms ease, box-shadow 350ms ease;
+  transition: background-color 350ms ease;
 }
 
 /* The web address bar keeps a DOS-style caret blinking even when the field is idle. */
@@ -359,14 +437,11 @@
   height: 78vh;
   min-height: 420px;
   margin: 0.35em 0;
-  border: 1px solid;
-  border-radius: 22px / 26px;
+  border: 0;
+  border-radius: 0;
   background: #000;
   overflow: hidden;
-  box-shadow:
-    0 0 0 2px rgba(0, 0, 0, 0.78),
-    0 0 0 4px rgba(235, 255, 245, 0.06),
-    0 18px 38px rgba(0, 0, 0, 0.42);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.42);
 }
 .tb-web-frame {
   display: block;

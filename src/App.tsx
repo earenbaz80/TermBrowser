@@ -44,7 +44,6 @@ const TerminalView = React.lazy(() =>
   import('./components/TerminalView').then((module) => ({ default: module.TerminalView }))
 );
 import { HeaderBar } from './components/HeaderBar';
-import { WindowTitleBar } from './components/WindowTitleBar';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { FOCUS_ADDRESS_EVENT, WebBrowserSurface } from './components/WebBrowserSurface';
 import {
@@ -1239,8 +1238,6 @@ export default function App() {
         color: theme.text,
       }}
     >
-      <WindowTitleBar theme={theme} />
-
       {/* Top Bar Header following Top Bar Contract */}
       <HeaderBar
         theme={theme}

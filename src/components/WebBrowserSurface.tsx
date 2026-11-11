@@ -30,7 +30,7 @@ import {
   Star,
   X,
 } from 'lucide-react';
-import { TerminusSearchPage } from './TerminusSearchPage';
+import { SUGGESTED_QUERIES, TerminusSearchPage } from './TerminusSearchPage';
 import { getTerminusSearchQuery, isTerminusSearchUrl } from '../utils/terminusSearch';
 import { isPrivateTargetUrl } from '../utils/networkPolicy';
 import { ContextMenu, ContextMenuItem } from './ContextMenu';
@@ -236,6 +236,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
     '--ascii-glow-color': latencyGlow.color,
   } as React.CSSProperties;
   const [address, setAddress] = useState('');
+  const [startQuery, setStartQuery] = useState('');
   const [commandHistory, setCommandHistory] = useState<string[]>(() => getPersistedCommandHistory());
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [draftCommand, setDraftCommand] = useState('');
@@ -922,7 +923,6 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
             state={tab.search}
             onSearch={(query) => onCommand(`search ${query}`)}
             onOpenResult={(url) => onCommand(`goto ${url}`)}
-            onGoHome={() => onCommand('home')}
           />
         ) : hasPage && tab ? (
           <iframe
@@ -947,7 +947,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
           />
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center font-mono">
-            <div className="ascii-boot ascii-glow" style={glowStyle}>
+            <div className="ascii-boot" style={glowStyle}>
               <pre
                 className="ascii-sign ascii-sign-wide select-none font-mono"
                 aria-hidden="true"
@@ -964,10 +964,10 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
               </pre>
               <div
                 className="ascii-latency"
-                title={`Glow ${latencyGlow.label} · Latencia de red actual: ${latencyLabel}`}
+                title={`Latencia de red actual: ${latencyLabel}`}
               >
                 <span className="ascii-latency-dot" aria-hidden="true" />
-                <span>[ GLOW ] · [ LATENCIA {latencyLabel} ]</span>
+                <span>[ LATENCIA {latencyLabel} ]</span>
               </div>
             </div>
             <div
@@ -976,16 +976,75 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
             >
               Modo web
             </div>
-            <button
-              type="button"
-              onClick={() => go('home')}
-              className="flex items-center gap-2 border px-3 py-1.5 text-[11px] font-bold cursor-pointer hover:opacity-80"
-              style={{ borderColor: theme.accent, backgroundColor: theme.accent, color: theme.bg }}
-              title="Abrir Terminus Search"
+            {/* The start page searches in place: no extra screen, no extra click. */}
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                const clean = startQuery.trim();
+                if (!clean) return;
+                soundEffects.playKeyClick();
+                setStartQuery('');
+                go(`search ${clean}`);
+              }}
+              role="search"
+              aria-label="Buscar en Terminus Search"
+              className="w-full max-w-md border p-1.5 text-left"
+              style={{
+                borderColor: theme.accent,
+                backgroundColor: theme.cardBg,
+                boxShadow: `0 0 0 1px ${theme.border}`,
+              }}
             >
-              <Search className="h-3.5 w-3.5" />
-              ABRIR TERMINUS SEARCH
-            </button>
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 pl-2 text-sm font-bold" style={{ color: theme.accent }} aria-hidden="true">
+                  &gt;
+                </span>
+                <input
+                  type="search"
+                  value={startQuery}
+                  onChange={(event) => setStartQuery(event.target.value)}
+                  placeholder="Busca en la web desde Terminus…"
+                  aria-label="Buscar en Terminus Search"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  enterKeyHint="search"
+                  inputMode="search"
+                  className="min-w-0 flex-1 appearance-none bg-transparent px-1 py-2.5 text-[13px] outline-hidden placeholder:opacity-40"
+                  style={{ color: theme.text, caretColor: theme.accent }}
+                />
+                <button
+                  type="submit"
+                  disabled={!startQuery.trim()}
+                  aria-label="Buscar"
+                  className="flex shrink-0 items-center gap-1.5 border px-2.5 py-2 text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                  style={{ borderColor: theme.accent, backgroundColor: theme.accent, color: theme.bg }}
+                >
+                  <Search className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">BUSCAR</span>
+                </button>
+              </div>
+            </form>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <span className="text-[9px] uppercase tracking-[0.18em] opacity-45">Prueba con</span>
+              {SUGGESTED_QUERIES.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => {
+                    soundEffects.playKeyClick();
+                    setStartQuery(suggestion);
+                    go(`search ${suggestion}`);
+                  }}
+                  className="border px-2.5 py-1 text-[10px] cursor-pointer transition-opacity hover:opacity-70"
+                  style={{ borderColor: theme.border, color: theme.text }}
+                  title={`Buscar “${suggestion}”`}
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
             <p className="max-w-md text-[11px] opacity-70">
               Escribe un comando en la barra: <span style={{ color: theme.accent }}>goto &lt;url&gt;</span>,{' '}
               <span style={{ color: theme.accent }}>search &lt;texto&gt;</span> o{' '}

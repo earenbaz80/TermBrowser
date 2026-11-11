@@ -7,7 +7,6 @@ import {
   RotateCw,
   Search,
   ShieldCheck,
-  Terminal,
 } from 'lucide-react';
 import { TerminusSearchState, ThemeConfig } from '../types';
 import { TERMINUS_SEARCH_PROVIDER } from '../utils/terminusSearch';
@@ -19,10 +18,9 @@ interface TerminusSearchPageProps {
   state?: TerminusSearchState;
   onSearch: (query: string) => void;
   onOpenResult: (url: string) => void;
-  onGoHome: () => void;
 }
 
-const SUGGESTED_QUERIES = [
+export const SUGGESTED_QUERIES = [
   'computación cuántica',
   'noticias de tecnología',
   'documentación de React',
@@ -53,7 +51,6 @@ export const TerminusSearchPage: React.FC<TerminusSearchPageProps> = ({
   state,
   onSearch,
   onOpenResult,
-  onGoHome,
 }) => {
   const [draft, setDraft] = useState(query);
   const autoRunQuery = useRef('');
@@ -162,38 +159,6 @@ export const TerminusSearchPage: React.FC<TerminusSearchPageProps> = ({
       }}
     >
       <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col px-4 py-5 sm:px-8 sm:py-8">
-        <header className="flex items-center justify-between gap-4 border-b pb-3" style={{ borderColor: theme.border }}>
-          <button
-            type="button"
-            onClick={() => {
-              soundEffects.playKeyClick();
-              onGoHome();
-            }}
-            className="group flex min-w-0 items-center gap-2.5 text-left cursor-pointer"
-            title="Volver al inicio de Terminus Search"
-          >
-            <span
-              className="grid h-8 w-8 shrink-0 place-items-center border"
-              style={{ borderColor: theme.accent, color: theme.accent }}
-            >
-              <Terminal className="h-4 w-4" />
-            </span>
-            <span className="flex min-w-0 items-baseline gap-1.5 text-xs tracking-[0.16em]">
-              <span className="font-bold">TERMINUS</span>
-              <span className="opacity-30">/</span>
-              <span style={{ color: theme.accent }}>SEARCH</span>
-            </span>
-          </button>
-          <div
-            className="hidden items-center gap-2 border px-2 py-1 text-[9px] uppercase tracking-[0.14em] sm:flex"
-            style={{ borderColor: theme.border, color: theme.text }}
-            title={`Proveedor de resultados: ${provider}`}
-          >
-            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: theme.accent }} />
-            {provider}
-          </div>
-        </header>
-
         <main className="flex flex-1 flex-col pt-8 sm:pt-12">
           {!query ? (
             <section className="max-w-3xl">
