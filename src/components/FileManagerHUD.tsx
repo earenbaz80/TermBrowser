@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
 import { formatAsciiBox } from '../utils/asciiBox';
+import { APP_VERSION } from '../utils/version';
 import { VirtualFile } from '../utils/interpreter';
 import {
   Folder,
@@ -265,9 +266,9 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
             <pre
               className="m-0 shrink-0 whitespace-pre font-mono text-[10px] leading-tight select-none"
               style={{ color: theme.accent }}
-              aria-label="Terminus File Commander v0.2.2"
+              aria-label={`Terminus File Commander v${APP_VERSION}`}
             >
-              {formatAsciiBox('TERMINUS FILE COMMANDER v0.2.2')}
+              {formatAsciiBox(`TERMINUS FILE COMMANDER v${APP_VERSION}`)}
             </pre>
             <span className="hidden lg:inline text-[11px] opacity-75">
               Navegación Táctil, Mouse & Atajos de Teclado (F3..F8)

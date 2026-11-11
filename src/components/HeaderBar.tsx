@@ -3,6 +3,7 @@ import { BrowserTab, TabKind, ThemeConfig, ThemeId } from '../types';
 import { SettingsMenu } from './SettingsMenu';
 import { soundEffects } from '../utils/soundEffects';
 import { WindowControls } from './WindowControls';
+import { APP_VERSION } from '../utils/version';
 import {
   Activity,
   Blocks,
@@ -102,7 +103,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           <Terminal className="w-4 h-4" />
           <span>Terminus</span>
         </span>
-        <span className="text-[10px] opacity-60">v0.2.2 [AES-256]</span>
+        <span className="text-[10px] opacity-60">{`v${APP_VERSION} [AES-256]`}</span>
       </div>
 
       {/* Zone 2: Browser Tabs and Quick Navigation Links (Single-line) */}

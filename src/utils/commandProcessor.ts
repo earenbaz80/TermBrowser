@@ -20,6 +20,7 @@ import { formatAsciiBox } from './asciiBox';
 import { runPythonCode, VirtualFile } from './interpreter';
 import { computeSHA256 } from './crypto';
 import { COMMAND_DOCS } from '../components/HelpModal';
+import { APP_VERSION } from './version';
 import {
   fetchWorkspaceFiles,
   readWorkspaceFile,
@@ -949,7 +950,7 @@ Comandos de voz recomendados:
 * Negociación TLS 1.3 / Cifrado AES-256
 > ${method} ${new URL(target).pathname || '/'} HTTP/1.1
 > Host: ${new URL(target).hostname}
-> User-Agent: Terminus/0.2.2
+> User-Agent: Terminus/${APP_VERSION}
 < HTTP/1.1 ${data.status} ${data.statusText}
 ${headerDump}
 * Tamaño de respuesta: ${data.sizeBytes} bytes en ${latency}ms

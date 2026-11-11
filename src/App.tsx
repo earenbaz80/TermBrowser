@@ -58,6 +58,7 @@ import { computeSHA256, encryptAES256, decryptAES256, generateMfaSecret } from '
 import { INITIAL_FILESYSTEM, VirtualFile } from './utils/interpreter';
 import { notificationManager } from './utils/notificationManager';
 import { appendCommandToHistory } from './utils/commandHistoryStorage';
+import { APP_VERSION } from './utils/version';
 import {
   formatNativeShellResult,
   getNativeFsInfo,
@@ -311,7 +312,7 @@ export default function App() {
 
   // Activity Logs (for JSON / TXT export)
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([
-    { id: 'act_1', timestamp: new Date().toISOString(), level: 'SYS', module: 'BOOT', message: 'Terminus kernel v0.2.2 initialized.' },
+    { id: 'act_1', timestamp: new Date().toISOString(), level: 'SYS', module: 'BOOT', message: `Terminus kernel v${APP_VERSION} initialized.` },
     { id: 'act_2', timestamp: new Date().toISOString(), level: 'SEC', module: 'CRYPTO', message: 'AES-256-GCM cipher suite negotiated.' },
     { id: 'act_3', timestamp: new Date().toISOString(), level: 'HTTP', module: 'NETWORK', message: 'Secure tunnel established with proxy gateway.' },
   ]);
