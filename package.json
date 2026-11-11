@@ -13,7 +13,7 @@
     "desktop": "electron .",
     "desktop:dev": "electron .",
     "desktop:dir": "npm run build && npm run build:server && electron-builder --dir",
-    "desktop:build": "npm run build && npm run build:server && electron-builder",
+    "desktop:build": "npm run build && npm run build:server && electron-builder --publish never",
     "postdesktop:build": "npm run clean:release",
     "preview": "vite preview",
     "clean": "rm -rf dist dist-electron release server.js",
