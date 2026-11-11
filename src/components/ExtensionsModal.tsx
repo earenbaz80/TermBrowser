@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ExtensionManifest, ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
-import { Puzzle, Check, Download, Play, Info, Terminal, Code } from 'lucide-react';
+import { Puzzle, Check, Play, Terminal, Code } from 'lucide-react';
 
 interface ExtensionsModalProps {
   theme: ThemeConfig;
@@ -81,7 +81,7 @@ export const ExtensionsModal: React.FC<ExtensionsModalProps> = ({
           <div className="p-4 overflow-y-auto space-y-3 text-xs">
             <h3 className="font-bold text-sm text-cyan-400">ESPECIFICACIÓN DE API PARA EXTENSIONES DE TERCEROS</h3>
             <p className="opacity-80 text-[11px] leading-relaxed">
-              TermBrowser OS proporciona una arquitectura de micro-plugins que permite registrar comandos en tiempo de ejecución. Cualquier herramienta externa o script puede exportar un manifiesto estándar:
+              Terminus proporciona una arquitectura de micro-plugins que permite registrar comandos en tiempo de ejecución. Cualquier herramienta externa o script puede exportar un manifiesto estándar:
             </p>
             <pre
               className="p-3 border rounded-xs font-mono text-[11px] overflow-x-auto"

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { SecurityState, ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
 import { generateTOTP, verifyTOTP, encryptAES256, decryptAES256 } from '../utils/crypto';
-import { Shield, Lock, Unlock, Key, Cloud, CheckCircle, AlertCircle, Copy, RefreshCw, X } from 'lucide-react';
+import { Shield, Lock, Key, Cloud, CheckCircle, Copy, RefreshCw } from 'lucide-react';
 
 interface SecurityMfaModalProps {
   theme: ThemeConfig;

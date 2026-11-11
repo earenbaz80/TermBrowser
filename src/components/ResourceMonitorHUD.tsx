@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SystemMetrics, ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
-import { Activity, AlertTriangle, Cpu, HardDrive, Network, X, RefreshCw, Bell } from 'lucide-react';
+import { formatAsciiBox } from '../utils/asciiBox';
+import { AlertTriangle, Cpu, HardDrive, Network, Bell } from 'lucide-react';
 
 interface ResourceMonitorHUDProps {
   theme: ThemeConfig;
@@ -20,12 +21,14 @@ export const ResourceMonitorHUD: React.FC<ResourceMonitorHUDProps> = ({
   onResolveAnomaly,
   onSimulateSpike,
 }) => {
-  const [refreshInterval, setRefreshInterval] = useState<number>(1000);
+  const [refreshInterval] = useState<number>(1000);
   const [viewMode, setViewMode] = useState<'standard' | 'ms-dos-full'>('ms-dos-full');
+  const anomaliesRef = useRef(metrics.anomalies);
+  anomaliesRef.current = metrics.anomalies;
 
   // Trigger audio alert when critical anomalies appear
   useEffect(() => {
-    const hasCritical = metrics.anomalies.some((a) => a.severity === 'critical');
+    const hasCritical = anomaliesRef.current.some((a) => a.severity === 'critical');
     if (hasCritical) {
       soundEffects.playAnomalyAlert();
     }
@@ -62,9 +65,13 @@ export const ResourceMonitorHUD: React.FC<ResourceMonitorHUDProps> = ({
           }}
         >
           <div className="flex items-center gap-2">
-            <span className="font-bold tracking-wider">
-              ╔═[ MS-DOS SYSTEM RESOURCE MONITOR v6.22 / HIGH-PRECISION HUD ]═╗
-            </span>
+            <pre
+              className="m-0 shrink-0 whitespace-pre font-mono text-[10px] leading-tight select-none"
+              style={{ color: theme.accent }}
+              aria-label="MS-DOS System Resource Monitor v6.22 / High-Precision HUD"
+            >
+              {formatAsciiBox('MS-DOS SYSTEM RESOURCE MONITOR v6.22 / HIGH-PRECISION HUD')}
+            </pre>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-[11px] opacity-75">
@@ -226,7 +233,7 @@ export const ResourceMonitorHUD: React.FC<ResourceMonitorHUDProps> = ({
                 <tbody className="divide-y divide-white/5">
                   <tr>
                     <td className="py-1 px-2 font-bold">1001</td>
-                    <td className="py-1 px-2">termbrowser-core.bin</td>
+                    <td className="py-1 px-2">terminus-core.bin</td>
                     <td className="py-1 px-2">4</td>
                     <td className="py-1 px-2 text-right font-mono">{(metrics.cpuUsage * 0.4).toFixed(1)}%</td>
                     <td className="py-1 px-2 text-right font-mono">142.5</td>

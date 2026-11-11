@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { KeyBinding, ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
-import { Keyboard, Plus, Trash2, RotateCcw, X, Check } from 'lucide-react';
+import { Keyboard, Plus, Trash2, RotateCcw } from 'lucide-react';
 
 interface ShortcutsModalProps {
   theme: ThemeConfig;
@@ -14,10 +14,9 @@ interface ShortcutsModalProps {
 export const DEFAULT_KEYBINDINGS: KeyBinding[] = [
   { key: 'ctrl+t', command: 'tab new', description: 'Abrir nueva pestaña' },
   { key: 'ctrl+w', command: 'tab close', description: 'Cerrar pestaña actual' },
-  { key: 'ctrl+b', command: 'view toggle', description: 'Alternar vista dividida / pantalla completa' },
   { key: 'ctrl+m', command: 'voice', description: 'Activar entrada y control por voz (Web Speech API)' },
   { key: 'ctrl+j', command: 'top', description: 'Abrir monitor de recursos MS-DOS' },
-  { key: 'ctrl+l', command: 'clear', description: 'Limpiar pantalla de terminal' },
+  { key: 'ctrl+l', command: 'clear', description: 'Limpiar terminal; en modo web, enfocar la barra de direcciones' },
   { key: 'ctrl+s', command: 'script list', description: 'Abrir scripts de automatización' },
   { key: 'ctrl+k', command: 'vault status', description: 'Abrir panel de seguridad y cifrado' },
   { key: 'ctrl+e', command: 'ext list', description: 'Abrir gestor de extensiones' },

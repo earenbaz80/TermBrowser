@@ -132,7 +132,7 @@ class SoundSynthesizer {
     this.isMuted = !this.isMuted;
     localStorage.setItem('termbrowser_muted', String(this.isMuted));
     if (!this.isMuted) {
-      this.playBeep(880, 0.05, 'triangle');
+      this.playBeep(880, 0.05);
     }
     return this.isMuted;
   }
@@ -158,7 +158,7 @@ class SoundSynthesizer {
     }
   }
 
-  private getWaveType(defaultType: OscillatorType): OscillatorType {
+  private getWaveType(): OscillatorType {
     if (this.soundTheme === 'ibm-pc') return 'square';
     if (this.soundTheme === 'c64-synth') return 'sawtooth';
     return 'sine';
@@ -174,7 +174,7 @@ class SoundSynthesizer {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
-      osc.type = this.getWaveType('triangle');
+      osc.type = this.getWaveType();
       const baseFreq = this.soundTheme === 'modern-ui' ? 600 : this.soundTheme === 'c64-synth' ? 1400 : 1200;
       osc.frequency.setValueAtTime(baseFreq + Math.random() * 300, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.015);
@@ -201,7 +201,7 @@ class SoundSynthesizer {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
-      osc.type = this.getWaveType('square');
+      osc.type = this.getWaveType();
       const startFreq = this.soundTheme === 'modern-ui' ? 523.25 : 987.77;
       const endFreq = this.soundTheme === 'modern-ui' ? 659.25 : 1318.51;
 
@@ -254,7 +254,7 @@ class SoundSynthesizer {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
-      osc.type = this.getWaveType('sine');
+      osc.type = this.getWaveType();
       osc.frequency.setValueAtTime(440, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.06);
 
@@ -286,7 +286,7 @@ class SoundSynthesizer {
       freqs.forEach((freq, idx) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.type = this.getWaveType('sine');
+        osc.type = this.getWaveType();
         osc.frequency.setValueAtTime(freq, now + idx * 0.06);
         gain.gain.setValueAtTime(this.volume * 0.25, now + idx * 0.06);
         gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.06 + 0.18);
@@ -314,7 +314,7 @@ class SoundSynthesizer {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
-      osc.type = this.getWaveType('square');
+      osc.type = this.getWaveType();
       osc.frequency.setValueAtTime(1760, now);
       osc.frequency.setValueAtTime(880, now + 0.08);
       osc.frequency.setValueAtTime(1760, now + 0.16);
@@ -341,7 +341,7 @@ class SoundSynthesizer {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
-      osc.type = this.getWaveType('square');
+      osc.type = this.getWaveType();
       osc.frequency.setValueAtTime(this.soundTheme === 'modern-ui' ? 523.25 : 900, now);
 
       gain.gain.setValueAtTime(this.volume * 0.35, now);
@@ -363,7 +363,7 @@ class SoundSynthesizer {
       const now = ctx.currentTime;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = this.getWaveType('sine');
+      osc.type = this.getWaveType();
       osc.frequency.setValueAtTime(440, now);
       osc.frequency.exponentialRampToValueAtTime(720, now + 0.12);
       gain.gain.setValueAtTime(this.volume * 0.3, now);
@@ -383,7 +383,7 @@ class SoundSynthesizer {
       const now = ctx.currentTime;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = this.getWaveType('triangle');
+      osc.type = this.getWaveType();
       osc.frequency.setValueAtTime(587.33, now);
       osc.frequency.setValueAtTime(880.0, now + 0.06);
       osc.frequency.setValueAtTime(1174.66, now + 0.12);
@@ -404,7 +404,7 @@ class SoundSynthesizer {
       const now = ctx.currentTime;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = this.getWaveType('sawtooth');
+      osc.type = this.getWaveType();
       osc.frequency.setValueAtTime(320, now);
       osc.frequency.exponentialRampToValueAtTime(180, now + 0.15);
       gain.gain.setValueAtTime(this.volume * 0.25, now);
@@ -416,7 +416,7 @@ class SoundSynthesizer {
     } catch {}
   }
 
-  public playBeep(freq = 440, duration = 0.05, type: OscillatorType = 'sine'): void {
+  public playBeep(freq = 440, duration = 0.05): void {
     if (this.isMuted) return;
     const ctx = this.initCtx();
     if (!ctx) return;
@@ -425,7 +425,7 @@ class SoundSynthesizer {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
-      osc.type = this.getWaveType(type);
+      osc.type = this.getWaveType();
       osc.frequency.setValueAtTime(freq, ctx.currentTime);
 
       gain.gain.setValueAtTime(this.volume * 0.3, ctx.currentTime);

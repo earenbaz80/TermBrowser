@@ -1,26 +1,31 @@
 import {
   ActivityLog,
   Bookmark,
+  TabKind,
   BrowserTab,
   ExtensionManifest,
+  InteractiveFileItem,
   KeyBinding,
   SecurityState,
   SystemMetrics,
   TerminalLogEntry,
   ThemeId,
   UserScript,
-  ViewMode,
   WebpagePayload,
+  TerminusSearchResult,
+  TerminusSearchState,
 } from '../types';
 import { THEMES } from './themes';
-import { runPythonCode, INITIAL_FILESYSTEM, VirtualFile } from './interpreter';
-import { encryptAES256, decryptAES256, computeSHA256, generateTOTP, verifyTOTP } from './crypto';
+import { formatAsciiBox } from './asciiBox';
+import { runPythonCode, VirtualFile } from './interpreter';
+import { computeSHA256 } from './crypto';
 import { COMMAND_DOCS } from '../components/HelpModal';
 import {
   fetchWorkspaceFiles,
   readWorkspaceFile,
   writeWorkspaceFile,
   mountNativeLocalDirectory,
+  readNativeDirectory,
   toVirtualFiles,
 } from './localFileSystem';
 import { notificationManager } from './notificationManager';
@@ -29,14 +34,19 @@ import {
   getPersistedCommandHistory,
   clearPersistedCommandHistory,
 } from './commandHistoryStorage';
+import {
+  buildTerminusSearchUrl,
+  getTerminusSearchQuery,
+  isTerminusSearchUrl,
+  TERMINUS_SEARCH_PROVIDER,
+  TERMINUS_SEARCH_URL,
+} from './terminusSearch';
 
 export interface CommandContext {
   tabs: BrowserTab[];
   activeTabId: string;
   setTabs: React.Dispatch<React.SetStateAction<BrowserTab[]>>;
   setActiveTabId: (id: string) => void;
-  viewMode: ViewMode;
-  setViewMode: (mode: ViewMode) => void;
   currentThemeId: ThemeId;
   setCurrentThemeId: (id: ThemeId) => void;
   crtEnabled: boolean;
@@ -71,11 +81,64 @@ export interface CommandContext {
   clearTerminal: () => void;
   exportLogs: (format: 'json' | 'txt') => void;
   runAutomatedScript: (script: UserScript) => void;
+  /** Notify the app after a native folder has been mounted and remembered. */
+  onNativeMountSaved?: (name: string, mountPath: string) => void;
+}
+
+/** Virtual mount point that mirrors the real local workspace served by /api/local-fs */
+const WORKSPACE_ROOT_PATH = '/workspace';
+
+/** Collapse "." and ".." segments so every path becomes absolute (/workspace/src/.. -> /workspace) */
+function normalizeVirtualPath(input: string): string {
+  const parts: string[] = [];
+  for (const segment of input.split('/')) {
+    if (!segment || segment === '.') continue;
+    if (segment === '..') parts.pop();
+    else parts.push(segment);
+  }
+  return `/${parts.join('/')}`;
+}
+
+/** Ask the server for one real directory and store it in the terminal file system */
+async function loadWorkspaceDirectory(ctx: CommandContext, absPath: string): Promise<VirtualFile[]> {
+  const relDir = absPath.replace(/^\/workspace\/?/, '');
+  const data = await fetchWorkspaceFiles(relDir);
+  const files = toVirtualFiles(data.items);
+  ctx.setFileSystem((prev) => ({ ...prev, [absPath]: files }));
+  ctx.setCurrentPath(absPath);
+  return files;
+}
+
+/** Real disk entries stay clickable/tappable rows in the terminal */
+function workspaceInteractiveFile(file: VirtualFile): InteractiveFileItem {
+  return {
+    name: file.name,
+    type: file.type,
+    isLocal: true,
+    action: file.type === 'dir' ? `cd ${file.name}` : file.name.endsWith('.py') ? `python ${file.name}` : `cat ${file.name}`,
+  };
+}
+
+/**
+ * Lynx-style numbered links: resolves "3" to the 3rd link of the active page.
+ * Returns null when the token is not a number or the index is out of range.
+ */
+function resolveNumberedLink(
+  ctx: CommandContext,
+  raw: string
+): { href: string; text: string; total: number } | null {
+  if (!/^\d+$/.test(raw)) return null;
+  const links = ctx.tabs.find((t) => t.id === ctx.activeTabId)?.links || [];
+  const index = Number(raw);
+  if (!links.length || index < 1 || index > links.length) return null;
+  return { href: links[index - 1].href, text: links[index - 1].text, total: links.length };
 }
 
 export async function processCommand(
   rawCommand: string,
-  ctx: CommandContext
+  ctx: CommandContext,
+  /** Used by back/forward: move the history cursor instead of appending a new entry */
+  historyOverride?: { historyIndex: number }
 ): Promise<TerminalLogEntry> {
   const trimmed = rawCommand.trim();
   const timestamp = new Date().toLocaleTimeString();
@@ -139,6 +202,39 @@ export async function processCommand(
   const primaryCmd = parts[0].toLowerCase();
   const args = parts.slice(1);
 
+  // LYNX-STYLE NUMBERED LINKS: a bare number opens that link of the active page
+  const bareNumberLink = resolveNumberedLink(ctx, primaryCmd);
+  if (bareNumberLink) {
+    return processCommand(`goto ${bareNumberLink.href}`, ctx);
+  }
+
+  // LYNX-STYLE "FOLLOW LINK": l <n> / l10 / follow <n> / enlace <n>
+  const followMatch = /^(?:l|link|follow|enlace|seguir)\s*(\d+)$/i.exec(trimmed);
+  if (followMatch) {
+    const numbered = resolveNumberedLink(ctx, followMatch[1]);
+    if (numbered) {
+      return processCommand(`goto ${numbered.href}`, ctx);
+    }
+    const linkCount = ctx.tabs.find((t) => t.id === ctx.activeTabId)?.links?.length || 0;
+    return {
+      id: `cmd_${Date.now()}`,
+      timestamp,
+      type: 'stderr',
+      output: linkCount
+        ? `No existe el enlace [${followMatch[1]}]. La página actual tiene ${linkCount} enlaces numerados (1-${linkCount}).`
+        : 'No hay enlaces numerados en la pestaña activa. Cargue una página con "goto <url>" primero.',
+    };
+  }
+
+  if (/^(?:l|link|follow|enlace|seguir)$/i.test(trimmed)) {
+    return {
+      id: `cmd_${Date.now()}`,
+      timestamp,
+      type: 'stderr',
+      output: 'Uso: l <número>  (ej. l 3 abre el enlace [3] de la página actual). También puede escribir solo el número.',
+    };
+  }
+
   // 1. HELP / MANUAL
   if (primaryCmd === 'help' || primaryCmd === 'man' || primaryCmd === 'manual') {
     logActivity('INFO', 'CLI', `Consulta de ayuda ejecutada: ${args.join(' ') || 'general'}`);
@@ -169,9 +265,7 @@ export async function processCommand(
       timestamp,
       type: 'ascii',
       output: `
-╔═══════════════════════════════════════════════════════════════════════════════════╗
-║                      TERMBROWSER OS - MANUAL DE COMANDOS                          ║
-╚═══════════════════════════════════════════════════════════════════════════════════╝
+${formatAsciiBox('TERMINUS - MANUAL DE COMANDOS')}
 [✓] Panel interactivo desplegado en pantalla. Puede filtrar por categorías con:
     • help navegacion   : Comandos de navegación web, pestañas y lector
     • help sistema      : Comandos de consola, procesos y runtime de Python
@@ -181,7 +275,7 @@ export async function processCommand(
 
 [NAVEGACIÓN WEB POR LÍNEA DE COMANDOS]
   goto <url>              : Navega a una URL en la pestaña activa (ej. goto https://news.ycombinator.com)
-  search <consulta>       : Busca en la web mediante motor DuckDuckGo/Google
+  search <consulta>       : Busca en Terminus Search (DuckDuckGo + Wikipedia)
   curl [-X METHOD] <url>  : Realiza una petición HTTP con proxy real, headers y latencia
   fetch <url>             : Inspección HTTP rápida de un endpoint o página web
   reader                  : Alterna el modo lectura sin publicidad ni distracciones
@@ -193,10 +287,9 @@ export async function processCommand(
   tab list                : Lista todas las pestañas abiertas y su estado
   bookmark add <tit> <url>: Guarda un marcador cifrado en la bóveda
   bookmark list           : Muestra todos los marcadores guardados
-  view <split|term|web>   : Cambia la distribución de la ventana
 
 [SISTEMA, POWERSHELL & BASH]
-  ls / dir                : Lista el sistema de archivos virtual
+  ls / dir                : Lista el workspace local (/workspace) o el disco virtual
   cat / type <archivo>    : Muestra el contenido de un archivo
   pwd                     : Muestra el directorio de trabajo actual
   echo <texto>            : Imprime texto en pantalla
@@ -251,8 +344,8 @@ Escriba "help <comando>" para ver la sintaxis detallada de cualquier comando.
         <div style="display: flex; align-items: center; gap: 20px; border-bottom: 1px solid #1e293b; padding-bottom: 16px; margin-bottom: 16px;">
           <img src="${avatarUrl}" alt="Retro Terminal User Avatar" style="width: 96px; height: 96px; border: 2px solid #10b981; border-radius: 50%; object-fit: cover; box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);" />
           <div>
-            <div style="font-size: 10px; opacity: 0.7; letter-spacing: 1px;">[TERMBROWSER SECURE USER PROFILE]</div>
-            <h2 style="font-size: 18px; color: #f8fafc; margin: 4px 0;">root@termbrowser-os</h2>
+            <div style="font-size: 10px; opacity: 0.7; letter-spacing: 1px;">[TERMINUS SECURE USER PROFILE]</div>
+            <h2 style="font-size: 18px; color: #f8fafc; margin: 4px 0;">root@terminus</h2>
             <div style="font-size: 11px; color: #38bdf8;">Rol: Administrador Criptográfico AES-256-GCM</div>
           </div>
         </div>
@@ -271,10 +364,10 @@ Escriba "help <comando>" para ver la sintaxis detallada de cualquier comando.
           ? {
               ...t,
               title: 'Perfil de Usuario: root',
-              url: 'termbrowser://profile/whoami',
-              displayUrl: 'termbrowser://profile/whoami',
+              url: 'terminus://profile/whoami',
+              displayUrl: 'terminus://profile/whoami',
               content: profileHtml,
-              readerText: 'Perfil de Usuario root - TermBrowser OS con Avatar Pixel Art',
+              readerText: 'Perfil de Usuario root - Terminus con Avatar Pixel Art',
             }
           : t
       )
@@ -284,7 +377,7 @@ Escriba "help <comando>" para ver la sintaxis detallada de cualquier comando.
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'system',
-      output: '[✓] Identidad de usuario autenticada: root@termbrowser-os (Avatar de terminal retro asignado al perfil).\n(Perfil renderizado en la pestaña activa y visor web).',
+      output: '[✓] Identidad de usuario autenticada: root@terminus (Avatar de terminal retro asignado al perfil).\n(Perfil renderizado en la pestaña activa y visor web).',
     };
   }
 
@@ -294,11 +387,18 @@ Escriba "help <comando>" para ver la sintaxis detallada de cualquier comando.
         t.id === ctx.activeTabId
           ? {
               ...t,
-              title: 'Portal de Inicio',
-              url: 'about:blank',
-              displayUrl: 'about:blank',
+              title: 'Terminus Search',
+              url: TERMINUS_SEARCH_URL,
+              displayUrl: TERMINUS_SEARCH_URL,
+              isLoading: false,
+              statusCode: 200,
               content: '',
               readerText: '',
+              links: [],
+              images: [],
+              search: undefined,
+              latencyMs: undefined,
+              sizeBytes: undefined,
             }
           : t
       )
@@ -307,7 +407,7 @@ Escriba "help <comando>" para ver la sintaxis detallada de cualquier comando.
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'system',
-      output: '[✓] Navegado a la página de inicio (Home Portal). Escriba "ir a <url>" para explorar la web.',
+      output: '[✓] Terminus Search abierto. Escriba una búsqueda o use "ir a <url>" para navegar directamente.',
     };
   }
 
@@ -343,7 +443,7 @@ Escriba "help <comando>" para ver la sintaxis detallada de cualquier comando.
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'system',
-      output: `[✓] Sesión segura AES-256 preservada. TermBrowser OS sigue activo.\nConsejo de DOSY: Para cambiar el visor use 'view split' o 'view terminal'. Para limpiar pantalla use 'limpiar' o 'cls'.`,
+      output: `[✓] Sesión segura AES-256 preservada. Terminus sigue activo.\nConsejo de DOSY: La página y la consola comparten una única superficie de texto. Para limpiar pantalla use 'limpiar' o 'cls'.`,
     };
   }
 
@@ -391,13 +491,13 @@ Escriba "help <comando>" para ver la sintaxis detallada de cualquier comando.
       timestamp,
       type: 'system',
       output: `
-( • ‿ • ) ¡Hola! Soy DOSY, tu copiloto personal retro en TermBrowser OS.
+( • ‿ • ) ¡Hola! Soy DOSY, tu copiloto personal retro en Terminus.
 Mis ojos CRT están ubicados sobre la barra de entrada a la derecha.
 
 Comandos en español que puedes usar:
   • home           : Ir a la página de inicio
   • ir a <url>     : Navegar a una web con fotos reales en terminal
-  • pestaña 1 / 2  : Alternar entre pestañas al instante
+  • pestaña <n>    : Saltar a cualquier pestaña abierta (o Ctrl+1..9)
   • pestaña nueva  : Abrir una nueva pestaña
   • pestaña cerrar : Cerrar la pestaña activa
   • archivos       : Abrir el explorador Norton Commander interactivo
@@ -426,6 +526,30 @@ Comandos en español que puedes usar:
       };
     }
 
+    // `goto 3` follows the 3rd numbered link of the current page
+    if (/^\d+$/.test(args[0])) {
+      const numbered = resolveNumberedLink(ctx, args[0]);
+      if (numbered) {
+        return processCommand(`goto ${numbered.href}`, ctx);
+      }
+      const linkCount = ctx.tabs.find((t) => t.id === ctx.activeTabId)?.links?.length || 0;
+      return {
+        id: `cmd_${Date.now()}`,
+        timestamp,
+        type: 'stderr',
+        output: linkCount
+          ? `No existe el enlace [${args[0]}]. La página actual tiene ${linkCount} enlaces numerados (1-${linkCount}).`
+          : 'No hay enlaces numerados en la pestaña activa. Cargue una página con "goto <url>" primero.',
+      };
+    }
+
+    if (isTerminusSearchUrl(args[0])) {
+      const searchQuery = getTerminusSearchQuery(args[0]);
+      return searchQuery
+        ? performWebSearch(searchQuery, ctx, historyOverride)
+        : processCommand('home', ctx);
+    }
+
     let targetUrl = args[0];
     if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
       targetUrl = `https://${targetUrl}`;
@@ -439,10 +563,20 @@ Comandos en español que puedes usar:
       return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'No hay ninguna pestaña activa disponible.' };
     }
 
-    // Set tab loading
+    // Set tab loading. With historyOverride (back/forward) the existing history is kept
+    // and only the cursor moves, so the target URL is not appended twice.
     ctx.setTabs((prev) =>
       prev.map((t) => {
         if (t.id === ctx.activeTabId) {
+          if (historyOverride) {
+            return {
+              ...t,
+              url: targetUrl,
+              displayUrl: targetUrl,
+              isLoading: true,
+              historyIndex: historyOverride.historyIndex,
+            };
+          }
           const newHist = [...t.history.slice(0, t.historyIndex + 1), targetUrl];
           return {
             ...t,
@@ -475,6 +609,9 @@ Comandos en español que puedes usar:
               .trim()
           : '';
 
+        // Prefer the backend's readable-text extraction: it also covers pages without <p>/<h*> markup
+        const readableText = (typeof data.text === 'string' && data.text.trim()) || strippedText;
+
         const webpageTitle = data.extracted?.title || new URL(targetUrl).hostname;
         const pageImages = data.extracted?.images || [];
         const pageHeadings = data.extracted?.headings || [];
@@ -489,9 +626,12 @@ Comandos en español que puedes usar:
                   isLoading: false,
                   title: webpageTitle,
                   statusCode: data.status,
+                  frameable: data.frameable === true,
                   contentType: data.contentType,
                   content: data.body,
-                  readerText: strippedText.slice(0, 10000),
+                  readerText: readableText.slice(0, 20000),
+                  links: pageLinks,
+                  images: pageImages,
                   headers: data.headers,
                   latencyMs,
                   sizeBytes: data.sizeBytes,
@@ -503,6 +643,9 @@ Comandos en español que puedes usar:
         const webpagePayload: WebpagePayload = {
           url: targetUrl,
           title: webpageTitle,
+          text: readableText.slice(0, 12000),
+          structuredHtml: data.structuredHtml || '',
+          frameable: data.frameable === true,
           statusCode: data.status,
           latencyMs,
           images: pageImages,
@@ -597,6 +740,16 @@ Comandos en español que puedes usar:
     }
   }
 
+  // Echo: documented in help and used by the built-in scripts
+  if (primaryCmd === 'echo' || primaryCmd === 'print') {
+    return {
+      id: `cmd_${Date.now()}`,
+      timestamp,
+      type: 'stdout',
+      output: args.join(' '),
+    };
+  }
+
   // 3. SEARCH / BUSCAR (REAL SEARCH ENGINE INTEGRATION)
   if (primaryCmd === 'search' || primaryCmd === 'buscar' || primaryCmd === 'google' || primaryCmd === 'ddg') {
     const query = args.join(' ');
@@ -617,12 +770,23 @@ Comandos en español que puedes usar:
 
     if (sub === 'enable' || sub === 'on' || sub === 'activar' || sub === 'permiso') {
       try {
-        const perm = await notificationManager.requestPermission();
+        // El permiso se consulta de inmediato: la petición nativa puede quedarse pendiente
+        // cuando el navegador ya lo bloqueó, y el flujo de la terminal no debe esperar.
+        const perm = notificationManager.getPermission();
+        if (perm === 'default') {
+          notificationManager.requestPermission().catch(() => undefined);
+        }
+        const detail =
+          perm === 'granted'
+            ? 'Alertas nativas activas para scripts y anomalías.'
+            : perm === 'denied'
+              ? 'El navegador bloqueó las alertas nativas; los avisos seguirán apareciendo en el flujo de la terminal.'
+              : 'Petición enviada al navegador. Si no aparece el diálogo, revisa los permisos del sitio; mientras tanto los avisos se muestran en el flujo de la terminal.';
         return {
           id: `cmd_${Date.now()}`,
           timestamp,
           type: 'system',
-          output: `[NOTIFICACIONES DEL NAVEGADOR] Permiso: ${perm.toUpperCase()}. Alertas para scripts y anomalías activas.`,
+          output: `[NOTIFICACIONES DEL NAVEGADOR] Permiso ${perm.toUpperCase()}. ${detail}`,
         };
       } catch (err: any) {
         return {
@@ -677,7 +841,7 @@ Comandos en español que puedes usar:
       timestamp,
       type: 'stdout',
       output: `
-[SISTEMA DE NOTIFICACIONES TERMBROWSER]
+[SISTEMA DE NOTIFICACIONES TERMINUS]
 Estado de permisos del navegador: ${currentPerm.toUpperCase()}
 Integración: Terminal CLI + W3C Web Notifications API + Sintetizador 8-bits
 
@@ -783,7 +947,7 @@ Comandos de voz recomendados:
 * Negociación TLS 1.3 / Cifrado AES-256
 > ${method} ${new URL(target).pathname || '/'} HTTP/1.1
 > Host: ${new URL(target).hostname}
-> User-Agent: TermBrowser/2.4
+> User-Agent: Terminus/0.2.0
 < HTTP/1.1 ${data.status} ${data.statusText}
 ${headerDump}
 * Tamaño de respuesta: ${data.sizeBytes} bytes en ${latency}ms
@@ -832,6 +996,12 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
       .replace(/\s+/g, ' ')
       .trim();
 
+    // Keep the backend's multi-line readable extraction when it is richer than the collapsed HTML text
+    const extractedLines = (currentTab.readerText || '').split('\n').filter((line) => line.trim()).length;
+    if (extractedLines > 3) {
+      cleanText = currentTab.readerText || cleanText;
+    }
+
     if (!cleanText) {
       cleanText = currentTab.readerText || 'Sin contenido de texto limpio disponible para esta URL.';
     }
@@ -844,12 +1014,11 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
       )
     );
 
-    ctx.setViewMode('browser');
     return {
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'system',
-      output: `[MODO LECTOR ACTIVADO] Scripts, estilos y anuncios eliminados.\n\n=== TEXTO LIMPIO EXTRAÍDO (${currentTab.title || currentTab.url}) ===\n${cleanText.slice(0, 800)}${cleanText.length > 800 ? '\n\n[... (texto truncado en consola · pulse la pestaña LECTOR en el navegador para ver completo)]' : ''}`,
+      output: `[MODO LECTOR ACTIVADO] Scripts, estilos y anuncios eliminados.\n\n=== TEXTO LIMPIO EXTRAÍDO (${currentTab.title || currentTab.url}) ===\n${cleanText.slice(0, 800)}${cleanText.length > 800 ? '\n\n[... (texto truncado en consola · ejecute "reader" otra vez para verlo completo)]' : ''}`,
     };
   }
 
@@ -878,11 +1047,15 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
     const subCmd = (args[0] || 'list').toLowerCase();
 
     if (subCmd === 'new') {
-      const initialUrl = args[1] || 'about:blank';
+      const kindArg = (args[1] || '').toLowerCase();
+      const isKindArg = ['web', 'terminal', 'term', 'tty'].includes(kindArg);
+      const kind: TabKind = ['terminal', 'term', 'tty'].includes(kindArg) ? 'terminal' : 'web';
+      const initialUrl = (isKindArg ? args[2] : args[1]) || 'about:blank';
       const newId = `tab_${Date.now()}`;
       const newTab: BrowserTab = {
         id: newId,
-        title: initialUrl === 'about:blank' ? 'Nueva Pestaña' : initialUrl,
+        kind,
+        title: kind === 'terminal' ? 'Terminal' : initialUrl === 'about:blank' ? 'Nueva Pestaña' : initialUrl,
         url: initialUrl,
         displayUrl: initialUrl,
         isLoading: false,
@@ -893,9 +1066,9 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
 
       ctx.setTabs((prev) => [...prev, newTab]);
       ctx.setActiveTabId(newId);
-      logActivity('INFO', 'TABS', `Nueva pestaña creada: ${newId}`);
+      logActivity('INFO', 'TABS', `Nueva pestaña ${kind} creada: ${newId}`);
 
-      if (initialUrl !== 'about:blank') {
+      if (kind === 'web' && initialUrl !== 'about:blank') {
         return processCommand(`goto ${initialUrl}`, ctx);
       }
 
@@ -903,7 +1076,9 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'system',
-        output: `[✓] Nueva pestaña abierta (Pestaña ${ctx.tabs.length + 1}). ID: ${newId}`,
+        output: `[✓] Nueva pestaña ${kind === 'terminal' ? 'de terminal' : 'web'} abierta (Pestaña ${
+          ctx.tabs.length + 1
+        }). ID: ${newId}`,
       };
     }
 
@@ -956,9 +1131,9 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
     const tabList = ctx.tabs
       .map(
         (t, idx) =>
-          `  [${idx + 1}] ${t.id === ctx.activeTabId ? '▶ ' : '  '} "${t.title || 'En blanco'}" — ${t.url} ${
-            t.statusCode ? `(HTTP ${t.statusCode})` : ''
-          }`
+          `  [${idx + 1}] ${t.id === ctx.activeTabId ? '▶ ' : '  '}[${t.kind === 'terminal' ? 'TERM' : 'WEB'}] "${
+            t.title || 'En blanco'
+          }" — ${t.url} ${t.statusCode ? `(HTTP ${t.statusCode})` : ''}`
       )
       .join('\n');
 
@@ -966,7 +1141,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'stdout',
-      output: `=== PESTAÑAS ACTIVAS EN TERMBROWSER (${ctx.tabs.length}) ===\n${tabList}\n\nUse: tab switch <n>  o  tab new [url]  o  tab close`,
+      output: `=== PESTAÑAS ACTIVAS EN TERMINUS (${ctx.tabs.length}) ===\n${tabList}\n\nUse: tab switch <n>  o  tab new [url]  o  tab close`,
     };
   }
 
@@ -977,10 +1152,39 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
       return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'No hay páginas anteriores en el historial de esta pestaña.' };
     }
     const prevUrl = curTab.history[curTab.historyIndex - 1];
-    ctx.setTabs((prev) =>
-      prev.map((t) => (t.id === ctx.activeTabId ? { ...t, url: prevUrl, historyIndex: t.historyIndex - 1 } : t))
-    );
-    return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: `Retrocediendo a: ${prevUrl}` };
+
+    if (prevUrl === 'about:blank') {
+      ctx.setTabs((prev) =>
+        prev.map((t) =>
+          t.id === ctx.activeTabId
+            ? {
+                ...t,
+                url: 'about:blank',
+                displayUrl: 'about:blank',
+                isLoading: false,
+                title: 'Nueva Pestaña',
+                content: '',
+                readerText: '',
+                statusCode: undefined,
+                latencyMs: undefined,
+                sizeBytes: undefined,
+                historyIndex: curTab.historyIndex - 1,
+              }
+            : t
+        )
+      );
+      return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: '⟵ Retrocediendo a: about:blank' };
+    }
+
+    // Reload the previous entry so the pane shows that page, not the one we left
+    const pageLog = await processCommand(`goto ${prevUrl}`, ctx, {
+      historyIndex: curTab.historyIndex - 1,
+    });
+    return {
+      ...pageLog,
+      id: `cmd_${Date.now()}`,
+      output: `⟵ Retrocediendo a: ${prevUrl}\n${pageLog.output || ''}`.trim(),
+    };
   }
 
   if (primaryCmd === 'forward') {
@@ -989,16 +1193,51 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
       return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'No hay páginas posteriores en el historial de esta pestaña.' };
     }
     const nextUrl = curTab.history[curTab.historyIndex + 1];
-    ctx.setTabs((prev) =>
-      prev.map((t) => (t.id === ctx.activeTabId ? { ...t, url: nextUrl, historyIndex: t.historyIndex + 1 } : t))
-    );
-    return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: `Avanzando a: ${nextUrl}` };
+
+    if (nextUrl === 'about:blank') {
+      ctx.setTabs((prev) =>
+        prev.map((t) =>
+          t.id === ctx.activeTabId
+            ? {
+                ...t,
+                url: 'about:blank',
+                displayUrl: 'about:blank',
+                isLoading: false,
+                title: 'Nueva Pestaña',
+                content: '',
+                readerText: '',
+                statusCode: undefined,
+                latencyMs: undefined,
+                sizeBytes: undefined,
+                historyIndex: curTab.historyIndex + 1,
+              }
+            : t
+        )
+      );
+      return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: '⟶ Avanzando a: about:blank' };
+    }
+
+    // Reload the next entry so the pane shows that page, not the one we left
+    const pageLog = await processCommand(`goto ${nextUrl}`, ctx, {
+      historyIndex: curTab.historyIndex + 1,
+    });
+    return {
+      ...pageLog,
+      id: `cmd_${Date.now()}`,
+      output: `⟶ Avanzando a: ${nextUrl}\n${pageLog.output || ''}`.trim(),
+    };
   }
 
   if (primaryCmd === 'reload') {
     const curTab = ctx.tabs.find((t) => t.id === ctx.activeTabId);
     if (!curTab || !curTab.url || curTab.url === 'about:blank') {
       return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'No hay ninguna página cargada para recargar.' };
+    }
+    if (isTerminusSearchUrl(curTab.url)) {
+      const searchQuery = getTerminusSearchQuery(curTab.url);
+      return searchQuery
+        ? performWebSearch(searchQuery, ctx, { historyIndex: curTab.historyIndex })
+        : processCommand('home', ctx);
     }
     return processCommand(`goto ${curTab.url}`, ctx);
   }
@@ -1142,12 +1381,12 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'stdout',
-        output: `Python 3.12.2 (TermBrowser Embedded Sandboxed Engine)\n[GCC 13.2.0 WebAssembly Target]\nEscriba: python <archivo.py> o python -c "<code>"  (ej. python -c "print(2**16)")`,
+        output: `Python 3.12.2 (Terminus Embedded Sandboxed Engine)\n[GCC 13.2.0 WebAssembly Target]\nEscriba: python <archivo.py> o python -c "<code>"  (ej. python -c "print(2**16)")`,
       };
     }
 
     logActivity('SYS', 'PYTHON', `Ejecutando ${scriptFileName ? `archivo ${scriptFileName}` : 'snippet Python'}`);
-    const execRes = runPythonCode(pyCode);
+    const execRes = await runPythonCode(pyCode);
     if (execRes.exitCode === 0) {
       return {
         id: `cmd_${Date.now()}`,
@@ -1169,7 +1408,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
   if (primaryCmd === 'bash') {
     const script = args[0] === '-c' ? args.slice(1).join(' ') : args.join(' ');
     if (!script) {
-      return { id: `cmd_${Date.now()}`, timestamp, type: 'stdout', output: 'GNU bash, version 5.2.21-release (x86_64-pc-termbrowser)\nUso: bash -c "<comandos>"' };
+      return { id: `cmd_${Date.now()}`, timestamp, type: 'stdout', output: 'GNU bash, version 5.2.21-release (x86_64-pc-terminus)\nUso: bash -c "<comandos>"' };
     }
     // Run subcommands sequentially
     const subCommands = script.split(/&&|;/).map((s) => s.trim()).filter(Boolean);
@@ -1189,8 +1428,17 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
   // 12. MS-DOS / BASH FILE SYSTEM COMMANDS: LS, DIR, CAT, TYPE, PWD, CD, MKDIR, TOUCH, RM, MC
   if (primaryCmd === 'ls' || primaryCmd === 'dir') {
     const curPath = ctx.currentPath || '/home/user';
-    const files = ctx.fileSystem[curPath] || [];
     const isDos = primaryCmd === 'dir';
+
+    // Under /workspace the listing is refreshed from the real local disk on every ls
+    let files = ctx.fileSystem[curPath] || [];
+    if (curPath === WORKSPACE_ROOT_PATH || curPath.startsWith(`${WORKSPACE_ROOT_PATH}/`)) {
+      try {
+        files = await loadWorkspaceDirectory(ctx, curPath);
+      } catch (err: any) {
+        return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: `ls: ${err.message}` };
+      }
+    }
 
     const interactiveFiles = files.map((f) => ({
       name: f.name,
@@ -1219,7 +1467,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
         type: 'stdout',
         interactiveFiles,
         output: `
- El volumen en la unidad C es TERMBROWSER_OS
+ El volumen en la unidad C es TERMINUS
  Directorio de C:${curPath.replace(/\//g, '\\').toUpperCase()}
 
 .                <DIR>          07-11-2026  00:00
@@ -1248,34 +1496,37 @@ ${dirLines || '               (directorio vacío)'}
     const target = args[0] || '/home/user';
     const curPath = ctx.currentPath || '/home/user';
 
-    if (target === '..' || target === '../') {
-      const parts = curPath.split('/').filter(Boolean);
-      parts.pop();
-      const parent = parts.length === 0 ? '/' : `/${parts.join('/')}`;
-      ctx.setCurrentPath(parent);
+    // Collapse "..", "." and absolute/relative targets into one absolute virtual path
+    const absTarget = normalizeVirtualPath(target.startsWith('/') ? target : `${curPath}/${target}`);
+
+    // The real local disk lives under /workspace, so subdirectories load straight from the server
+    if (absTarget === WORKSPACE_ROOT_PATH || absTarget.startsWith(`${WORKSPACE_ROOT_PATH}/`)) {
+      try {
+        const files = await loadWorkspaceDirectory(ctx, absTarget);
+        return {
+          id: `cmd_${Date.now()}`,
+          timestamp,
+          type: 'system',
+          interactiveFiles: files.map(workspaceInteractiveFile),
+          output: `[✓] Directorio actual: ${absTarget} — disco local real (${files.length} elementos).\nPulse un elemento para entrar o abrirlo, o escriba "cd <carpeta>" / "cat <archivo>".`,
+        };
+      } catch (err: any) {
+        return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: `cd: ${err.message}` };
+      }
+    }
+
+    if (absTarget === '/' || absTarget === '/home' || absTarget === '/home/user') {
+      ctx.setCurrentPath(absTarget);
+      return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: `[✓] Directorio actual: ${absTarget}` };
+    }
+
+    if (ctx.fileSystem[absTarget] !== undefined) {
+      ctx.setCurrentPath(absTarget);
       return {
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'system',
-        output: `[✓] Directorio actual: ${parent}`,
-      };
-    }
-
-    if (target === '/' || target === '~' || target === '/home/user') {
-      const dest = target === '/' ? '/' : '/home/user';
-      ctx.setCurrentPath(dest);
-      return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: `[✓] Directorio actual: ${dest}` };
-    }
-
-    // Relative directory
-    const resolvedPath = curPath === '/' ? `/${target}` : `${curPath}/${target.replace(/^\//, '')}`;
-    if (ctx.fileSystem[resolvedPath] !== undefined) {
-      ctx.setCurrentPath(resolvedPath);
-      return {
-        id: `cmd_${Date.now()}`,
-        timestamp,
-        type: 'system',
-        output: `[✓] Cambiado al directorio: ${resolvedPath}`,
+        output: `[✓] Cambiado al directorio: ${absTarget}`,
       };
     }
 
@@ -1284,6 +1535,26 @@ ${dirLines || '               (directorio vacío)'}
     const matchedDir = curFiles.find((f) => f.type === 'dir' && f.name.toLowerCase() === target.toLowerCase());
     if (matchedDir) {
       const nextP = curPath === '/' ? `/${matchedDir.name}` : `${curPath}/${matchedDir.name}`;
+
+      // Native mounted folders only contain a handle for their subdirectories.
+      // Read the target handle on demand so nested local files are actually listed.
+      if (matchedDir.handle?.kind === 'directory') {
+        try {
+          const nativeFiles = toVirtualFiles(await readNativeDirectory(matchedDir.handle));
+          ctx.setFileSystem((prev) => ({ ...prev, [nextP]: nativeFiles }));
+          ctx.setCurrentPath(nextP);
+          return {
+            id: `cmd_${Date.now()}`,
+            timestamp,
+            type: 'system',
+            interactiveFiles: nativeFiles.map(workspaceInteractiveFile),
+            output: `[✓] Directorio actual: ${nextP} — carpeta local real (${nativeFiles.length} elementos).\nPulse un elemento para entrar o abrirlo, o escriba "cd <carpeta>" / "cat <archivo>".`,
+          };
+        } catch (err: any) {
+          return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: `cd: ${err.message}` };
+        }
+      }
+
       ctx.setCurrentPath(nextP);
       return {
         id: `cmd_${Date.now()}`,
@@ -1477,6 +1748,7 @@ ${dirLines || '               (directorio vacío)'}
           [mountPath]: vFiles,
         }));
         ctx.setCurrentPath(mountPath);
+        ctx.onNativeMountSaved?.(res.name, mountPath);
 
         const interactiveFiles = vFiles.map((f) => ({
           name: f.name,
@@ -1554,9 +1826,7 @@ ${dirLines || '               (directorio vacío)'}
       timestamp,
       type: 'stdout',
       output: `
-╔═══════════════════════════════════════════════════════════════════════════════════╗
-║                 TERMBROWSER OS - GESTOR DE SISTEMA DE ARCHIVOS LOCAL              ║
-╚═══════════════════════════════════════════════════════════════════════════════════╝
+${formatAsciiBox('TERMINUS - GESTOR DE SISTEMA DE ARCHIVOS LOCAL')}
 Directorio actual: ${ctx.currentPath || '/home/user'}
 
 Puntos de montaje disponibles:
@@ -1593,7 +1863,7 @@ Comandos de gestión:
       timestamp,
       type: 'stdout',
       output: `
-Configuración IP de TermBrowser OS:
+Configuración IP de Terminus:
 
 Adaptador Ethernet eth0 [Túnel AES-256]:
    Sufijo DNS específico para la conexión: local.lan
@@ -1848,6 +2118,14 @@ Metadatos:
       amber: 'amber-crt',
       ambar: 'amber-crt',
       cyberpunk: 'cyberpunk-obsidian',
+      retro: 'retro-futurista',
+      retrofuturista: 'retro-futurista',
+      'retro-futurista': 'retro-futurista',
+      orbit: 'retro-futurista',
+      orbita: 'retro-futurista',
+      'órbita': 'retro-futurista',
+      solar: 'retro-futurista',
+      '2086': 'retro-futurista',
       dos: 'ms-dos',
       matrix: 'matrix-dark',
       bw: 'black-and-white',
@@ -1869,7 +2147,7 @@ Metadatos:
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'stderr',
-      output: 'Uso: theme <bw|blanco-y-negro|green|amber|cyberpunk|dos|matrix>',
+      output: 'Uso: theme <bw|blanco-y-negro|green|amber|cyberpunk|retro|dos|matrix>',
     };
   }
 
@@ -1886,13 +2164,10 @@ Metadatos:
     return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'Uso: sound <on|off>' };
   }
 
-  if (primaryCmd === 'view') {
-    const mode = args[0]?.toLowerCase() as ViewMode;
-    if (['split', 'terminal', 'browser', 'reader'].includes(mode)) {
-      ctx.setViewMode(mode);
-      return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: `[✓] Modo de vista establecido a: ${mode}` };
-    }
-    return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'Uso: view <split|terminal|browser|reader>' };
+  // Internal Terminus pages can also be pasted into the address bar.
+  if (isTerminusSearchUrl(trimmed)) {
+    const searchQuery = getTerminusSearchQuery(trimmed);
+    return searchQuery ? performWebSearch(searchQuery, ctx) : processCommand('home', ctx);
   }
 
   // If command not recognized:
@@ -1923,85 +2198,188 @@ Metadatos:
   return performWebSearch(rawCommand, ctx);
 }
 
-async function performWebSearch(query: string, ctx: CommandContext): Promise<TerminalLogEntry> {
+async function performWebSearch(
+  query: string,
+  ctx: CommandContext,
+  historyOverride?: { historyIndex: number }
+): Promise<TerminalLogEntry> {
   const timestamp = new Date().toLocaleTimeString();
+  const cleanQuery = query.trim().replace(/\s+/g, ' ');
   const startTime = Date.now();
-  const cleanQuery = query.trim();
+
+  if (!cleanQuery) {
+    return {
+      id: `search_${Date.now()}`,
+      timestamp,
+      type: 'stderr',
+      output: 'Uso: search <términos de búsqueda>  o  buscar <consulta>',
+    };
+  }
+
+  const searchUrl = buildTerminusSearchUrl(cleanQuery);
+  const currentTab = ctx.tabs.find((t) => t.id === ctx.activeTabId);
+  if (!currentTab) {
+    return {
+      id: `search_${Date.now()}`,
+      timestamp,
+      type: 'stderr',
+      output: 'No hay ninguna pestaña activa disponible para buscar.',
+    };
+  }
+
+  // Paint the internal page immediately so the address bar and loading state agree.
+  ctx.setTabs((prev) =>
+    prev.map((t) => {
+      if (t.id !== ctx.activeTabId) return t;
+      const appendToHistory = !historyOverride && t.url !== searchUrl;
+      const nextHistory = historyOverride
+        ? t.history
+        : appendToHistory
+        ? [...t.history.slice(0, t.historyIndex + 1), searchUrl]
+        : t.history;
+      const nextHistoryIndex = historyOverride
+        ? historyOverride.historyIndex
+        : appendToHistory
+        ? nextHistory.length - 1
+        : t.historyIndex;
+
+      return {
+        ...t,
+        title: 'Terminus Search',
+        url: searchUrl,
+        displayUrl: searchUrl,
+        isLoading: true,
+        statusCode: undefined,
+        content: '',
+        readerText: '',
+        links: [],
+        images: [],
+        latencyMs: undefined,
+        sizeBytes: undefined,
+        history: nextHistory,
+        historyIndex: nextHistoryIndex,
+        search: {
+          query: cleanQuery,
+          status: 'loading',
+          results: [],
+          latencyMs: 0,
+          provider: TERMINUS_SEARCH_PROVIDER,
+        },
+      };
+    })
+  );
 
   try {
     const res = await fetch(`/api/search?q=${encodeURIComponent(cleanQuery)}`);
     const latencyMs = Date.now() - startTime;
-    if (res.ok) {
-      const data = await res.json();
-      const results: { title: string; url: string; snippet: string; image?: string }[] = data.results || [];
-      const images: { src: string; alt?: string }[] = data.images || [];
-
-      const headings = results.map((r, i) => `[${i + 1}] ${r.title}`);
-      const paragraphs = results.map((r) => `${r.title}: ${r.snippet}`);
-      const links = results.map((r) => ({ text: r.title, href: r.url }));
-      const searchDisplayUrl = `https://duckduckgo.com/?q=${encodeURIComponent(cleanQuery)}`;
-
-      const searchHtml = `
-        <div style="font-family: monospace, sans-serif; padding: 24px; max-width: 900px; margin: 0 auto; color: #e2e8f0; background: #0b0f19; min-height: 100vh;">
-          <div style="border-bottom: 1px solid #1e293b; padding-bottom: 16px; margin-bottom: 24px;">
-            <div style="font-size: 11px; color: #10b981; font-weight: bold; margin-bottom: 6px;">[TERMBROWSER WEB SEARCH ENGINE]</div>
-            <h1 style="font-size: 20px; color: #f8fafc; margin: 0 0 10px 0;">Búsqueda: "${cleanQuery}"</h1>
-            <div style="font-size: 12px; color: #94a3b8;">${results.length} resultados encontrados en ${latencyMs}ms · Cifrado AES-256</div>
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 18px;">
-            ${results.map((r, i) => `
-              <div style="border: 1px solid #1e293b; padding: 16px; border-radius: 2px; background: rgba(15, 23, 42, 0.6);">
-                <div style="font-size: 11px; color: #38bdf8; margin-bottom: 4px; word-break: break-all;">${r.url}</div>
-                <h3 style="font-size: 15px; margin: 0 0 6px 0;">
-                  <a href="${r.url}" target="_blank" rel="noopener noreferrer" style="color: #6ee7b7; text-decoration: underline;">[${i + 1}] ${r.title}</a>
-                </h3>
-                <p style="font-size: 12px; color: #cbd5e1; line-height: 1.5; margin: 0;">${r.snippet}</p>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
-
-      ctx.setTabs((prev) =>
-        prev.map((t) =>
-          t.id === ctx.activeTabId
-            ? {
-                ...t,
-                isLoading: false,
-                title: `Búsqueda: ${cleanQuery}`,
-                url: searchDisplayUrl,
-                displayUrl: searchDisplayUrl,
-                content: searchHtml,
-                readerText: paragraphs.join('\n\n'),
-                latencyMs,
-              }
-            : t
-        )
-      );
-
-      const webpagePayload: WebpagePayload = {
-        url: searchDisplayUrl,
-        title: `Resultados de Búsqueda: "${cleanQuery}"`,
-        statusCode: 200,
-        latencyMs,
-        images,
-        headings: headings.slice(0, 8),
-        paragraphs: results.slice(0, 8).map((r) => `${r.title}: ${r.snippet}`),
-        links,
-        summary: `${results.length} resultados encontrados para "${cleanQuery}" en ${latencyMs}ms.`,
-      };
-
-      return {
-        id: `search_${Date.now()}`,
-        timestamp,
-        type: 'webpage',
-        webpage: webpagePayload,
-        output: `[BUSCADOR WEB] Búsqueda para "${cleanQuery}" (${results.length} resultados en ${latencyMs}ms).\nHaga clic sobre cualquier enlace para navegar al sitio web.`,
-      };
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.message || errorData.error || `HTTP ${res.status}`);
     }
-  } catch (err: any) {}
 
-  return processCommand(`goto https://duckduckgo.com/?q=${encodeURIComponent(cleanQuery)}`, ctx);
+    const data = await res.json();
+    const results: TerminusSearchResult[] = (Array.isArray(data.results) ? data.results : [])
+      .filter(
+        (result: any) =>
+          result &&
+          typeof result.title === 'string' &&
+          typeof result.url === 'string' &&
+          /^https?:\/\//i.test(result.url)
+      )
+      .slice(0, 12)
+      .map((result: any) => ({
+        title: result.title.trim(),
+        url: result.url,
+        snippet: typeof result.snippet === 'string' ? result.snippet : '',
+        image: typeof result.image === 'string' ? result.image : undefined,
+      }));
+    const images = Array.isArray(data.images)
+      ? data.images.filter((image: any) => image && typeof image.src === 'string').slice(0, 8)
+      : [];
+    const provider =
+      typeof data.provider === 'string' && data.provider ? data.provider : TERMINUS_SEARCH_PROVIDER;
+    const headings = results.map((result, index) => `[${index + 1}] ${result.title}`);
+    const paragraphs = results.map((result) => `${result.title}: ${result.snippet}`);
+    const links = results.map((result) => ({ text: result.title, href: result.url }));
+    const searchState: TerminusSearchState = {
+      query: cleanQuery,
+      status: 'ready',
+      results,
+      latencyMs,
+      provider,
+    };
+
+    ctx.setTabs((prev) =>
+      prev.map((t) =>
+        t.id === ctx.activeTabId
+          ? {
+              ...t,
+              isLoading: false,
+              title: 'Terminus Search',
+              statusCode: 200,
+              content: '',
+              readerText: paragraphs.join('\n\n'),
+              links,
+              images,
+              latencyMs,
+              search: searchState,
+            }
+          : t
+      )
+    );
+
+    const webpagePayload: WebpagePayload = {
+      url: searchUrl,
+      title: `Terminus Search: "${cleanQuery}"`,
+      statusCode: 200,
+      latencyMs,
+      images,
+      headings: headings.slice(0, 8),
+      paragraphs: results.slice(0, 8).map((result) => `${result.title}: ${result.snippet}`),
+      links,
+      summary: `${results.length} resultados de ${provider} para "${cleanQuery}" en ${latencyMs}ms.`,
+    };
+
+    return {
+      id: `search_${Date.now()}`,
+      timestamp,
+      type: 'webpage',
+      webpage: webpagePayload,
+      output: `[TERMINUS SEARCH] "${cleanQuery}" · ${results.length} resultados en ${latencyMs}ms · ${provider}.`,
+    };
+  } catch (err: any) {
+    const message = err?.message || 'Proveedor de búsqueda no disponible.';
+    const latencyMs = Date.now() - startTime;
+
+    ctx.setTabs((prev) =>
+      prev.map((t) =>
+        t.id === ctx.activeTabId
+          ? {
+              ...t,
+              isLoading: false,
+              title: 'Terminus Search',
+              statusCode: undefined,
+              latencyMs,
+              search: {
+                query: cleanQuery,
+                status: 'error',
+                results: [],
+                latencyMs,
+                provider: TERMINUS_SEARCH_PROVIDER,
+                error: message,
+              },
+            }
+          : t
+      )
+    );
+
+    return {
+      id: `search_${Date.now()}`,
+      timestamp,
+      type: 'stderr',
+      output: `[!] Terminus Search no pudo completar "${cleanQuery}": ${message}`,
+    };
+  }
 }
 
 function getCategoryHelp(rawCategory: string): TerminalLogEntry | null {

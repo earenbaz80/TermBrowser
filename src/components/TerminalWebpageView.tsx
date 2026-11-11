@@ -1,275 +1,396 @@
-import React, { useState } from 'react';
-import { ThemeConfig, WebpagePayload } from '../types';
+import React, { useEffect, useState } from 'react';
+import { ThemeConfig, ThemeId, WebpagePayload } from '../types';
 import { soundEffects } from '../utils/soundEffects';
-import {
-  Globe,
-  Image as ImageIcon,
-  ExternalLink,
-  BookOpen,
-  Eye,
-  EyeOff,
-  Link2,
-  Lock,
-  ArrowRight,
-  Maximize2,
-  Check,
-} from 'lucide-react';
 
 interface TerminalWebpageViewProps {
   theme: ThemeConfig;
   webpage: WebpagePayload;
   onNavigate: (url: string) => void;
-  onOpenSplitWeb?: (url: string) => void;
+  /** Only the newest page in the stream may mount a live iframe; older ones fall back */
+  isLatest?: boolean;
 }
 
-export const TerminalWebpageView: React.FC<TerminalWebpageViewProps> = ({
-  theme,
-  webpage,
-  onNavigate,
-  onOpenSplitWeb,
-}) => {
-  const [showImages, setShowImages] = useState(true);
-  const [showLinks, setShowLinks] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+const PAGE_VIEW_STORAGE_KEY = 'termbrowser.page-view';
+type PageView = 'web' | 'retro' | 'texto';
 
-  const imagesCount = webpage.images ? webpage.images.length : 0;
-  const linksCount = webpage.links ? webpage.links.length : 0;
+interface CrtLook {
+  /** Phosphor colour of the screen */
+  tint: string;
+  /** Strength of the colour cast over the page */
+  tintOpacity: number;
+  /** Darkening layer that keeps the page readable on a black tube */
+  dim: string;
+  /** Edge falloff of the tube */
+  vignette: string;
+}
+
+/** Each theme gets its own phosphor, so the CRT effect matches the terminal palette */
+const CRT_LOOKS: Record<ThemeId, CrtLook> = {
+  'monochrome-green': { tint: '#33ff77', tintOpacity: 0.32, dim: 'rgba(0, 0, 0, 0.55)', vignette: 'rgba(0, 0, 0, 0.62)' },
+  'amber-crt': { tint: '#ffb000', tintOpacity: 0.34, dim: 'rgba(10, 5, 0, 0.55)', vignette: 'rgba(0, 0, 0, 0.62)' },
+  'cyberpunk-obsidian': { tint: '#ff2d95', tintOpacity: 0.28, dim: 'rgba(6, 0, 16, 0.56)', vignette: 'rgba(0, 0, 0, 0.64)' },
+  'retro-futurista': { tint: '#67e8f9', tintOpacity: 0.28, dim: 'rgba(0, 8, 24, 0.58)', vignette: 'rgba(0, 0, 0, 0.66)' },
+  'ms-dos': { tint: '#4da3ff', tintOpacity: 0.3, dim: 'rgba(0, 0, 20, 0.55)', vignette: 'rgba(0, 0, 0, 0.6)' },
+  'matrix-dark': { tint: '#00ff41', tintOpacity: 0.34, dim: 'rgba(0, 8, 0, 0.55)', vignette: 'rgba(0, 0, 0, 0.64)' },
+  'black-and-white': { tint: '#ffffff', tintOpacity: 0.1, dim: 'rgba(0, 0, 0, 0.66)', vignette: 'rgba(0, 0, 0, 0.7)' },
+};
+
+/**
+ * The page as part of the terminal stream. Three views, chosen per page:
+ * WEB paints the real page inside a CRT monitor (only when the site permits framing);
+ * RETRO keeps the original structure painted with the terminal palette;
+ * TEXTO is the flat extraction, the lightest option for slow links.
+ */
+export const TerminalWebpageView: React.FC<TerminalWebpageViewProps> = ({ theme, webpage, onNavigate, isLatest = true }) => {
+  const [enlargedImage, setEnlargedImage] = useState<{ src: string; alt?: string; direct?: boolean } | null>(null);
+
+  // Every live iframe keeps a whole site running in memory, so only the newest page may have one.
+  // Sites that forbid framing are shown through our own /api/view proxy instead of falling to text.
+  const canFrame = isLatest;
+  const directFrame = Boolean(webpage.frameable);
+  const webSrc = directFrame ? webpage.url : `/api/view?url=${encodeURIComponent(webpage.url)}`;
+  const hasStructured = Boolean(webpage.structuredHtml && webpage.structuredHtml.trim());
+  const available: PageView[] = [...(canFrame ? (['web'] as PageView[]) : []), ...(hasStructured ? (['retro'] as PageView[]) : []), 'texto'];
+
+  const [view, setView] = useState<PageView>(() => {
+    try {
+      const stored = localStorage.getItem(PAGE_VIEW_STORAGE_KEY) as PageView | null;
+      if (stored && available.includes(stored)) return stored;
+    } catch {
+      // Storage unavailable: use the default for this page
+    }
+    // The real page wins when the site allows framing; the other views stay one click away
+    return canFrame ? 'web' : hasStructured ? 'retro' : 'texto';
+  });
+
+  // The CRT effect is optional and remembered across pages and sessions
+  const [crtOn, setCrtOn] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('termbrowser.crt') !== 'off';
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleCrt = () => {
+    soundEffects.playKeyClick();
+    const next = !crtOn;
+    setCrtOn(next);
+    try {
+      localStorage.setItem('termbrowser.crt', next ? 'on' : 'off');
+    } catch {
+      // Ignore: the effect still switches for this session
+    }
+  };
+
+  const current: PageView = available.includes(view) ? view : available[0];
+
+  const links = webpage.links || [];
+  const images = webpage.images || [];
+  const bodyText = webpage.text && webpage.text.trim() ? webpage.text : '';
+
+  const cycleView = () => {
+    soundEffects.playKeyClick();
+    const next = available[(available.indexOf(current) + 1) % available.length];
+    setView(next);
+    try {
+      localStorage.setItem(PAGE_VIEW_STORAGE_KEY, next);
+    } catch {
+      // Ignore: the view still switches for this session
+    }
+  };
+
+  // The proxied document is sandboxed, so its link clicks arrive here as messages
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || data.source !== 'termbrowser-view' || typeof data.url !== 'string') return;
+      if (!/^https?:\/\//i.test(data.url)) return;
+      onNavigate(data.url);
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [onNavigate]);
+
+  const crtLook: CrtLook = CRT_LOOKS[theme.id] || {
+    tint: theme.accent,
+    tintOpacity: 0.34,
+    dim: 'rgba(0, 0, 0, 0.56)',
+    vignette: 'rgba(0, 0, 0, 0.6)',
+  };
+
+  const proxiedImage = (src: string) =>
+    `/api/image?url=${encodeURIComponent(src)}${webpage.url ? `&ref=${encodeURIComponent(webpage.url)}` : ''}`;
+  const imageSrc = (image: { src: string; direct?: boolean }) => (image.direct ? image.src : proxiedImage(image.src));
+
+  /** Splits the extracted body on the invisible link/image markers, like the TEXTO view does */
+  const renderStreamText = (text: string) => {
+    const parts = text.split(/\u2060\[(\d+)\]|\u2061\[img:(\d+)\]/g);
+
+    return parts.map((part, index) => {
+      if (part === undefined) return null;
+
+      const isLink = index % 3 === 1;
+      const isImage = index % 3 === 2;
+
+      if (isLink) {
+        const link = links[Number(part) - 1];
+        if (!link) return <span key={`lmiss-${index}`}>[{part}]</span>;
+        return (
+          <button
+            key={`lm-${index}`}
+            type="button"
+            onClick={() => {
+              soundEffects.playKeyClick();
+              onNavigate(link.href);
+            }}
+            className="inline cursor-pointer font-bold underline touch-manipulation"
+            style={{ color: theme.accent }}
+            title={`Abrir [${part}]: ${link.href}`}
+          >
+            [{part}]
+          </button>
+        );
+      }
+
+      if (isImage) {
+        const image = images[Number(part) - 1];
+        if (!image) return null;
+        return (
+          <button
+            key={`im-${index}`}
+            type="button"
+            onClick={() => {
+              soundEffects.playKeyClick();
+              setEnlargedImage(image);
+            }}
+            className="my-0.5 mr-1 inline-block cursor-zoom-in align-middle touch-manipulation"
+            title={`Ampliar imagen${image.alt ? `: ${image.alt}` : ''}`}
+          >
+            <img
+              src={proxiedImage(image.src)}
+              alt={image.alt || ''}
+              loading="lazy"
+              decoding="async"
+              className="block max-w-full rounded-xs border bg-black/30"
+              style={{ borderColor: theme.border, maxHeight: 64 }}
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          </button>
+        );
+      }
+
+      return <React.Fragment key={`t-${index}`}>{part}</React.Fragment>;
+    });
+  };
+
+  /** Retro view: the server-sanitized original structure, with terminal palette applied by CSS */
+  const handleRetroClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+
+    const image = target.closest('img[data-retro-img]') as HTMLImageElement | null;
+    if (image) {
+      event.preventDefault();
+      soundEffects.playKeyClick();
+      setEnlargedImage({ src: image.getAttribute('src') || '', alt: image.getAttribute('alt') || undefined, direct: true });
+      return;
+    }
+
+    const anchor = target.closest('a[data-retro-link]') as HTMLAnchorElement | null;
+    if (!anchor) return;
+    event.preventDefault();
+    const href = anchor.getAttribute('data-retro-link');
+    if (!href) return;
+    soundEffects.playKeyClick();
+    onNavigate(href);
+  };
 
   return (
-    <div
-      className="my-3 border rounded-xs font-mono text-xs overflow-hidden select-text shadow-lg"
-      style={{
-        backgroundColor: theme.cardBg,
-        borderColor: theme.border,
-        color: theme.text,
-      }}
-    >
-      {/* MS-DOS Lynx/Arachne ASCII Header Banner */}
-      <div
-        className="px-3 py-2 border-b select-none flex flex-col sm:flex-row sm:items-center justify-between gap-2"
-        style={{
-          backgroundColor: theme.bg,
-          borderColor: theme.border,
-        }}
-      >
-        <div className="space-y-0.5 truncate">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-[11px] text-amber-400">
-              ╔═[ TERMBROWSER LYNX/ARACHNE MS-DOS WEB VIEW ]═╗
-            </span>
-            <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-0.5">
-              <Lock className="w-2.5 h-2.5" /> AES-256
-            </span>
-          </div>
-          <div className="font-bold text-xs truncate" style={{ color: theme.accent }}>
-            {webpage.title || webpage.url}
-          </div>
-          <div className="text-[10px] opacity-70 truncate font-mono">
-            URL: {webpage.url} · HTTP {webpage.statusCode || 200} · {webpage.latencyMs || 25}ms
-          </div>
-        </div>
-
-        {/* View Controls Toolbar */}
-        <div className="flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
-          {imagesCount > 0 && (
-            <button
-              onClick={() => {
-                soundEffects.playKeyClick();
-                setShowImages(!showImages);
-              }}
-              className="flex items-center gap-1 px-2 py-1 border text-[10px] font-bold rounded-xs cursor-pointer hover:bg-white/10"
-              style={{ borderColor: theme.border }}
-              title="Mostrar u ocultar imágenes reales en terminal"
-            >
-              {showImages ? <EyeOff className="w-3 h-3 text-red-400" /> : <Eye className="w-3 h-3 text-emerald-400" />}
-              <span>{showImages ? 'Ocultar Fotos' : `Ver Fotos (${imagesCount})`}</span>
-            </button>
-          )}
-
-          {linksCount > 0 && (
-            <button
-              onClick={() => {
-                soundEffects.playKeyClick();
-                setShowLinks(!showLinks);
-              }}
-              className="flex items-center gap-1 px-2 py-1 border text-[10px] font-bold rounded-xs cursor-pointer hover:bg-white/10"
-              style={{ borderColor: theme.border }}
-              title="Mostrar enlaces extraídos"
-            >
-              <Link2 className="w-3 h-3 text-cyan-400" />
-              <span>Enlaces ({linksCount})</span>
-            </button>
-          )}
-
-          {onOpenSplitWeb && (
-            <button
-              onClick={() => {
-                soundEffects.playKeyClick();
-                onOpenSplitWeb(webpage.url);
-              }}
-              className="flex items-center gap-1 px-2 py-1 border text-[10px] font-bold rounded-xs cursor-pointer hover:opacity-90"
-              style={{
-                backgroundColor: theme.accent,
-                color: theme.bg,
-                borderColor: theme.accent,
-              }}
-              title="Abrir en visor web completo de la derecha"
-            >
-              <Globe className="w-3 h-3" />
-              <span>Visor Web</span>
-            </button>
-          )}
-        </div>
+    <div className="space-y-1 font-mono text-[11px] leading-relaxed">
+      {/* One plain status line instead of a header bar */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] opacity-70">
+        <span className="min-w-0 truncate opacity-80">
+          ── [{webpage.statusCode || 200}] {webpage.url} · {webpage.latencyMs || 0}ms · {images.length} imágenes ·{' '}
+          {links.length} enlaces{directFrame ? '' : ' · vía proxy'} ──
+        </span>
+        <button
+          type="button"
+          onClick={cycleView}
+          className="shrink-0 cursor-pointer border px-1.5 py-0.5 hover:opacity-100 touch-manipulation"
+          style={{ borderColor: theme.border, color: theme.accent }}
+          title={
+            canFrame
+              ? 'Vistas: WEB (página original) → RETRO (estructura) → TEXTO (plano)'
+              : 'El sitio prohíbe mostrarse en marco: vistas RETRO (estructura) y TEXTO (plano). Use "abrir original" para verlo completo.'
+          }
+        >
+          VISTA {current.toUpperCase()}
+        </button>
+        <a
+          href={webpage.url}
+          target="_blank"
+          rel="noreferrer"
+          className="shrink-0 underline opacity-80 hover:opacity-100 touch-manipulation"
+          style={{ color: theme.text }}
+          title="Abrir la página original en una pestaña del navegador"
+        >
+          abrir original ↗
+        </a>
+        {canFrame && (
+          <button
+            type="button"
+            onClick={toggleCrt}
+            className="shrink-0 cursor-pointer border px-1.5 py-0.5 hover:opacity-100 touch-manipulation"
+            style={{ borderColor: theme.border, color: crtOn ? theme.accent : theme.text }}
+            title="Activar o desactivar el efecto CRT (tinte de fósforo, viñeta y líneas de barrido) sobre la página original"
+          >
+            CRT {crtOn ? 'ON' : 'OFF'}
+          </button>
+        )}
       </div>
 
-      {/* Real Images Gallery Inside Terminal (MS-DOS Graphical Mode) */}
-      {showImages && imagesCount > 0 && (
-        <div className="p-3 border-b space-y-2 bg-black/30" style={{ borderColor: theme.border }}>
-          <div className="flex items-center justify-between text-[11px] font-bold">
-            <span className="flex items-center gap-1.5 text-amber-400">
-              <ImageIcon className="w-3.5 h-3.5" />
-              <span>IMÁGENES REALES EXTRAÍDAS DEL SITIO ({imagesCount}):</span>
-            </span>
-            <span className="text-[10px] opacity-60">Haga clic sobre una imagen para ampliar</span>
-          </div>
+      <div className="font-bold" style={{ color: theme.accent }}>
+        {webpage.title || webpage.url}
+      </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-            {webpage.images.map((img, idx) => (
-              <div
-                key={idx}
-                onClick={() => {
-                  soundEffects.playKeyClick();
-                  setSelectedImage(selectedImage === img.src ? null : img.src);
-                }}
-                className="group relative border rounded-xs overflow-hidden cursor-pointer bg-black/60 transition-transform active:scale-95 hover:border-emerald-400"
-                style={{ borderColor: theme.border }}
-              >
-                <div className="aspect-video w-full overflow-hidden flex items-center justify-center bg-black/40">
-                  <img
-                    src={img.src}
-                    alt={img.alt || `Imagen ${idx + 1}`}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover transition-opacity duration-300 group-hover:opacity-90"
-                    loading="lazy"
-                    onError={(e) => {
-                      // Fallback visual container if hotlinking fails
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
-                  />
-                </div>
-                <div className="p-1.5 border-t text-[10px] truncate opacity-80 font-mono" style={{ borderColor: theme.border }}>
-                  {img.alt || `img_${idx + 1}.jpg`}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Full preview overlay for clicked image */}
-          {selectedImage && (
-            <div
-              className="p-2 border rounded-xs bg-black/80 space-y-1 relative"
-              style={{ borderColor: theme.accent }}
-            >
-              <div className="flex items-center justify-between text-[10px] font-bold pb-1 border-b" style={{ borderColor: theme.border }}>
-                <span>VISTA AMPLIADA DE IMAGEN</span>
-                <button
-                  onClick={() => setSelectedImage(null)}
-                  className="px-1.5 py-0.5 border text-red-400 font-bold cursor-pointer"
-                  style={{ borderColor: theme.border }}
-                >
-                  Cerrar
-                </button>
-              </div>
-              <div className="flex items-center justify-center p-2">
-                <img
-                  src={selectedImage}
-                  alt="Vista previa ampliada"
-                  referrerPolicy="no-referrer"
-                  className="max-h-72 max-w-full rounded-xs object-contain border"
-                  style={{ borderColor: theme.border }}
-                />
-              </div>
-              <div className="text-[10px] opacity-70 truncate font-mono text-center">
-                {selectedImage}
-              </div>
-            </div>
+      {current === 'web' ? (
+        <div
+          className="tb-web-pane"
+          style={
+            {
+              borderColor: theme.border,
+              ...(crtOn
+                ? {
+                    '--tb-crt-tint': crtLook.tint,
+                    '--tb-crt-tint-opacity': String(crtLook.tintOpacity),
+                    '--tb-crt-dim': crtLook.dim,
+                    '--tb-crt-vignette': crtLook.vignette,
+                  }
+                : {}),
+            } as React.CSSProperties
+          }
+        >
+          <iframe
+            src={webSrc}
+            title={`Página original: ${webpage.title || webpage.url}`}
+            className="tb-web-frame"
+            referrerPolicy="no-referrer"
+            loading="lazy"
+            sandbox={
+              directFrame
+                ? 'allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads'
+                : 'allow-scripts'
+            }
+          />
+          {crtOn && (
+            <>
+              <div className="tb-crt-dim" aria-hidden="true" />
+              <div className="tb-crt-tint-layer" aria-hidden="true" />
+              <div className="tb-crt-overlay" aria-hidden="true" />
+            </>
           )}
+        </div>
+      ) : current === 'retro' && hasStructured ? (
+        <div
+          className="tb-retro"
+          style={
+            {
+              '--tb-text': theme.text,
+              '--tb-accent': theme.accent,
+              '--tb-border': theme.border,
+            } as React.CSSProperties
+          }
+          onClick={handleRetroClick}
+          dangerouslySetInnerHTML={{ __html: webpage.structuredHtml as string }}
+        />
+      ) : bodyText ? (
+        <pre
+          className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed"
+          style={{ color: theme.text }}
+        >
+          {renderStreamText(bodyText)}
+        </pre>
+      ) : webpage.paragraphs && webpage.paragraphs.length > 0 ? (
+        <div className="space-y-1.5">
+          {webpage.paragraphs.slice(0, 8).map((paragraph, index) => (
+            <p key={index} className="whitespace-pre-wrap" style={{ color: theme.text }}>
+              {paragraph}
+            </p>
+          ))}
+        </div>
+      ) : (
+        <div className="opacity-80">{webpage.summary || 'Página cargada sin texto extraíble.'}</div>
+      )}
+
+      {links.length > 0 && (
+        <div className="space-y-0.5 pt-1">
+          <div className="text-[10px] uppercase tracking-wider opacity-50">
+            ── enlaces ({links.length}) · clic, tap o escriba el número ──
+          </div>
+          {links.map((link, index) => (
+            <button
+              key={`${link.href}-${index}`}
+              type="button"
+              onClick={() => {
+                soundEffects.playKeyClick();
+                onNavigate(link.href);
+              }}
+              className="flex w-full items-baseline gap-1.5 truncate py-0.5 text-left hover:underline touch-manipulation"
+              style={{ color: theme.text }}
+              title={link.href}
+            >
+              <span className="shrink-0 font-bold" style={{ color: theme.accent }}>
+                [{index + 1}]
+              </span>
+              <span className="truncate opacity-80">{link.text || link.href}</span>
+            </button>
+          ))}
         </div>
       )}
 
-      {/* Main Content Body in Lynx / MS-DOS Terminal Typography */}
-      <div className="p-3.5 space-y-3 leading-relaxed">
-        {/* Headings */}
-        {webpage.headings && webpage.headings.length > 0 && (
-          <div className="space-y-1 pb-2 border-b" style={{ borderColor: theme.border }}>
-            <div className="text-[10px] font-bold opacity-60 uppercase tracking-wider">
-              ENCABEZADOS DETECTADOS:
-            </div>
-            {webpage.headings.slice(0, 4).map((h, i) => (
-              <div key={i} className="font-bold text-xs" style={{ color: theme.accent }}>
-                ► {h}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Text Paragraphs */}
-        {webpage.paragraphs && webpage.paragraphs.length > 0 ? (
-          <div className="space-y-2.5 text-xs opacity-90 font-mono">
-            {webpage.paragraphs.slice(0, 6).map((p, idx) => (
-              <p key={idx} className="leading-normal">
-                {p}
-              </p>
-            ))}
-          </div>
-        ) : (
-          <div className="text-xs opacity-80 font-mono">
-            {webpage.summary || 'Página web renderizada con éxito bajo el motor MS-DOS.'}
-          </div>
-        )}
-
-        {/* Clickable Hyperlinks Drawer */}
-        {showLinks && webpage.links && webpage.links.length > 0 && (
-          <div
-            className="p-3 border rounded-xs space-y-2 mt-3 bg-black/40"
-            style={{ borderColor: theme.border }}
-          >
-            <div className="font-bold text-[11px] text-cyan-400 flex items-center gap-1.5">
-              <Link2 className="w-3.5 h-3.5" />
-              <span>ENLACES CLICABLES DEL SITIO (PULSE PARA NAVEGAR DIRECTAMENTE):</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-              {webpage.links.slice(0, 10).map((l, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    soundEffects.playKeyClick();
-                    onNavigate(l.href);
-                  }}
-                  className="p-1.5 border text-left rounded-xs hover:bg-white/10 cursor-pointer flex items-center justify-between gap-2 transition-colors font-mono"
-                  style={{ borderColor: theme.border }}
-                  title={`Ir a: ${l.href}`}
+      {/* Same enlargement overlay as the text view; retro images already carry the proxy URL */}
+      {enlargedImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6"
+          onClick={() => setEnlargedImage(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Imagen ampliada"
+        >
+          <div className="max-h-full w-full max-w-4xl space-y-2" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={imageSrc(enlargedImage)}
+              alt={enlargedImage.alt || ''}
+              className="mx-auto block max-h-[72vh] max-w-full rounded-xs border bg-black"
+              style={{ borderColor: theme.border }}
+            />
+            <div className="flex items-center justify-between gap-3 text-[10px]" style={{ color: theme.text }}>
+              <span className="truncate opacity-70">{enlargedImage.alt || enlargedImage.src}</span>
+              <span className="flex shrink-0 items-center gap-2">
+                <a
+                  href={enlargedImage.src}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline"
+                  style={{ color: theme.accent }}
                 >
-                  <span className="truncate text-[11px] font-semibold text-slate-200">
-                    [{idx + 1}] {l.text || l.href}
-                  </span>
-                  <ArrowRight className="w-3 h-3 shrink-0 opacity-60 text-emerald-400" />
+                  Abrir original ↗
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setEnlargedImage(null)}
+                  className="cursor-pointer border px-2 py-0.5"
+                  style={{ borderColor: theme.border }}
+                >
+                  Cerrar [ESC]
                 </button>
-              ))}
+              </span>
             </div>
           </div>
-        )}
-      </div>
-
-      {/* Terminal Web View Footer */}
-      <div
-        className="px-3 py-1.5 border-t text-[10px] flex items-center justify-between select-none opacity-70"
-        style={{ backgroundColor: theme.bg, borderColor: theme.border }}
-      >
-        <span>MODO TERMINAL MS-DOS CON IMÁGENES REALES</span>
-        <span>Escriba "goto &lt;url&gt;" o haga clic en cualquier enlace para continuar</span>
-      </div>
+        </div>
+      )}
     </div>
   );
 };

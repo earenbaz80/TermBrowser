@@ -1,5 +1,5 @@
 /**
- * Web Speech Recognition Service for TermBrowser OS
+ * Web Speech Recognition Service for Terminus
  * Provides hands-free voice input, speech-to-command translation,
  * and retro CRT visualization hooks.
  */
@@ -46,7 +46,7 @@ export function isSpeechRecognitionSupported(): boolean {
 }
 
 /**
- * Normalizes spoken speech into valid TermBrowser CLI commands
+ * Normalizes spoken speech into valid Terminus CLI commands
  */
 export function normalizeSpokenCommand(spoken: string): string {
   const clean = spoken.trim();

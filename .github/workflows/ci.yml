@@ -1,0 +1,307 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_installed_e2e:
+        description: 'Ejecutar E2E sobre la app instalada (requiere escritorio interactivo)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows - lint, tests, cobertura y E2E opcional
+    outputs:
+      pr_comment_url: ${{ steps.pr_summary.outputs.comment_url }}
+    # El E2E usa SendKeys y necesita una sesión de escritorio interactiva. En
+    # windows-latest no hay escritorio, así que solo se ejecuta con una etiqueta
+    # self-hosted configurada en TERMINUS_CI_RUNNER o al lanzarlo manualmente.
+    runs-on: ${{ vars.TERMINUS_CI_RUNNER || 'windows-latest' }}
+    timeout-minutes: 40
+
+    steps:
+      - name: Registrar inicio del job
+        id: job_start
+        shell: pwsh
+        run: |
+          "started_at=$((Get-Date).ToUniversalTime().ToString('o'))" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validar workflows con actionlint
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '1.7.12'
+          $expectedSha256 = '6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9'
+          $zip = Join-Path $env:RUNNER_TEMP "actionlint_$version.zip"
+          $binDir = Join-Path $env:RUNNER_TEMP "actionlint_$version"
+
+          Invoke-WebRequest -Uri "https://github.com/rhysd/actionlint/releases/download/v$version/actionlint_${version}_windows_amd64.zip" -OutFile $zip
+          $actualSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()
+          if ($actualSha256 -ne $expectedSha256) {
+            throw "Checksum de actionlint inválido: $actualSha256 (esperado $expectedSha256)."
+          }
+
+          New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+          Expand-Archive -LiteralPath $zip -DestinationPath $binDir -Force
+          & (Join-Path $binDir 'actionlint.exe') -color
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Obtener versión de la app
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content -LiteralPath package.json -Raw | ConvertFrom-Json).version
+          if (-not $version) {
+            throw 'No se pudo leer la versión de package.json.'
+          }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Preflight de sesión interactiva del E2E
+        if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.run_installed_e2e == 'true') || vars.TERMINUS_RUN_INSTALLED_E2E == 'true' }}
+        timeout-minutes: 1
+        shell: pwsh
+        run: |
+          $sessionId = (Get-Process -Id $PID).SessionId
+          if ($sessionId -eq 0) {
+            throw "El E2E instalado requiere una sesión interactiva, pero el runner está en la sesión 0. Arranca el runner con run.cmd en una sesión de escritorio, no con svc.cmd. Consulta docs/e2e-installed-windows.md."
+          }
+          if (-not [Environment]::UserInteractive) {
+            throw "El E2E instalado requiere [Environment]::UserInteractive = true. Revisa la sesión del runner y consulta docs/e2e-installed-windows.md."
+          }
+          Write-Host "Sesión interactiva detectada: SessionId=$sessionId"
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Instalar Chromium para Playwright
+        run: npx playwright install chromium
+
+      - name: Auditar dependencias (incluye desarrollo)
+        run: npm audit --audit-level=moderate
+
+      - name: Typecheck y ESLint
+        run: npm run lint
+
+      - name: Pruebas unitarias con cobertura
+        run: npm run test:coverage
+
+      - name: Publicar cobertura
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-lcov
+          path: coverage/lcov.info
+          if-no-files-found: error
+
+      - name: Prueba Chromium del sandbox Python
+        run: npm run test:e2e:python-sandbox
+
+      - name: Compilar instalador NSIS
+        run: npm run desktop:build
+
+      - name: Publicar instalador
+        id: upload-installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: terminus-installer-${{ steps.version.outputs.version }}-run-${{ github.run_number }}-windows
+          path: release/Terminus Setup *.exe
+          if-no-files-found: error
+
+      - name: Instalar el build actual
+        if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.run_installed_e2e == 'true') || vars.TERMINUS_RUN_INSTALLED_E2E == 'true' }}
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -LiteralPath release -Filter 'Terminus Setup *.exe' |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if (-not $installer) {
+            throw 'No se generó el instalador NSIS.'
+          }
+
+          Write-Host "Instalando $($installer.FullName)"
+          $process = Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "El instalador terminó con código $($process.ExitCode)."
+          }
+
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\Terminus\Terminus.exe'
+          if (-not (Test-Path -LiteralPath $exe)) {
+            throw "No se encontró la app instalada en $exe."
+          }
+
+          # NSIS puede abrir la app al terminar; el E2E necesita arrancar su propia instancia.
+          Get-Process -Name Terminus -ErrorAction SilentlyContinue |
+            Stop-Process -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 2
+
+          "TERMINUS_INSTALLED_EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: E2E en la app instalada
+        id: e2e
+        if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.run_installed_e2e == 'true') || vars.TERMINUS_RUN_INSTALLED_E2E == 'true' }}
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/e2e | Out-Null
+          npm run test:e2e:installed 2>&1 | Tee-Object -FilePath artifacts/e2e/e2e-installed.log
+          $e2eExitCode = $LASTEXITCODE
+          $e2eResult = if ($e2eExitCode -eq 0) { 'PASS' } else { 'FAIL' }
+          "result=$e2eResult" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "exit_code=$e2eExitCode" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          exit $e2eExitCode
+
+      - name: Publicar logs del E2E
+        id: upload-e2e-logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-installed-logs
+          path: artifacts/e2e/e2e-installed.log
+          if-no-files-found: warn
+
+      - name: Resumen de artefactos
+        if: always()
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+          JOB_STATUS: ${{ job.status }}
+          JOB_STARTED_AT: ${{ steps.job_start.outputs.started_at }}
+          E2E_RESULT: ${{ steps.e2e.outputs.result }}
+          E2E_EXIT_CODE: ${{ steps.e2e.outputs.exit_code }}
+          E2E_OUTCOME: ${{ steps.e2e.outcome }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          INSTALLER_NAME: terminus-installer-${{ steps.version.outputs.version }}-run-${{ github.run_number }}-windows
+          INSTALLER_URL: ${{ steps.upload-installer.outputs.artifact-url }}
+          LOGS_URL: ${{ steps.upload-e2e-logs.outputs.artifact-url }}
+        run: |
+          $version = if ($env:APP_VERSION) { $env:APP_VERSION } else { 'desconocida' }
+          $status = if ($env:JOB_STATUS) { $env:JOB_STATUS } else { 'desconocido' }
+          $statusLabel = switch ($status) {
+            'success' { 'Éxito' }
+            'failure' { 'Fallo' }
+            'cancelled' { 'Cancelado' }
+            default { $status }
+          }
+          $e2eResult = if ($env:E2E_RESULT) {
+            $env:E2E_RESULT
+          } elseif ($env:E2E_OUTCOME -eq 'skipped') {
+            'No ejecutado'
+          } else {
+            'FAIL'
+          }
+          $e2eExitCodeText = if (-not [string]::IsNullOrEmpty($env:E2E_EXIT_CODE)) {
+            $env:E2E_EXIT_CODE
+          } elseif ($env:E2E_OUTCOME -eq 'skipped') {
+            'No ejecutado'
+          } else {
+            'No disponible'
+          }
+          $startedAtRaw = $env:JOB_STARTED_AT
+          if ($startedAtRaw) {
+            $startedAt = [datetime]::Parse(
+              $startedAtRaw,
+              [System.Globalization.CultureInfo]::InvariantCulture,
+              [System.Globalization.DateTimeStyles]::RoundtripKind
+            )
+            $duration = [datetime]::UtcNow - $startedAt.ToUniversalTime()
+            $hours = [int][math]::Floor($duration.TotalHours)
+            $durationText = '{0:00}:{1:00}:{2:00}' -f $hours, $duration.Minutes, $duration.Seconds
+          } else {
+            $durationText = 'desconocida'
+          }
+          $runNumber = $env:RUN_NUMBER
+          $runUrl = $env:RUN_URL
+          $installerName = $env:INSTALLER_NAME
+          $installerLink = if ($env:INSTALLER_URL) { "[Descargar]($env:INSTALLER_URL)" } else { 'No disponible' }
+          $logsLink = if ($env:LOGS_URL) { "[Descargar]($env:LOGS_URL)" } else { 'No disponible' }
+
+          $lines = @(
+            '## Terminus CI',
+            '',
+            "- **Versión:** $version",
+            "- **Estado:** $statusLabel",
+            "- **E2E:** $e2eResult",
+            "- **Código de salida del E2E:** $e2eExitCodeText",
+            "- **Duración:** $durationText",
+            "- **Ejecución:** [$runNumber]($runUrl)",
+            "- **Instalador:** $installerName - $installerLink",
+            "- **Logs E2E:** e2e-installed-logs - $logsLink",
+            ''
+          )
+          $lines | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      # En PRs desde forks el GITHUB_TOKEN es de solo lectura; se omite el comentario.
+      # Solo se publica cuando alguna fase anterior ha fallado.
+      - name: Publicar resumen en el PR
+        id: pr_summary
+        if: failure() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          $summaryPath = $env:GITHUB_STEP_SUMMARY
+          $summary = if ($summaryPath -and (Test-Path -LiteralPath $summaryPath -PathType Leaf)) {
+            Get-Content -Raw -LiteralPath $summaryPath
+          } else {
+            $null
+          }
+          if ([string]::IsNullOrWhiteSpace($summary)) {
+            Write-Warning 'No se encontró el resumen; se publicará un comentario mínimo.'
+            $summary = "## Terminus CI`n`nNo se pudo generar el resumen del workflow."
+            if ($env:RUN_URL) {
+              $summary += "`n`n[Ver la ejecución]($env:RUN_URL)"
+            }
+          }
+
+          $bodyPath = Join-Path $env:RUNNER_TEMP 'terminus-ci-summary.md'
+          $marker = '<!-- terminus-ci-summary -->'
+          $body = $marker + "`n" + $summary
+          $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+          [System.IO.File]::WriteAllText($bodyPath, $body, $utf8NoBom)
+
+          $commentId = gh api --paginate "repos/$env:REPO/issues/$env:PR_NUMBER/comments" --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- terminus-ci-summary -->"))) | .id' | Select-Object -First 1
+          if ($commentId) {
+            $commentId = $commentId.Trim()
+            $payloadPath = Join-Path $env:RUNNER_TEMP 'terminus-ci-summary.json'
+            $payload = @{ body = $body } | ConvertTo-Json -Compress
+            [System.IO.File]::WriteAllText($payloadPath, $payload, $utf8NoBom)
+            $response = gh api --method PATCH "repos/$env:REPO/issues/comments/$commentId" --input $payloadPath | ConvertFrom-Json
+            $commentUrl = $response.html_url
+            $commentAction = 'actualizado'
+            Write-Host "Comentario del resumen actualizado: $commentId"
+          } else {
+            $commentUrl = gh pr comment $env:PR_NUMBER --body-file $bodyPath | Where-Object { $_ } | Select-Object -Last 1
+            $commentAction = 'creado'
+          }
+          if (-not $commentUrl) {
+            $commentUrl = "https://github.com/$env:REPO/pull/$env:PR_NUMBER"
+          }
+          $commentUrl = $commentUrl.Trim()
+          "comment_url=$commentUrl" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Comentario del resumen ${commentAction}: $commentUrl"
+          if ($env:GITHUB_STEP_SUMMARY) {
+            "- **Comentario del PR:** [Ver resumen]($commentUrl)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          }

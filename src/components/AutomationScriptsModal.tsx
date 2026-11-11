@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ThemeConfig, UserScript } from '../types';
 import { soundEffects } from '../utils/soundEffects';
-import { Play, Plus, Trash2, Edit3, X, Check, Code, Zap } from 'lucide-react';
+import { Play, Plus, Trash2, Edit3, Code, Zap } from 'lucide-react';
 
 interface AutomationScriptsModalProps {
   theme: ThemeConfig;

@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
+import { formatAsciiBox } from '../utils/asciiBox';
 import { VirtualFile } from '../utils/interpreter';
 import {
   Folder,
@@ -11,13 +12,10 @@ import {
   Plus,
   Trash2,
   Edit,
-  Eye,
   Play,
   CheckSquare,
   Square,
   Save,
-  X,
-  Keyboard,
 } from 'lucide-react';
 
 interface FileManagerHUDProps {
@@ -59,7 +57,14 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
 
   const listRef = useRef<HTMLDivElement>(null);
 
-  const filesInCurrentDir = fileSystem[currentPath] || [];
+  const filesInCurrentDir = useMemo(() => fileSystem[currentPath] || [], [fileSystem, currentPath]);
+
+  const keyHandlersRef = useRef<{
+    handleDelete: (name: string) => void;
+    handleGoUp: () => void;
+    handleItemOpen: (item: VirtualFile) => void;
+    onClose: () => void;
+  } | null>(null);
 
   // Reset index when path changes
   useEffect(() => {
@@ -109,11 +114,11 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
         e.preventDefault();
         const cur = filesInCurrentDir[selectedIndex];
         if (cur) {
-          handleItemOpen(cur);
+          keyHandlersRef.current?.handleItemOpen(cur);
         }
       } else if (e.key === 'Backspace') {
         e.preventDefault();
-        handleGoUp();
+        keyHandlersRef.current?.handleGoUp();
       } else if (e.key === 'F3') {
         e.preventDefault();
         const cur = filesInCurrentDir[selectedIndex];
@@ -134,7 +139,7 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
         e.preventDefault();
         const cur = filesInCurrentDir[selectedIndex];
         if (cur) {
-          handleDelete(cur.name);
+          keyHandlersRef.current?.handleDelete(cur.name);
         }
       } else if (e.key === 'Escape') {
         e.preventDefault();
@@ -142,7 +147,7 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
           setPreviewFile(null);
           setIsEditing(false);
         } else {
-          onClose();
+          keyHandlersRef.current?.onClose();
         }
       }
     };
@@ -207,6 +212,8 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
     }
   };
 
+  keyHandlersRef.current = { handleDelete, handleGoUp, handleItemOpen, onClose };
+
   const handleExecuteFile = (item: VirtualFile) => {
     soundEffects.playExecute();
     onClose();
@@ -234,7 +241,7 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
     e.preventDefault();
     if (!newFileName.trim()) return;
     soundEffects.playExecute();
-    onCreateFile(currentPath, newFileName.trim(), '# Nuevo archivo en TermBrowser OS\n');
+    onCreateFile(currentPath, newFileName.trim(), '# Nuevo archivo en Terminus\n');
     setNewFileName('');
     setNewFilePrompt(false);
   };
@@ -254,9 +261,15 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
           className="flex items-center justify-between px-3 py-1.5 border-b select-none text-xs"
           style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}
         >
-          <div className="flex items-center gap-2 font-bold">
-            <span className="text-amber-400">╔═[ TERMBROWSER FILE COMMANDER v2.4 ]═╗</span>
-            <span className="hidden sm:inline text-[11px] opacity-75">
+          <div className="flex items-center gap-2">
+            <pre
+              className="m-0 shrink-0 whitespace-pre font-mono text-[10px] leading-tight select-none"
+              style={{ color: theme.accent }}
+              aria-label="Terminus File Commander v0.2.0"
+            >
+              {formatAsciiBox('TERMINUS FILE COMMANDER v0.2.0')}
+            </pre>
+            <span className="hidden lg:inline text-[11px] opacity-75">
               Navegación Táctil, Mouse & Atajos de Teclado (F3..F8)
             </span>
           </div>

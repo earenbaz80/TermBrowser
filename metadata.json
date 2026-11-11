@@ -1,6 +1,6 @@
 {
-  "name": "TermBrowser OS - Terminal Web Browser",
-  "description": "Navegador web operado por línea de comandos con emulador de consola, cifrado AES-256, sincronización MFA, scripts de automatización, extensiones y monitor de recursos retro.",
+  "name": "Terminus - Navegador web de terminal",
+  "description": "Terminus: navegador web operado por línea de comandos con emulador de consola, cifrado AES-256, sincronización MFA, scripts de automatización, extensiones y monitor de recursos retro.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

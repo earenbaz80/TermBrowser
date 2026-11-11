@@ -13,7 +13,6 @@ import {
   Copy,
   Check,
   Terminal,
-  ExternalLink,
 } from 'lucide-react';
 
 export type HelpCategory = 'todas' | 'navegación' | 'sistema' | 'red' | 'seguridad' | 'automatización';
@@ -27,6 +26,8 @@ export interface CommandDoc {
   examples: {
     code: string;
     description: string;
+    /** Installation commands are copy-only: they must run in the user's own shell. */
+    copyOnly?: boolean;
   }[];
 }
 
@@ -57,7 +58,7 @@ export const COMMAND_DOCS: CommandDoc[] = [
   },
   {
     command: 'pestaña / pestana',
-    syntax: 'pestaña <1|2|nueva|cerrar>',
+    syntax: 'pestaña <n|nueva|cerrar|list>',
     category: 'navegación',
     summary: 'Gestión directa de pestañas en español (cambiar, crear, cerrar).',
     description: 'Permite alternar entre pestañas numéricamente (ej. pestaña 1, pestaña 2), abrir una nueva pestaña o cerrar la actual mediante comandos rápidos.',
@@ -72,8 +73,8 @@ export const COMMAND_DOCS: CommandDoc[] = [
     command: 'exit / salir',
     syntax: 'exit | salir',
     category: 'sistema',
-    summary: 'Verifica el estado de la sesión y muestra opciones de salida o cambio de modo.',
-    description: 'Informa sobre la integridad de la sesión cifrada y aconseja cómo alternar vistas (view split / view terminal) o limpiar la consola.',
+    summary: 'Verifica el estado de la sesión y muestra opciones de salida.',
+    description: 'Informa sobre la integridad de la sesión cifrada y recuerda que la página y la consola comparten una única superficie de texto.',
     examples: [
       { code: 'exit', description: 'Verificar estado de sesión y opciones de navegación' },
       { code: 'salir', description: 'Comando alternativo en español' },
@@ -94,8 +95,8 @@ export const COMMAND_DOCS: CommandDoc[] = [
     command: 'search',
     syntax: 'search <términos de búsqueda>',
     category: 'navegación',
-    summary: 'Realiza búsquedas en la web a través de motores de privacidad.',
-    description: 'Genera una consulta segura en DuckDuckGo o Google y la renderiza directamente en el visor de navegación web.',
+    summary: 'Busca en la web desde Terminus Search.',
+    description: 'Consulta DuckDuckGo y Wikipedia y presenta los resultados en Terminus Search, la página de búsqueda interna del navegador, con historial y vista de lectura en la pestaña.',
     examples: [
       { code: 'search algoritmos de cifrado post-cuanticos', description: 'Buscar documentación sobre criptografía moderna' },
       { code: 'search linux terminal commands cheat sheet', description: 'Buscar guías rápidas de comandos de consola' },
@@ -143,18 +144,6 @@ export const COMMAND_DOCS: CommandDoc[] = [
       { code: 'tab switch 2', description: 'Cambiar el foco a la segunda pestaña abierta' },
       { code: 'tab list', description: 'Listar todas las pestañas abiertas y su estado' },
       { code: 'tab close', description: 'Cerrar la pestaña activa' },
-    ],
-  },
-  {
-    command: 'view',
-    syntax: 'view <split|terminal|browser>',
-    category: 'navegación',
-    summary: 'Cambia la distribución de la interfaz de usuario.',
-    description: 'Permite trabajar en modo dividido (consola a la izquierda y visor a la derecha) o pantalla completa para máxima concentración.',
-    examples: [
-      { code: 'view split', description: 'Restaurar vista dividida clásica (terminal + navegador)' },
-      { code: 'view terminal', description: 'Maximizar la consola a pantalla completa' },
-      { code: 'view browser', description: 'Maximizar el navegador web a pantalla completa' },
     ],
   },
   {
@@ -216,11 +205,40 @@ export const COMMAND_DOCS: CommandDoc[] = [
     ],
   },
   {
+    command: 'shell nativo',
+    syntax: 'Selector SHELL: AUTO | CMD | POWERSHELL | BASH',
+    category: 'sistema',
+    summary: 'Ejecuta comandos reales del sistema desde la app de escritorio.',
+    description: 'En la aplicación Electron, el selector SHELL permite enviar comandos reales a CMD, Windows PowerShell, PowerShell Core o Bash (Git Bash en Windows, WSL como alternativa, o el Bash del sistema en Linux/macOS). La ruta de trabajo es real y persiste por pestaña: "cd C:\\Users" entra en el disco local, "cd .." sube un nivel y "cd ~" vuelve a la carpeta del usuario. Los procesos usan los permisos del usuario. En la app de escritorio, al elegir un shell nativo la terminal usa un PTY real: vim, ssh, top y otras aplicaciones de pantalla completa funcionan con teclado, colores y Ctrl+C; el modo no interactivo conserva el límite de 120 segundos y 1 MB de salida. Muchas de esas herramientas no vienen con Windows: revisa la ficha "PTY interactivo" para instalarlas. En la versión web el selector permanece en TERMINUS porque el navegador no puede ejecutar procesos locales.',
+    examples: [
+      { code: 'cmd: cd C:\\Users && dir', description: 'Navegar y listar archivos reales de Windows' },
+      { code: 'powershell: Get-Process | Select-Object -First 5', description: 'Listar procesos reales con PowerShell' },
+      { code: 'bash: uname -a && pwd', description: 'Consultar el sistema desde Git Bash, WSL o Linux' },
+    ],
+  },
+  {
+    command: 'PTY interactivo',
+    syntax: 'Selector SHELL: CMD | POWERSHELL | BASH',
+    category: 'sistema',
+    summary: 'Ejecuta programas de pantalla completa y sesiones interactivas reales.',
+    description:
+      'En la app de escritorio, elegir CMD, PowerShell o Bash activa un PTY real: los programas de pantalla completa reciben teclado, colores y señales como Ctrl+C. Terminus no incluye estas herramientas; deben existir en el PATH del shell elegido. En Windows: vim se instala con "winget install vim.vim" (o viene con Git Bash); ssh con la característica opcional OpenSSH Client (Configuración > Aplicaciones > Características opcionales) o "winget install Microsoft.OpenSSH.Preview"; top y htop no existen en Windows, así que usa WSL ("wsl --install" y después "wsl top") o instala htop dentro de la distro ("sudo apt install htop"). En macOS y Linux suelen estar preinstalados. El comando top del modo emulado (sin shell nativo) abre el monitor interno de CPU/RAM, no el top del sistema.',
+    examples: [
+      { code: 'winget install vim.vim', description: 'Instalar Vim en Windows con winget', copyOnly: true },
+      { code: 'winget install Microsoft.OpenSSH.Preview', description: 'Instalar el cliente OpenSSH con winget', copyOnly: true },
+      { code: 'wsl --install', description: 'Instalar WSL y una distro de Linux (requiere reinicio)', copyOnly: true },
+      { code: 'wsl sudo apt install htop', description: 'Instalar htop dentro de la distro WSL', copyOnly: true },
+      { code: 'vim -u NONE archivo.txt', description: 'Abrir vim sin configuración; salir con :q!' },
+      { code: 'ssh usuario@servidor', description: 'Sesión SSH interactiva (requiere cliente OpenSSH)' },
+      { code: 'wsl top', description: 'Ver procesos de Linux desde Windows con WSL' },
+    ],
+  },
+  {
     command: 'ls / dir',
     syntax: 'ls  o  dir',
     category: 'sistema',
-    summary: 'Lista el sistema de archivos virtual.',
-    description: '`ls` utiliza el formato compacto de Linux, mientras que `dir` emula la salida clásica de MS-DOS con fechas, horas y tamaños en bytes.',
+    summary: 'Lista archivos del workspace local o del disco virtual.',
+    description: 'El terminal arranca en `/workspace`, el disco local real. Use `cd /home/user` para volver al sistema virtual de demostración. `dir` emula la salida clásica de MS-DOS con fechas, horas y tamaños en bytes.',
     examples: [
       { code: 'ls', description: 'Listar archivos del directorio actual en formato Unix' },
       { code: 'dir', description: 'Listar archivos con el formato de MS-DOS 6.22' },
@@ -230,7 +248,7 @@ export const COMMAND_DOCS: CommandDoc[] = [
     command: 'cat / type',
     syntax: 'cat <archivo>  o  type <archivo>',
     category: 'sistema',
-    summary: 'Muestra el contenido de un archivo del sistema virtual.',
+    summary: 'Muestra el contenido de un archivo local o virtual.',
     description: 'Lee archivos de configuración, scripts de automatización o logs de texto plano.',
     examples: [
       { code: 'cat readme.txt', description: 'Leer el manual de bienvenida del sistema' },
@@ -356,7 +374,7 @@ export const COMMAND_DOCS: CommandDoc[] = [
     summary: 'Sincroniza el espacio de trabajo cifrado con la nube segura.',
     description: 'Realiza un volcado cifrado con AES-256 de todas las pestañas, scripts y marcadores, requiriendo validación MFA al restaurar.',
     examples: [
-      { code: 'sync push', description: 'Cifrar y subir respaldo a la nube de TermBrowser' },
+      { code: 'sync push', description: 'Cifrar y subir respaldo a la nube de Terminus' },
       { code: 'sync pull', description: 'Descargar y restaurar respaldo desde la nube' },
     ],
   },
@@ -633,7 +651,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({
                 {/* Interactive Examples Strip */}
                 <div className="space-y-1.5 pt-1">
                   <div className="text-[10px] opacity-65 font-bold uppercase tracking-wider">
-                    EJEMPLOS PRÁCTICOS DE USO (HAGA CLIC EN "EJECUTAR" PARA LANZAR):
+                    EJEMPLOS PRÁCTICOS DE USO (COPIE LOS COMANDOS DE INSTALACIÓN Y EJECUTE LOS DE USO):
                   </div>
                   <div className="space-y-1.5">
                     {doc.examples.map((ex, exIdx) => (
@@ -647,6 +665,11 @@ export const HelpModal: React.FC<HelpModalProps> = ({
                             {ex.code}
                           </code>
                           <div className="text-[10px] opacity-70 truncate">{ex.description}</div>
+                          {ex.copyOnly && (
+                            <div className="text-[9px] font-bold uppercase tracking-wider text-amber-400/90">
+                              Instalación · solo copiar
+                            </div>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0 self-end md:self-center">
@@ -669,19 +692,21 @@ export const HelpModal: React.FC<HelpModalProps> = ({
                             )}
                           </button>
 
-                          <button
-                            onClick={() => handleRun(ex.code)}
-                            className="flex items-center gap-1 px-2.5 py-1 border text-[10px] font-bold hover:opacity-90 cursor-pointer rounded-xs"
-                            style={{
-                              backgroundColor: theme.accent,
-                              color: theme.bg,
-                              borderColor: theme.accent,
-                            }}
-                            title="Ejecutar inmediatamente este comando en la terminal"
-                          >
-                            <Play className="w-3 h-3 fill-current" />
-                            <span>Ejecutar</span>
-                          </button>
+                          {!ex.copyOnly && (
+                            <button
+                              onClick={() => handleRun(ex.code)}
+                              className="flex items-center gap-1 px-2.5 py-1 border text-[10px] font-bold hover:opacity-90 cursor-pointer rounded-xs"
+                              style={{
+                                backgroundColor: theme.accent,
+                                color: theme.bg,
+                                borderColor: theme.accent,
+                              }}
+                              title="Ejecutar inmediatamente este comando en la terminal"
+                            >
+                              <Play className="w-3 h-3 fill-current" />
+                              <span>Ejecutar</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}

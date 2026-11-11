@@ -16,7 +16,12 @@ export default defineConfig(() => {
       // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      // Never watch generated bundles or the packaged app: electron-builder rewrites
+      // release/win-unpacked while the dev server is running, which locks files on Windows.
+      watch:
+        process.env.DISABLE_HMR === 'true'
+          ? null
+          : { ignored: ['**/release/**', '**/dist/**', '**/dist-electron/**'] },
     },
   };
 });

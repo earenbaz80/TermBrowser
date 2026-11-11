@@ -1,10 +1,12 @@
 /**
- * Real Local File System Integration for TermBrowser OS
+ * Real Local File System Integration for Terminus
  * Supports both modern browser File System Access API (showDirectoryPicker)
  * and the backend Local Workspace filesystem (/api/local-fs/*).
  */
 
 import { VirtualFile } from './interpreter';
+import { saveLastNativeMount } from './lastMountStorage';
+import { apiFetch } from './apiClient';
 
 export interface LocalFsFile {
   name: string;
@@ -16,7 +18,48 @@ export interface LocalFsFile {
   handle?: any; // FileSystemFileHandle or FileSystemDirectoryHandle
 }
 
-let activeDirectoryHandle: any = null;
+/**
+ * Read the direct children of a directory handle. Directory handles are preserved
+ * so the terminal can lazily read nested folders when the user cds into them.
+ */
+export async function readNativeDirectory(dirHandle: any): Promise<LocalFsFile[]> {
+  const files: LocalFsFile[] = [];
+
+  for await (const [name, handle] of (dirHandle as any).entries()) {
+    if (name.startsWith('.') || name === 'node_modules') continue;
+
+    if (handle.kind === 'directory') {
+      files.push({
+        name,
+        type: 'dir',
+        path: `/${name}`,
+        handle,
+        updatedAt: new Date().toLocaleDateString(),
+      });
+    } else if (handle.kind === 'file') {
+      const fileObj = await handle.getFile();
+      let content: string | undefined = undefined;
+      // Read text if smaller than 500KB
+      if (fileObj.size < 500 * 1024) {
+        try {
+          content = await fileObj.text();
+        } catch {}
+      }
+
+      files.push({
+        name,
+        type: 'file',
+        path: `/${name}`,
+        size: fileObj.size,
+        content,
+        updatedAt: new Date(fileObj.lastModified).toLocaleDateString(),
+        handle,
+      });
+    }
+  }
+
+  return files;
+}
 
 /**
  * Mount a real directory from the user's computer using the Native File System Access API
@@ -36,41 +79,17 @@ export async function mountNativeLocalDirectory(): Promise<{
       mode: 'readwrite',
     });
 
-    activeDirectoryHandle = dirHandle;
-    const files: LocalFsFile[] = [];
+    const files = await readNativeDirectory(dirHandle);
 
-    for await (const [name, handle] of (dirHandle as any).entries()) {
-      if (name.startsWith('.') || name === 'node_modules') continue;
-
-      if (handle.kind === 'directory') {
-        files.push({
-          name,
-          type: 'dir',
-          path: `/${name}`,
-          handle,
-          updatedAt: new Date().toLocaleDateString(),
-        });
-      } else if (handle.kind === 'file') {
-        const fileObj = await handle.getFile();
-        let content: string | undefined = undefined;
-        // Read text if smaller than 500KB
-        if (fileObj.size < 500 * 1024) {
-          try {
-            content = await fileObj.text();
-          } catch {}
-        }
-
-        files.push({
-          name,
-          type: 'file',
-          path: `/${name}`,
-          size: fileObj.size,
-          content,
-          updatedAt: new Date(fileObj.lastModified).toLocaleDateString(),
-          handle,
-        });
-      }
-    }
+    // Remember this folder for the next page load. Persistence is best-effort:
+    // a private window or a browser that blocks IndexedDB must not break the mount.
+    try {
+      await saveLastNativeMount({
+        handle: dirHandle,
+        name: dirHandle.name,
+        mountPath: `/local/${dirHandle.name}`,
+      });
+    } catch {}
 
     return {
       name: dirHandle.name,
@@ -79,7 +98,7 @@ export async function mountNativeLocalDirectory(): Promise<{
     };
   } catch (err: any) {
     if (err.name === 'AbortError') {
-      throw new Error('Selección de carpeta local cancelada por el usuario.');
+      throw new Error('Selección de carpeta local cancelada por el usuario.', { cause: err });
     }
     throw err;
   }
@@ -94,7 +113,7 @@ export async function fetchWorkspaceFiles(relDir: string = ''): Promise<{
   parentDir: string | null;
   items: LocalFsFile[];
 }> {
-  const res = await fetch(`/api/local-fs/list?dir=${encodeURIComponent(relDir)}`);
+  const res = await apiFetch(`/api/local-fs/list?dir=${encodeURIComponent(relDir)}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.message || 'Error al conectar con el sistema de archivos del servidor');
@@ -126,7 +145,7 @@ export async function readWorkspaceFile(relPath: string): Promise<{
   size: number;
   updatedAt: string;
 }> {
-  const res = await fetch(`/api/local-fs/read?file=${encodeURIComponent(relPath)}`);
+  const res = await apiFetch(`/api/local-fs/read?file=${encodeURIComponent(relPath)}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.message || `No se pudo leer el archivo ${relPath}`);
@@ -138,7 +157,7 @@ export async function readWorkspaceFile(relPath: string): Promise<{
  * Write a file directly to the local workspace backend
  */
 export async function writeWorkspaceFile(relPath: string, content: string): Promise<boolean> {
-  const res = await fetch('/api/local-fs/write', {
+  const res = await apiFetch('/api/local-fs/write', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ file: relPath, content }),
@@ -160,5 +179,6 @@ export function toVirtualFiles(files: LocalFsFile[]): VirtualFile[] {
     size: f.size,
     content: f.content,
     updatedAt: f.updatedAt || new Date().toLocaleDateString(),
+    handle: f.handle,
   }));
 }

@@ -6,7 +6,7 @@ export const BUILT_IN_EXTENSIONS: ExtensionManifest[] = [
     name: 'JSON Beautifier & Validator',
     version: '1.4.0',
     description: 'Parsea, indenta, valida y resalta sintaxis JSON con soporte para minificación.',
-    author: 'TermBrowser Core Team',
+    author: 'Terminus Core Team',
     installed: true,
     commands: [
       {
@@ -21,7 +21,7 @@ export const BUILT_IN_EXTENSIONS: ExtensionManifest[] = [
     name: 'DOM Web Extractor & Scraper',
     version: '2.1.0',
     description: 'Extrae títulos, metadatos OpenGraph, enlaces y encabezados H1-H3 de cualquier URL o pestaña activa.',
-    author: 'TermBrowser Core Team',
+    author: 'Terminus Core Team',
     installed: true,
     commands: [
       {

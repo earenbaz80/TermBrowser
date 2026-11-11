@@ -1,16 +1,292 @@
+import crypto from 'crypto';
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
 import http from 'http';
 import dns from 'dns/promises';
 import os from 'os';
 import fs from 'fs/promises';
 import path from 'path';
+import {
+  API_SESSION_COOKIE,
+  API_TOKEN_HEADER,
+  fetchRemote,
+  hasApiSessionCookie,
+  isMetadataHost,
+  isSameOriginRequest,
+  resolveListenHost,
+  safeDownloadFilename,
+  sanitizeProxiedHtml,
+} from './src/utils/serverSecurity';
+import { proxiedPage, textOnlyPage } from './src/utils/proxiedPage';
+import { decodeHtmlEntities } from './src/utils/htmlEntities';
+import { htmlToRetroMarkup } from './src/utils/retroHtml';
+import { pythonRunnerPage, PYTHON_RUNNER_CSP } from './src/utils/pythonRunnerPage';
+
+/**
+ * Converts any HTML document into readable plain text, without relying on <p>/<h*> markup.
+ * Block-level elements become line breaks, so table-based or div-soup layouts (e.g. Hacker News)
+ * still produce readable output instead of an empty page.
+ */
+const MAX_NUMBERED_LINKS = 15;
+const MAX_IMAGES = 12;
+
+function htmlToReadableText(
+  html: string,
+  baseUrl: string
+): {
+  text: string;
+  links: { text: string; href: string }[];
+  images: { src: string; alt?: string }[];
+} {
+  const links: { text: string; href: string }[] = [];
+  const seenHrefs = new Set<string>();
+  const images: { src: string; alt?: string }[] = [];
+  const seenImageSrcs = new Set<string>();
+
+  let out = html;
+
+  // Drop non-content elements entirely
+  out = out.replace(/<!--[\s\S]*?-->/g, ' ');
+  out = out.replace(/<(script|style|noscript|svg|iframe|template|canvas|object|select|textarea|head)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ');
+
+  // Real images: each content image becomes an invisible-marked placeholder, so the client can
+  // render the actual picture inline, exactly where it appeared in the document (max MAX_IMAGES).
+  out = out.replace(/<img\b([^>]*)>/gi, (_match: string, attrs: string) => {
+    const srcMatch = attrs.match(/\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+    const rawSrc = srcMatch ? srcMatch[1] ?? srcMatch[2] ?? srcMatch[3] ?? '' : '';
+    if (!rawSrc || /^data:/i.test(rawSrc)) return ' ';
+
+    let absoluteSrc: string;
+    try {
+      absoluteSrc = new URL(rawSrc, baseUrl).href;
+    } catch {
+      return ' ';
+    }
+
+    if (/spacer|pixel|tracker|1x1\./i.test(absoluteSrc) || seenImageSrcs.has(absoluteSrc)) return ' ';
+    if (images.length >= MAX_IMAGES) return ' ';
+
+    // Skip icons and decorative spacers that declare a thumbnail size
+    const widthMatch = attrs.match(/\bwidth\s*=\s*["']?(\d+)/i);
+    const heightMatch = attrs.match(/\bheight\s*=\s*["']?(\d+)/i);
+    const declaredWidth = widthMatch ? Number(widthMatch[1]) : 0;
+    const declaredHeight = heightMatch ? Number(heightMatch[1]) : 0;
+    if ((declaredWidth && declaredWidth < 48) || (declaredHeight && declaredHeight < 48)) return ' ';
+
+    const altMatch = attrs.match(/\balt\s*=\s*"([^"]*)"/i) || attrs.match(/\balt\s*=\s*'([^']*)'/i);
+    seenImageSrcs.add(absoluteSrc);
+    images.push({
+      src: absoluteSrc,
+      alt: altMatch
+        ? decodeHtmlEntities(altMatch[1]).replace(/\s+/g, ' ').trim().slice(0, 120)
+        : undefined,
+    });
+    // U+2061 (invisible) marks a real image placeholder, not plain text
+    return ` \u2061[img:${images.length}] `;
+  });
+
+  // Lynx-style inline link markers: each link becomes "text [n]", numbered in document
+  // order and deduplicated, so the numbers match the links list sent to the client.
+  out = out.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (_match: string, attrs: string, inner: string) => {
+    // Image placeholders nested inside the anchor stay in the output, but never in its label
+    const innerWithImages = inner.replace(/<[^>]+>/g, ' ').replace(/[ \t]{2,}/g, ' ').trim();
+    const linkText = innerWithImages.replace(/\u2061\[img:\d+\]/g, '').replace(/\s+/g, ' ').trim();
+    if (!linkText) return innerWithImages ? ` ${innerWithImages} ` : ' ';
+
+    const hrefMatch = attrs.match(/href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+    const rawHref = hrefMatch ? hrefMatch[1] ?? hrefMatch[2] ?? hrefMatch[3] ?? '' : '';
+    if (!rawHref || rawHref.startsWith('#') || /^javascript:/i.test(rawHref)) {
+      return ` ${linkText} `;
+    }
+
+    let absoluteHref: string;
+    try {
+      absoluteHref = new URL(rawHref, baseUrl).href;
+    } catch {
+      return ` ${linkText} `;
+    }
+
+    if (seenHrefs.has(absoluteHref) || links.length >= MAX_NUMBERED_LINKS) {
+      return ` ${linkText} `;
+    }
+
+    seenHrefs.add(absoluteHref);
+    links.push({ text: linkText.slice(0, 50), href: absoluteHref });
+    // The invisible U+2060 marks this bracket as a real link marker, so the client can make it
+    // clickable without confusing it with citation brackets that the page itself contains.
+    return ` ${linkText} \u2060[${links.length}] `;
+  });
+
+  // Line-level structure
+  out = out.replace(/<br\b[^>]*\/?>/gi, '\n');
+  out = out.replace(/<hr\b[^>]*\/?>/gi, '\n');
+  out = out.replace(/<li\b[^>]*>/gi, '\n* ');
+  out = out.replace(/<\/?(p|div|section|article|header|footer|nav|aside|main|ul|ol|li|table|thead|tbody|tfoot|tr|td|th|blockquote|pre|h[1-6]|figure|figcaption|dl|dt|dd|form|fieldset|details|summary|caption)\b[^>]*>/gi, '\n');
+
+  // Remaining inline tags
+  out = out.replace(/<[^>]+>/g, ' ');
+  out = decodeHtmlEntities(out);
+
+  const lines: string[] = [];
+  for (const rawLine of out.split('\n')) {
+    const line = rawLine
+      .replace(/[\t\u00a0\u1680\u2000-\u200b\u2028\u2029\u202f\u205f\u3000]/g, ' ')
+      .replace(/ {2,}/g, ' ')
+      .trim();
+    if (!line) {
+      // Collapse runs of blank lines into a single separator
+      if (lines.length > 0 && lines[lines.length - 1] !== '') lines.push('');
+      continue;
+    }
+    lines.push(line);
+  }
+
+  return { text: lines.join('\n').trim(), links, images };
+}
+
+const MAX_REMOTE_TEXT_BYTES = 4 * 1024 * 1024;
+const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
+const REMOTE_FETCH_TIMEOUT_MS = 20000;
+const SEARCH_FETCH_TIMEOUT_MS = 10000;
+
+const APP_CSP = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https:",
+  "img-src 'self' data: blob: https: http:",
+  "font-src 'self' data: https:",
+  "connect-src 'self' ws: wss:",
+  "frame-src 'self' https: http:",
+  "form-action 'self'",
+].join('; ');
+
+const PROXIED_CSP = (nonce: string) => [
+  "default-src 'none'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'self'",
+  `script-src 'nonce-${nonce}'`,
+  "style-src 'self' 'unsafe-inline' https: http:",
+  "img-src 'self' data: blob: https: http:",
+  "font-src 'self' data: https: http:",
+  "media-src 'self' https: http:",
+  "connect-src 'none'",
+  "frame-src 'none'",
+  "form-action 'none'",
+].join('; ');
+
+function isForbiddenMetadataHost(url: URL): boolean {
+  return isMetadataHost(url.hostname);
+}
+
+/** Read an upstream body with a hard byte cap instead of buffering an unbounded response. */
+async function readTextWithLimit(
+  response: { body: ReadableStream<Uint8Array> | null; text(): Promise<string> },
+  maxBytes = MAX_REMOTE_TEXT_BYTES
+): Promise<{ text: string; truncated: boolean }> {
+  if (!response.body) {
+    const text = await response.text();
+    return { text: text.slice(0, maxBytes), truncated: text.length > maxBytes };
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  let received = 0;
+  let truncated = false;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+
+      if (received > maxBytes) {
+        const allowed = Math.max(0, value.byteLength - (received - maxBytes));
+        text += decoder.decode(value.subarray(0, allowed), { stream: true });
+        truncated = true;
+        await reader.cancel().catch(() => undefined);
+        break;
+      }
+
+      text += decoder.decode(value, { stream: true });
+    }
+  } finally {
+    text += decoder.decode();
+  }
+
+  return { text, truncated };
+}
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const parsedPort = Number.parseInt(process.env.PORT ?? '', 10);
+  const PORT = Number.isInteger(parsedPort) && parsedPort > 0 ? parsedPort : 3000;
+  // Local API routes expose filesystem and shell-adjacent data, so bind to loopback by default.
+  // Set TERMINUS_ALLOW_LAN=1 together with HOST=0.0.0.0 only when LAN access is intentional.
+  const requestedHost = process.env.HOST;
+  const HOST = resolveListenHost(requestedHost);
+  if (requestedHost && requestedHost.trim() !== HOST) {
+    console.warn(`[Terminus Server] HOST=${requestedHost} ignorado; usando ${HOST}. Define TERMINUS_ALLOW_LAN=1 para exponer la LAN.`);
+  }
+
+  app.disable('x-powered-by');
+
+  const API_TOKEN = crypto.randomBytes(32).toString('hex');
+  const SESSION_ID = crypto.randomBytes(32).toString('hex');
+
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Content-Security-Policy', APP_CSP);
+    if (!hasApiSessionCookie(req.headers.cookie)) {
+      res.cookie(API_SESSION_COOKIE, SESSION_ID, {
+        httpOnly: true,
+        sameSite: 'strict',
+        secure: false,
+        maxAge: 12 * 60 * 60 * 1000,
+        path: '/',
+      });
+    }
+    next();
+  });
 
   app.use(express.json({ limit: '10mb' }));
+
+  // Intérprete Python aislado: origen opaco, sin red y sin acceso al DOM de la app.
+  app.get('/python-runner.html', (_req, res) => {
+    res.setHeader('Content-Security-Policy', PYTHON_RUNNER_CSP);
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    return res.type('html').send(pythonRunnerPage);
+  });
+
+  // The page fetches this token and sends it on filesystem/vault requests. CORS is
+  // intentionally not enabled, so another origin cannot read the response.
+  app.get('/api/session', (req, res) => {
+    if (!isSameOriginRequest(req.get('origin'), req.get('host'), req.get('sec-fetch-site'))) {
+      return res.status(403).json({ error: 'Origen no autorizado.' });
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ token: API_TOKEN });
+  });
+
+  // Local APIs are same-origin only. The token is required for filesystem and
+  // vault operations; resource routes can use the HttpOnly session cookie alone.
+  app.use('/api', (req, res, next) => {
+    if (!hasApiSessionCookie(req.headers.cookie)) {
+      return res.status(401).json({ error: 'Sesión local no inicializada. Recarga la aplicación.' });
+    }
+    if (!isSameOriginRequest(req.get('origin'), req.get('host'), req.get('sec-fetch-site'))) {
+      return res.status(403).json({ error: 'Origen no autorizado.' });
+    }
+    if (/^\/(?:local-fs|vault)(?:\/|$)/.test(req.path) && req.get(API_TOKEN_HEADER) !== API_TOKEN) {
+      return res.status(403).json({ error: 'Token de sesión local ausente o inválido.' });
+    }
+    next();
+  });
 
   // In-memory encrypted cloud vault storage (per session / mock cloud)
   let cloudVault: { data: string; mfaEnabled: boolean; updatedAt: string; hash: string } | null = null;
@@ -27,19 +303,38 @@ async function startServer() {
       if (!['http:', 'https:'].includes(parsed.protocol)) {
         return res.status(400).json({ error: 'Invalid protocol. Only http and https supported.' });
       }
+      if (isForbiddenMetadataHost(parsed)) {
+        return res.status(403).json({ error: 'Cloud metadata endpoints are blocked.' });
+      }
 
       const startTime = Date.now();
-      const response = await fetch(targetUrl, {
+      const response = await fetchRemote(targetUrl, {
         headers: {
-          'User-Agent': 'TermBrowser/2.4 (CLI Web Navigator; AES-256; x86_64)',
+          'User-Agent': 'Terminus/0.2.0 (CLI Web Navigator; local browser)',
           'Accept': 'text/html,application/xhtml+xml,application/xml,text/plain,application/json;q=0.9,*/*;q=0.8',
         },
-        redirect: 'follow',
+        signal: AbortSignal.timeout(REMOTE_FETCH_TIMEOUT_MS),
       });
+
+      const declaredSize = Number(response.headers.get('content-length') || 0);
+      if (Number.isFinite(declaredSize) && declaredSize > MAX_REMOTE_TEXT_BYTES) {
+        return res.status(413).json({ error: 'Response exceeds the 4 MB proxy limit.' });
+      }
 
       const latencyMs = Date.now() - startTime;
       const contentType = response.headers.get('content-type') || 'text/plain';
-      const text = await response.text();
+      const { text, truncated } = await readTextWithLimit(response);
+
+      // Readable text for text-only browsing: works for HTML and plain/JSON bodies alike
+      const isHtmlContent = /html|xml/i.test(contentType);
+      const readable = isHtmlContent
+        ? htmlToReadableText(text, response.url)
+        : {
+            text: text.trim(),
+            links: [] as { text: string; href: string }[],
+            images: [] as { src: string; alt?: string }[],
+          };
+      const readableText = readable.text;
 
       // Return structured response with headers, status, timing, body and extracted real images
       const headersObj: Record<string, string> = {};
@@ -54,22 +349,9 @@ async function startServer() {
         extractedTitle = titleMatch[1].trim();
       }
 
-      const extractedImages: { src: string; alt?: string }[] = [];
-      const imgRegex = /<img\b[^>]*?\bsrc=["']([^"']+)["'][^>]*?>/gi;
-      let imgMatch;
-      while ((imgMatch = imgRegex.exec(text)) !== null) {
-        try {
-          const rawSrc = imgMatch[1];
-          if (!rawSrc.startsWith('data:') && !rawSrc.includes('spacer') && !rawSrc.includes('pixel') && !rawSrc.includes('tracker')) {
-            const absUrl = new URL(rawSrc, response.url).href;
-            const altMatch = imgMatch[0].match(/\balt=["']([^"']*)["']/i);
-            extractedImages.push({
-              src: absUrl,
-              alt: altMatch ? altMatch[1] : undefined,
-            });
-          }
-        } catch {}
-      }
+      // Images come from the extraction pass, so their order matches the inline placeholders
+      // ([img:n]) the client renders inside the readable text.
+      const extractedImages: { src: string; alt?: string }[] = [...readable.images];
 
       // Check og:image meta tag
       const ogMatch = text.match(/<meta[^>]*?property=["']og:image["'][^>]*?content=["']([^"']+)["']/i) ||
@@ -77,8 +359,9 @@ async function startServer() {
       if (ogMatch && ogMatch[1]) {
         try {
           const ogUrl = new URL(ogMatch[1], response.url).href;
+          // Appended, never unshifted: the placeholders are numbered by position in readable.images
           if (!extractedImages.some((img) => img.src === ogUrl)) {
-            extractedImages.unshift({ src: ogUrl, alt: 'Imagen destacada (OpenGraph)' });
+            extractedImages.push({ src: ogUrl, alt: 'Imagen destacada (OpenGraph)' });
           }
         } catch {}
       }
@@ -101,22 +384,19 @@ async function startServer() {
         if (cleanP.length > 25) extractedParagraphs.push(cleanP);
       }
 
-      // Extract prominent links
-      const extractedLinks: { text: string; href: string }[] = [];
-      const aRegex = /<a\b[^>]*?\bhref=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-      let aMatch;
-      while ((aMatch = aRegex.exec(text)) !== null && extractedLinks.length < 15) {
-        try {
-          const rawHref = aMatch[1];
-          const linkText = aMatch[2].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-          if (linkText && !rawHref.startsWith('#') && !rawHref.startsWith('javascript:')) {
-            const absHref = new URL(rawHref, response.url).href;
-            if (!extractedLinks.some((l) => l.href === absHref)) {
-              extractedLinks.push({ text: linkText.slice(0, 50), href: absHref });
-            }
-          }
-        } catch {}
+      // Fallback for pages without <p> markup (table/div layouts): derive blocks from readable text
+      if (extractedParagraphs.length === 0 && readableText) {
+        readableText
+          .split(/\n+/)
+          .map((line) => line.trim())
+          .filter((line) => line.length > 30)
+          .slice(0, 12)
+          .forEach((line) => extractedParagraphs.push(line));
       }
+
+      // Prominent links come from the same pass that numbered them inline, so the
+      // [n] markers in the text always match this list.
+      const extractedLinks = readable.links;
 
       return res.json({
         ok: response.ok,
@@ -126,8 +406,13 @@ async function startServer() {
         contentType,
         headers: headersObj,
         latencyMs,
-        sizeBytes: text.length,
+        sizeBytes: Buffer.byteLength(text, 'utf8'),
+        truncated,
         body: text,
+        text: readableText.slice(0, 20000),
+        structuredHtml: isHtmlContent ? htmlToRetroMarkup(text, response.url) : '',
+        // Framing compatibility: sites that deny embedding cannot be shown as the real page
+        frameable: isHtmlContent && !/deny|sameorigin/i.test(response.headers.get('x-frame-options') || '') && !/frame-ancestors\s+(?!\*)/i.test(response.headers.get('content-security-policy') || ''),
         extracted: {
           title: extractedTitle,
           images: extractedImages.slice(0, 12),
@@ -145,6 +430,183 @@ async function startServer() {
   });
 
   // Real Web Search API for normal browser search behavior
+  // Real images for the browser view: fetched server-side (with the page as referer) so sites with
+  // hotlink protection or referer checks still render their pictures inside the text view.
+  app.get('/api/image', async (req, res) => {
+    const rawUrl = String(req.query.url || '');
+    const referer = typeof req.query.ref === 'string' ? req.query.ref : undefined;
+    if (!rawUrl) return res.status(400).send('Missing url parameter');
+
+    let target: URL;
+    try {
+      target = new URL(rawUrl);
+    } catch {
+      return res.status(400).send('Invalid url');
+    }
+    if (!['http:', 'https:'].includes(target.protocol)) {
+      return res.status(400).send('Invalid protocol. Only http and https supported.');
+    }
+    if (isForbiddenMetadataHost(target)) {
+      return res.status(403).send('Cloud metadata endpoints are blocked.');
+    }
+
+    try {
+      const upstream = await fetchRemote(target, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; Terminus/0.2.0)',
+          'Accept': 'image/avif,image/webp,image/*,*/*;q=0.8',
+          ...(referer ? { Referer: referer } : {}),
+        },
+        signal: AbortSignal.timeout(15000),
+      });
+
+      const contentType = upstream.headers.get('content-type') || '';
+      if (!upstream.ok || !contentType.startsWith('image/')) {
+        return res.status(415).send('Not an image');
+      }
+
+      const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
+      const declaredSize = Number(upstream.headers.get('content-length') || 0);
+      if (declaredSize > MAX_IMAGE_BYTES) return res.status(413).send('Image too large');
+
+      const bytes = Buffer.from(await upstream.arrayBuffer());
+      if (bytes.byteLength > MAX_IMAGE_BYTES) return res.status(413).send('Image too large');
+
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      return res.end(bytes);
+    } catch {
+      return res.status(502).send('Image fetch failed');
+    }
+  });
+
+  // Download the source of the current page. It is fetched through the same guarded
+  // network path as the reader, so private/metadata targets obey the same policy.
+  app.get('/api/download', async (req, res) => {
+    const rawUrl = String(req.query.url || '');
+    const requestedName = String(req.query.name || '');
+
+    let target: URL;
+    try {
+      target = new URL(rawUrl);
+    } catch {
+      return res.status(400).send('Invalid url');
+    }
+    if (!['http:', 'https:'].includes(target.protocol)) {
+      return res.status(400).send('Invalid protocol. Only http and https supported.');
+    }
+
+    try {
+      const upstream = await fetchRemote(target, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; Terminus/0.2.0)',
+          Accept: 'text/html,application/xhtml+xml,application/octet-stream,*/*;q=0.8',
+        },
+        signal: AbortSignal.timeout(REMOTE_FETCH_TIMEOUT_MS),
+      });
+
+      if (!upstream.ok) {
+        return res.status(upstream.status).send(`No se pudo descargar el destino (HTTP ${upstream.status}).`);
+      }
+
+      const declaredSize = Number(upstream.headers.get('content-length') || 0);
+      if (declaredSize > MAX_DOWNLOAD_BYTES) {
+        return res.status(413).send('La descarga supera el límite de 50 MB.');
+      }
+
+      const bytes = Buffer.from(await upstream.arrayBuffer());
+      if (bytes.byteLength > MAX_DOWNLOAD_BYTES) {
+        return res.status(413).send('La descarga supera el límite de 50 MB.');
+      }
+
+      const fallback = path.basename(target.pathname) || target.hostname;
+      const filename = safeDownloadFilename(requestedName || fallback, 'terminus-pagina');
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Length', String(bytes.byteLength));
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Cache-Control', 'no-store');
+      return res.end(bytes);
+    } catch (err: any) {
+      return res.status(502).send(`No se pudo descargar: ${err?.message || 'error de red'}`);
+    }
+  });
+
+  // Original-page view: serves a page through this origin so sites that forbid framing can
+  // still be shown as designed. Page scripts are removed and only a tiny navigation shim is
+  // injected, so the framed document cannot run site code or reach our local APIs.
+  // mode=real keeps the site's own look, mode=dark adds the retro dark sheet, mode=text only
+  // returns the readable text of the page (no site markup at all).
+  app.get('/api/view', async (req, res) => {
+    const targetUrl = String(req.query.url || '');
+    if (!/^https?:\/\//i.test(targetUrl)) {
+      return res.status(400).send('Invalid url parameter');
+    }
+
+    try {
+      const parsed = new URL(targetUrl);
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        return res.status(400).send('Invalid protocol. Only http and https supported.');
+      }
+      if (isForbiddenMetadataHost(parsed)) {
+        return res.status(403).send('Cloud metadata endpoints are blocked.');
+      }
+
+      const response = await fetchRemote(targetUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Terminus/0.2.0',
+          Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
+        },
+        signal: AbortSignal.timeout(REMOTE_FETCH_TIMEOUT_MS),
+      });
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!/html|xml/i.test(contentType)) {
+        return res.redirect(targetUrl);
+      }
+
+      const declaredSize = Number(response.headers.get('content-length') || 0);
+      if (Number.isFinite(declaredSize) && declaredSize > MAX_REMOTE_TEXT_BYTES) {
+        return res.status(413).send('La página supera el límite de 4 MB.');
+      }
+
+      const mode = String(req.query.mode || 'real').toLowerCase();
+      const { text: htmlSource, truncated } = await readTextWithLimit(response);
+      let html = htmlSource;
+      const nonce = crypto.randomBytes(16).toString('base64');
+
+      if (mode === 'text') {
+        const readable = htmlToReadableText(html, response.url);
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+        res.setHeader('Content-Security-Policy', PROXIED_CSP(nonce));
+        res.setHeader('Cache-Control', 'no-store');
+        return res.send(textOnlyPage(response.url, readable.text, nonce));
+      }
+
+      // The document is now served from our origin, so the site's framing rules do not apply.
+      // Remove scripts, inline handlers, iframes and document-level escape hatches before
+      // injecting our nonce-bound navigation/find shim.
+      html = sanitizeProxiedHtml(html);
+      html = html.replace(/<meta[^>]+http-equiv\s*=\s*["']?content-security-policy["']?[^>]*>/gi, '');
+      html = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+      html = html.replace(/<script\b[^>]*\/?>/gi, '');
+      html = html.replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, '');
+      html = html.replace(/\son[a-z]+\s*=\s*'[^']*'/gi, '');
+      html = html.replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, '');
+
+      html = proxiedPage(html, response.url, nonce, mode === 'dark');
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+      res.setHeader('Content-Security-Policy', PROXIED_CSP(nonce));
+      res.setHeader('Cache-Control', 'no-store');
+      if (truncated) res.setHeader('X-Terminus-Truncated', '1');
+      return res.send(html);
+    } catch (err: any) {
+      return res.status(502).send(`No se pudo cargar la página original: ${err?.message || 'error de red'}`);
+    }
+  });
+
   app.get('/api/search', async (req, res) => {
     const query = (req.query.q as string || '').trim();
     if (!query) {
@@ -158,7 +620,8 @@ async function startServer() {
       // 1. Query DuckDuckGo Instant Answer API
       try {
         const ddgRes = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) TermBrowser/2.4' },
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Terminus/0.2.0' },
+          signal: AbortSignal.timeout(SEARCH_FETCH_TIMEOUT_MS),
         });
         if (ddgRes.ok) {
           const ddgData = await ddgRes.json();
@@ -196,7 +659,9 @@ async function startServer() {
 
       // 2. Query Wikipedia API for rich multilingual encyclopedic search
       try {
-        const wikiRes = await fetch(`https://es.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=8&namespace=0&format=json`);
+        const wikiRes = await fetch(`https://es.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=8&namespace=0&format=json`, {
+          signal: AbortSignal.timeout(SEARCH_FETCH_TIMEOUT_MS),
+        });
         if (wikiRes.ok) {
           const wikiData = await wikiRes.json();
           const titles: string[] = wikiData[1] || [];
@@ -219,13 +684,12 @@ async function startServer() {
       if (results.length < 3) {
         try {
           const htmlRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) TermBrowser/2.4' },
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Terminus/0.2.0' },
+            signal: AbortSignal.timeout(SEARCH_FETCH_TIMEOUT_MS),
           });
           if (htmlRes.ok) {
-            const html = await htmlRes.text();
+            const { text: html } = await readTextWithLimit(htmlRes);
             const linkRegex = /<a\b[^>]*?class=["']result__url["'][^>]*?href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-            const snippetRegex = /<a\b[^>]*?class=["']result__snippet["'][^>]*>([\s\S]*?)<\/a>/gi;
-            const titleRegex = /<a\b[^>]*?class=["']result__title["'][^>]*>([\s\S]*?)<\/a>/gi;
 
             let m;
             while ((m = linkRegex.exec(html)) !== null && results.length < 10) {
@@ -273,6 +737,7 @@ async function startServer() {
       return res.json({
         query,
         count: results.length,
+        provider: 'DuckDuckGo + Wikipedia',
         results,
         images: images.slice(0, 8),
         timestamp: new Date().toISOString(),
@@ -318,7 +783,7 @@ async function startServer() {
   });
 
   // Real System Stats for MS-DOS HUD
-  app.get('/api/system-stats', (req, res) => {
+  app.get('/api/system-stats', (_req, res) => {
     const totalMem = os.totalmem();
     const freeMem = os.freemem();
     const usedMem = totalMem - freeMem;
@@ -367,7 +832,7 @@ async function startServer() {
     });
   });
 
-  app.get('/api/vault/restore', (req, res) => {
+  app.get('/api/vault/restore', (_req, res) => {
     if (!cloudVault) {
       return res.status(404).json({ error: 'No cloud vault backup found.' });
     }
@@ -375,12 +840,19 @@ async function startServer() {
   });
 
   // Local File System Access API (real workspace & local disk exploration)
-  const WORKSPACE_ROOT = process.cwd();
+  const WORKSPACE_ROOT = process.env.TERMINUS_WORKSPACE_ROOT
+    ? path.resolve(process.env.TERMINUS_WORKSPACE_ROOT)
+    : process.cwd();
+  const DIST_DIR = process.env.TERMINUS_DIST_DIR
+    ? path.resolve(process.env.TERMINUS_DIST_DIR)
+    : path.resolve(process.cwd(), 'dist');
 
   const resolveSafePath = (userPath: string = '') => {
-    const clean = userPath.replace(/^[\/\\]+/, '');
+    const clean = userPath.replace(/^[/\\]+/, '');
     const resolved = path.resolve(WORKSPACE_ROOT, clean);
-    if (!resolved.startsWith(WORKSPACE_ROOT)) {
+    const relative = path.relative(WORKSPACE_ROOT, resolved);
+    // A plain startsWith() would accept a sibling like "workspace-evil" for root "workspace".
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
       return WORKSPACE_ROOT;
     }
     return resolved;
@@ -493,25 +965,36 @@ async function startServer() {
     }
   });
 
+  const server = http.createServer(app);
+
   // Mount Vite middlewares for development
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
+    const hmrDisabled = process.env.DISABLE_HMR === 'true';
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        // Share the app's own HTTP server so the HMR WebSocket is served from the same
+        // origin and port as the page. Without this, Vite opens a second port (24678),
+        // which collides with other processes and makes the client handshake fail (400).
+        // When DISABLE_HMR is set, the vite.config.ts setting (hmr: false) is left untouched.
+        ...(hmrDisabled ? {} : { ws: { server } }),
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    // In production serve dist
-    app.use(express.static('dist'));
+    // In production serve dist from an absolute path so the packaged app works
+    // regardless of its current working directory.
+    app.use(express.static(DIST_DIR));
   }
 
-  const server = http.createServer(app);
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log(`[TermBrowser Server] Running on http://0.0.0.0:${PORT}`);
+  server.listen(PORT, HOST, () => {
+    console.log(`[Terminus Server] Running on http://${HOST}:${PORT}`);
   });
 }
 
 startServer().catch((err) => {
-  console.error('[TermBrowser Server] Fatal error:', err);
+  console.error('[Terminus Server] Fatal error:', err);
   process.exit(1);
 });

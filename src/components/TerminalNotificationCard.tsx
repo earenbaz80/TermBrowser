@@ -10,7 +10,6 @@ import {
   Activity,
   ArrowRight,
   X,
-  Sparkles,
 } from 'lucide-react';
 
 interface TerminalNotificationCardProps {
@@ -32,6 +31,14 @@ export const TerminalNotificationCard: React.FC<TerminalNotificationCardProps> =
 
   const isAnomaly = notification.category === 'anomaly' || notification.severity === 'critical';
   const isScript = notification.category === 'script';
+
+  // Ejecuta la acción de la tarjeta y la retira del flujo en el mismo gesto.
+  const handleAction = (command: string) => {
+    soundEffects.playKeyClick();
+    onExecuteCommand(command);
+    setIsDismissed(true);
+    onDismiss?.(notification.id);
+  };
 
   let borderColor = theme.border;
   let bgGradient = 'bg-black/40';
@@ -112,12 +119,9 @@ export const TerminalNotificationCard: React.FC<TerminalNotificationCardProps> =
       {/* Interactive Action Buttons */}
       <div className="mt-2.5 pt-1.5 border-t flex flex-wrap items-center justify-between gap-2" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
         <div className="flex items-center gap-1.5 flex-wrap">
-          {notification.actionCommand && (
+          {notification.actionCommand && !(isAnomaly && notification.actionCommand === 'top') && (
             <button
-              onClick={() => {
-                soundEffects.playKeyClick();
-                onExecuteCommand(notification.actionCommand!);
-              }}
+              onClick={() => handleAction(notification.actionCommand!)}
               className="flex items-center gap-1 px-2.5 py-1 border text-[10px] font-bold rounded-xs cursor-pointer active:scale-95 transition-transform hover:opacity-90"
               style={{
                 backgroundColor: badgeColor,
@@ -133,10 +137,7 @@ export const TerminalNotificationCard: React.FC<TerminalNotificationCardProps> =
 
           {isAnomaly && (
             <button
-              onClick={() => {
-                soundEffects.playKeyClick();
-                onExecuteCommand('top');
-              }}
+              onClick={() => handleAction('top')}
               className="flex items-center gap-1 px-2 py-1 border text-[10px] rounded-xs cursor-pointer hover:bg-white/10"
               style={{ borderColor }}
             >
@@ -147,10 +148,7 @@ export const TerminalNotificationCard: React.FC<TerminalNotificationCardProps> =
 
           {isScript && (
             <button
-              onClick={() => {
-                soundEffects.playKeyClick();
-                onExecuteCommand('script list');
-              }}
+              onClick={() => handleAction('script list')}
               className="flex items-center gap-1 px-2 py-1 border text-[10px] rounded-xs cursor-pointer hover:bg-white/10"
               style={{ borderColor }}
             >

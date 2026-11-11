@@ -1,23 +1,39 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
 import { Sparkles, X, Lightbulb } from 'lucide-react';
+import { PageMode } from '../types';
 
 export type AssistantExpression = 'idle' | 'happy' | 'thinking' | 'alert' | 'excited' | 'sleepy';
 
+const EXPRESSION_LABELS: Record<AssistantExpression, string> = {
+  idle: 'listo',
+  happy: 'feliz',
+  thinking: 'piensa',
+  alert: 'alerta',
+  excited: '¡wow!',
+  sleepy: 'sueño',
+};
+
 interface RetroAssistantEyesProps {
-  theme: ThemeConfig;
   lastCommand?: string;
   lastLogType?: string;
   onExecuteCommand: (cmd: string) => void;
   isVoiceActive?: boolean;
+  /** Terminal keeps its command tips; web focuses on CMD, bookmarks and views. */
+  variant?: 'terminal' | 'web';
+  onOpenCommandMenu?: () => void;
+  onToggleBookmark?: () => void;
+  bookmarkActive?: boolean;
+  hasPage?: boolean;
+  viewMode?: PageMode;
+  onSelectViewMode?: (mode: PageMode) => void;
 }
 
-const ASSISTANT_TIPS = [
+export const ASSISTANT_TIPS = [
   '¡Hola! Soy DOSY. Escribe "home" para volver al inicio.',
   'Presiona [Ctrl+M] o pulsa el icono de micrófono para dictar comandos por voz.',
   'Usa "ir a <url>" para navegar en terminal con fotos reales.',
-  'Alterna rápidamente entre pestañas con "pestaña 1" y "pestaña 2".',
+  'Abre pestañas con Ctrl+T y salta a cualquiera con Ctrl+1..9 o "pestaña <n>".',
   'Haz clic sobre cualquier archivo en la terminal para abrirlo o ejecutarlo.',
   'Escribe "fs workspace" para explorar el código fuente local.',
   'Ejecuta "python benchmark.py" para cálculo numérico en tiempo real.',
@@ -28,21 +44,55 @@ const ASSISTANT_TIPS = [
   'Escribe "notify status" o "notify on" para activar alertas del navegador.',
 ];
 
+export const WEB_ASSISTANT_TIPS = [
+  'Pulsa [CMD] en la barra para ver y elegir comandos de navegación con el ratón.',
+  'El menú CMD reúne ir, buscar, recargar, abrir pestañas y el manual.',
+  'Guarda la página actual con la estrella ★ y aparecerá en la tira de Marcadores.',
+  'Haz clic en un marcador para abrirlo; su X lo elimina de la tira.',
+  'Cambia entre REAL, OSCURO y TEXTO desde la barra superior o desde este globo.',
+  'La vista se recuerda por sitio; en SITIOS puedes olvidar una o todas.',
+  'Escribe "goto <url>" o "search <texto>" y pulsa RUN para navegar.',
+];
+
+const WEB_VIEW_OPTIONS: { id: PageMode; label: string }[] = [
+  { id: 'real', label: 'REAL' },
+  { id: 'dark', label: 'OSCURO' },
+  { id: 'text', label: 'TEXTO' },
+];
+
 export const RetroAssistantEyes: React.FC<RetroAssistantEyesProps> = ({
-  theme,
   lastCommand,
   lastLogType,
   onExecuteCommand,
   isVoiceActive = false,
+  variant = 'terminal',
+  onOpenCommandMenu,
+  onToggleBookmark,
+  bookmarkActive = false,
+  hasPage = true,
+  viewMode,
+  onSelectViewMode,
 }) => {
+  const tips = variant === 'web' ? WEB_ASSISTANT_TIPS : ASSISTANT_TIPS;
   const [expression, setExpression] = useState<AssistantExpression>('idle');
   const [isBlinking, setIsBlinking] = useState(false);
   const [showSpeechBubble, setShowSpeechBubble] = useState(false);
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
-  const [bubbleMessage, setBubbleMessage] = useState<string>(ASSISTANT_TIPS[0]);
+  const [bubbleMessage, setBubbleMessage] = useState<string>(() => tips[0]);
   const [pointerOffset, setPointerOffset] = useState({ x: 0, y: 0 });
 
+  // The label doubles as the assistant's current mood; idle keeps just the name.
+  const moodLabel = expression === 'idle' ? 'DOSY' : `DOSY · ${EXPRESSION_LABELS[expression]}`;
+
   const eyesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Switching between terminal and web swaps the tips and starts from the first one.
+  useEffect(() => {
+    setCurrentTipIndex(0);
+    setBubbleMessage(tips[0]);
+    setShowSpeechBubble(false);
+    setExpression('idle');
+  }, [variant, tips]);
 
   // Follow the mouse pointer smoothly in real-time
   useEffect(() => {
@@ -96,12 +146,17 @@ export const RetroAssistantEyes: React.FC<RetroAssistantEyesProps> = ({
     if (!lastCommand) return;
 
     const lower = lastCommand.toLowerCase();
+    const isWeb = variant === 'web';
     setExpression('thinking');
 
     const timer = setTimeout(() => {
       if (lastLogType === 'stderr' || lower.includes('error')) {
         setExpression('alert');
-        setBubbleMessage('¡Atención! Ese comando tuvo un detalle. Escribe "ayuda" para ver la sintaxis.');
+        setBubbleMessage(
+          isWeb
+            ? 'Ese comando no salió bien. Abre CMD para revisar las opciones o escribe "help".'
+            : '¡Atención! Ese comando tuvo un detalle. Escribe "ayuda" para ver la sintaxis.',
+        );
         setShowSpeechBubble(true);
       } else if (
         lower.startsWith('goto') ||
@@ -110,19 +165,36 @@ export const RetroAssistantEyes: React.FC<RetroAssistantEyesProps> = ({
         lower.startsWith('lynx')
       ) {
         setExpression('excited');
-        setBubbleMessage('¡Navegando! Web cargada en terminal con imágenes reales.');
-      } else if (lower.startsWith('python') || lower.startsWith('py')) {
+        setBubbleMessage(
+          isWeb
+            ? 'Página cargada. Cambia entre REAL, OSCURO y TEXTO para ajustar la vista.'
+            : '¡Navegando! Web cargada en terminal con imágenes reales.',
+        );
+      } else if (isWeb && (lower.startsWith('search') || lower.startsWith('buscar'))) {
+        setExpression('happy');
+        setBubbleMessage('Búsqueda enviada. Abre un resultado o pulsa CMD para otra acción.');
+      } else if (isWeb && lower.startsWith('bookmark')) {
+        setExpression('happy');
+        setBubbleMessage('Marcadores al día. La estrella ★ y la tira superior son tus accesos rápidos.');
+      } else if (isWeb && lower.startsWith('reader')) {
+        setExpression('happy');
+        setBubbleMessage('Modo lectura activo. Prueba REAL u OSCURO para volver a la página completa.');
+      } else if (isWeb && lower === 'home') {
+        setExpression('happy');
+        setBubbleMessage('De vuelta a la portada. Pulsa CMD para empezar otra búsqueda.');
+      } else if (!isWeb && (lower.startsWith('python') || lower.startsWith('py'))) {
         setExpression('happy');
         setBubbleMessage('¡Código Python ejecutado correctamente!');
       } else if (
-        lower.startsWith('fs') ||
-        lower === 'mc' ||
-        lower === 'ls' ||
-        lower === 'dir'
+        !isWeb &&
+        (lower.startsWith('fs') ||
+          lower === 'mc' ||
+          lower === 'ls' ||
+          lower === 'dir')
       ) {
         setExpression('happy');
         setBubbleMessage('Sistema de archivos local listo. ¡Haz clic para interactuar!');
-      } else if (lower.startsWith('notify')) {
+      } else if (!isWeb && lower.startsWith('notify')) {
         setExpression('excited');
         setBubbleMessage('Sistema de notificaciones W3C + Terminal activo.');
       } else {
@@ -137,13 +209,13 @@ export const RetroAssistantEyes: React.FC<RetroAssistantEyesProps> = ({
     }, 280);
 
     return () => clearTimeout(timer);
-  }, [lastCommand, lastLogType]);
+  }, [lastCommand, lastLogType, variant]);
 
   const cycleNextTip = () => {
     soundEffects.playKeyClick();
-    const nextIdx = (currentTipIndex + 1) % ASSISTANT_TIPS.length;
+    const nextIdx = (currentTipIndex + 1) % tips.length;
     setCurrentTipIndex(nextIdx);
-    setBubbleMessage(ASSISTANT_TIPS[nextIdx]);
+    setBubbleMessage(tips[nextIdx]);
     setExpression('excited');
     setShowSpeechBubble(true);
     setTimeout(() => setExpression('idle'), 1800);
@@ -186,6 +258,10 @@ export const RetroAssistantEyes: React.FC<RetroAssistantEyesProps> = ({
     glowColor = 'rgba(148, 163, 184, 0.4)';
     expressionLabel = 'Reposo';
   }
+
+  // Web mode keeps DOSY's eyes white; expression colors remain in the bubble accents.
+  const displayedEyeColor = variant === 'web' ? '#ffffff' : eyeColor;
+  const displayedGlowColor = variant === 'web' ? 'rgba(255, 255, 255, 0.6)' : glowColor;
 
   return (
     <div className="relative inline-flex items-center select-none font-mono">
@@ -232,38 +308,101 @@ export const RetroAssistantEyes: React.FC<RetroAssistantEyesProps> = ({
               <span>Siguiente</span>
             </button>
 
-            <button
-              onClick={() => {
-                soundEffects.playKeyClick();
-                onExecuteCommand('home');
-                setShowSpeechBubble(false);
-              }}
-              className="px-1.5 py-0.5 border border-white/20 hover:border-cyan-400 text-[10px] rounded-xs cursor-pointer"
-            >
-              [home]
-            </button>
+            {variant === 'web' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSpeechBubble(false);
+                    onOpenCommandMenu?.();
+                  }}
+                  disabled={!onOpenCommandMenu}
+                  className="px-1.5 py-0.5 border border-white/20 hover:border-cyan-400 text-[10px] rounded-xs cursor-pointer text-cyan-300 disabled:cursor-not-allowed disabled:opacity-30"
+                  title="Abrir el menú de comandos de la barra"
+                >
+                  [CMD]
+                </button>
 
-            <button
-              onClick={() => {
-                soundEffects.playKeyClick();
-                onExecuteCommand('ir a https://news.ycombinator.com');
-                setShowSpeechBubble(false);
-              }}
-              className="px-1.5 py-0.5 border border-white/20 hover:border-cyan-400 text-[10px] rounded-xs cursor-pointer text-amber-300"
-            >
-              [ir a HN]
-            </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSpeechBubble(false);
+                    onToggleBookmark?.();
+                  }}
+                  disabled={!hasPage || !onToggleBookmark}
+                  className="px-1.5 py-0.5 border border-white/20 hover:border-amber-300 text-[10px] rounded-xs cursor-pointer text-amber-300 disabled:cursor-not-allowed disabled:opacity-30"
+                  title={
+                    !hasPage
+                      ? 'Abre una página para guardarla en marcadores'
+                      : bookmarkActive
+                        ? 'Quitar la página actual de marcadores'
+                        : 'Guardar la página actual en marcadores'
+                  }
+                >
+                  {bookmarkActive ? '[★ quitar]' : '[★ marcar]'}
+                </button>
 
-            <button
-              onClick={() => {
-                soundEffects.playKeyClick();
-                onExecuteCommand('fs workspace');
-                setShowSpeechBubble(false);
-              }}
-              className="px-1.5 py-0.5 border border-white/20 hover:border-cyan-400 text-[10px] rounded-xs cursor-pointer text-emerald-300"
-            >
-              [workspace]
-            </button>
+                {WEB_VIEW_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => {
+                      setShowSpeechBubble(false);
+                      onSelectViewMode?.(option.id);
+                    }}
+                    disabled={!hasPage || !onSelectViewMode}
+                    aria-pressed={viewMode === option.id}
+                    className="px-1.5 py-0.5 border border-white/20 hover:border-cyan-400 text-[10px] rounded-xs cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
+                    style={viewMode === option.id ? { borderColor: eyeColor, color: eyeColor } : undefined}
+                    title={
+                      !hasPage
+                        ? 'Abre una página para cambiar la vista'
+                        : `Ver la página en modo ${option.label.toLowerCase()}`
+                    }
+                  >
+                    [{option.label}]
+                  </button>
+                ))}
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundEffects.playKeyClick();
+                    onExecuteCommand('home');
+                    setShowSpeechBubble(false);
+                  }}
+                  className="px-1.5 py-0.5 border border-white/20 hover:border-cyan-400 text-[10px] rounded-xs cursor-pointer"
+                >
+                  [home]
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundEffects.playKeyClick();
+                    onExecuteCommand('ir a https://news.ycombinator.com');
+                    setShowSpeechBubble(false);
+                  }}
+                  className="px-1.5 py-0.5 border border-white/20 hover:border-cyan-400 text-[10px] rounded-xs cursor-pointer text-amber-300"
+                >
+                  [ir a HN]
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundEffects.playKeyClick();
+                    onExecuteCommand('fs workspace');
+                    setShowSpeechBubble(false);
+                  }}
+                  className="px-1.5 py-0.5 border border-white/20 hover:border-cyan-400 text-[10px] rounded-xs cursor-pointer text-emerald-300"
+                >
+                  [workspace]
+                </button>
+              </>
+            )}
           </div>
 
           {/* Bubble tail pointer pointing down to eyes */}
@@ -277,7 +416,7 @@ export const RetroAssistantEyes: React.FC<RetroAssistantEyesProps> = ({
         </div>
       )}
 
-      {/* Floating Retro Eyes (No box/frame, compact vertical rectangles, pupil-less, tracking pointer) */}
+      {/* Floating Retro Eyes (No box/frame, vertical rectangles, pupil-less, tracking pointer) */}
       <div
         ref={eyesContainerRef}
         onClick={handleEyesClick}
@@ -285,7 +424,7 @@ export const RetroAssistantEyes: React.FC<RetroAssistantEyesProps> = ({
         title="DOSY: Asistente personal (ojos rectangulares verticales sin pupilas · siguen el cursor · clic para consejos)"
       >
         <div
-          className="flex items-center gap-1 transition-transform duration-100 ease-out"
+          className="flex items-center gap-1.5 transition-transform duration-100 ease-out"
           style={{
             transform: `translate(${pointerOffset.x}px, ${pointerOffset.y}px)`,
           }}
@@ -294,10 +433,10 @@ export const RetroAssistantEyes: React.FC<RetroAssistantEyesProps> = ({
           <div
             className="rounded-[1px] transition-all duration-100"
             style={{
-              width: '3px',
-              height: isBlinking ? '1.5px' : '7.5px',
-              backgroundColor: eyeColor,
-              boxShadow: `0 0 5px ${glowColor}`,
+              width: '4px',
+              height: isBlinking ? '2px' : '10px',
+              backgroundColor: displayedEyeColor,
+              boxShadow: `0 0 6px ${displayedGlowColor}`,
             }}
           />
 
@@ -305,13 +444,25 @@ export const RetroAssistantEyes: React.FC<RetroAssistantEyesProps> = ({
           <div
             className="rounded-[1px] transition-all duration-100"
             style={{
-              width: '3px',
-              height: isBlinking ? '1.5px' : '7.5px',
-              backgroundColor: eyeColor,
-              boxShadow: `0 0 5px ${glowColor}`,
+              width: '4px',
+              height: isBlinking ? '2px' : '10px',
+              backgroundColor: displayedEyeColor,
+              boxShadow: `0 0 6px ${displayedGlowColor}`,
             }}
           />
         </div>
+
+        {/* Always-visible name tag so the assistant is identifiable at a glance */}
+        <span
+          aria-hidden="true"
+          className="ml-1.5 whitespace-nowrap select-none font-mono text-[9px] font-bold uppercase leading-none tracking-[0.18em]"
+          style={{
+            color: displayedEyeColor,
+            textShadow: `0 0 6px ${displayedGlowColor}`,
+          }}
+        >
+          {moodLabel}
+        </span>
       </div>
     </div>
   );

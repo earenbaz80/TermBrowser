@@ -1,5 +1,5 @@
 /**
- * TermBrowser OS - Persistent Command History Manager (localStorage)
+ * Terminus - Persistent Command History Manager (localStorage)
  */
 
 export const HISTORY_STORAGE_KEY = 'termbrowser_cmd_history_v1';
@@ -10,7 +10,7 @@ const DEFAULT_BOOT_HISTORY: string[] = [
   'help',
   'fs workspace',
   'goto https://news.ycombinator.com',
-  'python -c "print(\'TermBrowser OS listo\')"',
+  'python -c "print(\'Terminus listo\')"',
   'mc',
   'top',
 ];

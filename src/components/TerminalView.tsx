@@ -1,30 +1,27 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { TerminalLogEntry, ThemeConfig, InteractiveFileItem } from '../types';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { NativeShellId, TerminalLogEntry, TerminalShellMode, ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
+import { BOOT_ASCII_COMPACT } from '../utils/bootBanner';
+import { formatCompactAsciiManual } from '../utils/asciiManual';
+import { getLatencyGlow } from '../utils/latencyGlow';
 import { TerminalWebpageView } from './TerminalWebpageView';
 import { RetroAssistantEyes } from './RetroAssistantEyes';
 import { TerminalNotificationCard } from './TerminalNotificationCard';
+import { ContextMenu, ContextMenuItem } from './ContextMenu';
+import { PtyTerminalPane, type PtyTerminalHandle } from './PtyTerminalPane';
 import {
   Download,
   Trash2,
-  Maximize2,
-  Minimize2,
   CornerDownLeft,
   HelpCircle,
   Folder,
-  FileCode,
   FileText,
   Play,
-  RotateCcw,
   Globe,
-  HardDrive,
-  FolderUp,
   History,
   Activity,
   Shield,
   FileSearch,
-  ExternalLink,
-  ChevronRight,
   Terminal as TerminalIcon,
   Code2,
   Zap,
@@ -43,6 +40,20 @@ import {
   HISTORY_SYNC_EVENT,
   HISTORY_STORAGE_KEY,
 } from '../utils/commandHistoryStorage';
+import {
+  getNativeShellLabel,
+  getNativeShellOptions,
+  getNativeShellPlatform,
+  getNativeShellPrompt,
+} from '../utils/nativeShell';
+
+/** Id of the newest page in the stream: only it may mount a live iframe */
+const lastWebpageEntryId = (entries: TerminalLogEntry[]): string | undefined => {
+  for (let i = entries.length - 1; i >= 0; i -= 1) {
+    if (entries[i].type === 'webpage') return entries[i].id;
+  }
+  return undefined;
+};
 
 interface AutocompleteItem {
   value: string;
@@ -51,6 +62,8 @@ interface AutocompleteItem {
 }
 
 interface TerminalViewProps {
+  /** Active tab id; the PTY session is bound to it so it survives tab switches. */
+  tabId?: string;
   theme: ThemeConfig;
   logs: TerminalLogEntry[];
   onExecuteCommand: (cmd: string) => void;
@@ -58,16 +71,32 @@ interface TerminalViewProps {
   onExportLogs: (format: 'json' | 'txt') => void;
   onOpenHelp?: () => void;
   onOpenFileExplorer?: () => void;
-  isExpanded?: boolean;
-  onToggleExpand?: () => void;
   currentPath?: string;
   fileSystem?: Record<string, VirtualFile[]>;
   onMountLocalFolder?: () => void;
   onMountWorkspace?: () => void;
+  localMountToRestore?: {
+    name: string;
+    permission: 'granted' | 'prompt' | 'denied';
+    restoring: boolean;
+  } | null;
+  onRestoreLocalMount?: () => void;
   onOpenMonitor?: () => void;
   onOpenSecurity?: () => void;
-  onOpenScripts?: () => void;
   onImportLocalFiles?: (files: { name: string; content: string; size: number }[], folderName?: string) => void;
+  onDismissNotification?: (id: string) => void;
+  /** "actual/total" for the footer hint */
+  tabSummary?: string;
+  /** Inline page frames in the stream (off when the web surface owns the real page) */
+  allowInlineFrames?: boolean;
+  /** Current network latency, shown under the boot sign */
+  latencyMs?: number;
+  /** TERMINUS uses the internal interpreter; the other values execute real local shells. */
+  shellMode?: TerminalShellMode;
+  nativeShellAvailable?: boolean;
+  nativeShellCwd?: string;
+  onSelectShellMode?: (mode: TerminalShellMode) => void;
+  onExecuteShellCommand?: (cmd: string) => void;
 }
 
 const COMMON_COMMANDS = [
@@ -162,6 +191,8 @@ const COMMON_COMMANDS = [
   'theme blanco-y-negro',
   'theme green',
   'theme amber',
+  'theme retro',
+  'theme retro-futurista',
   'theme cyan',
   'theme matrix',
   'sound on',
@@ -197,9 +228,8 @@ const FILE_ACCEPTING_COMMANDS = new Set([
  */
 const ClickableTerminalText: React.FC<{
   text: string;
-  theme: ThemeConfig;
   onExecuteCommand: (cmd: string) => void;
-}> = ({ text, theme, onExecuteCommand }) => {
+}> = ({ text, onExecuteCommand }) => {
   // Regex to detect URLs: https?://[^\s]+
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   const parts = text.split(urlRegex);
@@ -230,6 +260,7 @@ const ClickableTerminalText: React.FC<{
 };
 
 export const TerminalView: React.FC<TerminalViewProps> = ({
+  tabId,
   theme,
   logs,
   onExecuteCommand,
@@ -237,20 +268,64 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   onExportLogs,
   onOpenHelp,
   onOpenFileExplorer,
-  isExpanded = false,
-  onToggleExpand,
   currentPath = '/home/user',
   fileSystem = {},
   onMountLocalFolder,
   onMountWorkspace,
+  localMountToRestore,
+  onRestoreLocalMount,
   onOpenMonitor,
   onOpenSecurity,
-  onOpenScripts,
   onImportLocalFiles,
+  onDismissNotification,
+  tabSummary = '1/1',
+  allowInlineFrames = true,
+  latencyMs,
+  shellMode = 'terminus',
+  nativeShellAvailable = false,
+  nativeShellCwd,
+  onSelectShellMode,
+  onExecuteShellCommand,
 }) => {
+  const nativeShellPlatform = getNativeShellPlatform();
+  const shellOptions = getNativeShellOptions(nativeShellPlatform);
+  const isNativeShellMode = shellMode !== 'terminus';
+  const nativeShellLabel = getNativeShellLabel(shellMode, nativeShellPlatform);
+  const promptSymbol = isNativeShellMode
+    ? getNativeShellPrompt(shellMode, nativeShellPlatform, nativeShellCwd)
+    : theme.promptSymbol;
+  const latencyLabel =
+    typeof latencyMs === 'number' && Number.isFinite(latencyMs) ? `${Math.round(latencyMs)} ms` : '—';
+  const latencyGlow = getLatencyGlow(latencyMs);
+  const glowStyle = {
+    color: theme.accent,
+    '--ascii-glow-color': latencyGlow.color,
+  } as React.CSSProperties;
+
+  // Interactive PTY: only the desktop bridge can host a real shell process.
+  const [ptyFailed, setPtyFailed] = useState(false);
+  const [ptyError, setPtyError] = useState('');
+  const ptyBridgeAvailable =
+    typeof window !== 'undefined' && Boolean(window.terminusPty?.available);
+  const ptyEnabled = isNativeShellMode && ptyBridgeAvailable && Boolean(tabId) && !ptyFailed;
+
+  const handlePtyUnavailable = useCallback((message: string) => {
+    setPtyFailed(true);
+    setPtyError(message);
+  }, []);
+
+  // A different shell or tab needs a fresh session, so drop the previous failure.
+  useEffect(() => {
+    setPtyFailed(false);
+    setPtyError('');
+  }, [shellMode, tabId]);
+
   const [inputVal, setInputVal] = useState('');
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
   const [draftInput, setDraftInput] = useState<string>('');
+  const [inputFocused, setInputFocused] = useState(false);
+  const [inputCaretVisible, setInputCaretVisible] = useState(false);
+  const [inputCaretLeft, setInputCaretLeft] = useState(0);
 
   const [commandHistory, setCommandHistory] = useState<string[]>(() => getPersistedCommandHistory());
   const [isHistoryMenuOpen, setIsHistoryMenuOpen] = useState(false);
@@ -261,12 +336,20 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
 
   const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const logContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const inputMeasureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dirInputRef = useRef<HTMLInputElement>(null);
+  const ptyRef = useRef<PtyTerminalHandle | null>(null);
   const quickMenuRef = useRef<HTMLDivElement>(null);
   const quickMenuBtnRef = useRef<HTMLButtonElement>(null);
   const [quickMenuPos, setQuickMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    selection: string;
+  } | null>(null);
   const historyMenuRef = useRef<HTMLDivElement>(null);
 
   const [isListening, setIsListening] = useState(false);
@@ -374,7 +457,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   }, [isListening]);
 
   // Toggle voice recognition
-  const handleToggleVoice = (e?: React.MouseEvent) => {
+  const handleToggleVoice = useCallback((e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (!isSpeechRecognitionSupported()) {
       soundEffects.playVoiceError();
@@ -389,7 +472,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     } else {
       voiceControllerRef.current?.start();
     }
-  };
+  }, [isListening]);
 
   // Keyboard shortcut Ctrl+M / Cmd+M to toggle voice input
   useEffect(() => {
@@ -401,7 +484,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     };
     window.addEventListener('keydown', handleVoiceKey);
     return () => window.removeEventListener('keydown', handleVoiceKey);
-  }, [isListening]);
+  }, [handleToggleVoice]);
 
   // Auto-scroll to bottom on new log entries
   useEffect(() => {
@@ -413,6 +496,45 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     inputRef.current?.focus();
   };
 
+  // Measure the text before the insertion point so the steady cursor follows the caret
+  const updateInputCaretPosition = () => {
+    const input = inputRef.current;
+    if (!input || document.activeElement !== input) {
+      setInputFocused(false);
+      setInputCaretVisible(false);
+      return;
+    }
+
+    setInputFocused(true);
+    const selectionStart = input.selectionStart ?? 0;
+    const selectionEnd = input.selectionEnd ?? 0;
+    if (selectionStart !== selectionEnd) {
+      setInputCaretVisible(false);
+      return;
+    }
+
+    const canvas = inputMeasureCanvasRef.current ?? document.createElement('canvas');
+    inputMeasureCanvasRef.current = canvas;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      setInputCaretVisible(false);
+      return;
+    }
+
+    const style = window.getComputedStyle(input);
+    context.font = style.font || `${style.fontSize} ${style.fontFamily}`;
+    const textBeforeCaret = input.value.slice(0, selectionStart);
+    setInputCaretLeft(context.measureText(textBeforeCaret).width - input.scrollLeft);
+    setInputCaretVisible(true);
+  };
+
+  // The terminal owns the prompt: focusing on mount also lets the cursor paint
+  // before any user interaction.
+  useEffect(() => {
+    inputRef.current?.focus();
+    updateInputCaretPosition();
+  }, []);
+
   // Place cursor at the end of input when navigating history
   useEffect(() => {
     if (historyIndex !== -1 && inputRef.current) {
@@ -420,6 +542,18 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       inputRef.current.setSelectionRange(len, len);
     }
   }, [historyIndex]);
+
+  // Reposition the steady cursor after value changes and history recall
+  useEffect(() => {
+    updateInputCaretPosition();
+  }, [inputVal]);
+
+  useEffect(() => {
+    if (!inputFocused) return;
+    const handleResize = () => updateInputCaretPosition();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [inputFocused]);
 
   // Build autocomplete suggestions for commands and files/directories in currentPath
   const computeSuggestions = (rawInput: string, includeEmpty = false): AutocompleteItem[] => {
@@ -586,15 +720,36 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     return results.slice(0, 10);
   };
 
+  const computeSuggestionsRef = useRef(computeSuggestions);
+  computeSuggestionsRef.current = computeSuggestions;
+
   // Autocomplete matching on user typing
   useEffect(() => {
+    if (isNativeShellMode) {
+      setSuggestions([]);
+      return;
+    }
     if (isTabCyclingRef.current) {
       return;
     }
-    const matches = computeSuggestions(inputVal, false);
+    const matches = computeSuggestionsRef.current(inputVal, false);
     setSuggestions(matches);
     setSelectedSuggestionIndex(0);
-  }, [inputVal, currentPath, fileSystem]);
+  }, [inputVal, currentPath, fileSystem, isNativeShellMode]);
+
+  useEffect(() => {
+    if (!isNativeShellMode) return;
+    setSuggestions([]);
+    setIsHistoryMenuOpen(false);
+  }, [isNativeShellMode]);
+
+  const runCommandFromPrompt = (cmd: string) => {
+    if (isNativeShellMode && onExecuteShellCommand) {
+      onExecuteShellCommand(cmd);
+      return;
+    }
+    onExecuteCommand(cmd);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -613,7 +768,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     setDraftInput('');
     setInputVal('');
     setSuggestions([]);
-    onExecuteCommand(cmd);
+    runCommandFromPrompt(cmd);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -631,6 +786,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
 
     // Tab autocomplete (supports both commands and filenames, plus cycling with Tab / Shift+Tab)
     if (e.key === 'Tab') {
+      if (isNativeShellMode) return;
       e.preventDefault();
 
       // If no suggestions are currently active, compute them (even on empty prompt)
@@ -743,9 +899,277 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
   // Break currentPath into clickable breadcrumbs
   const pathParts = currentPath.split('/').filter(Boolean);
 
+  const copyText = async (value: string) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      // Clipboard access can be unavailable outside a secure context.
+    }
+  };
+
+  const inputSelection = (() => {
+    const input = inputRef.current;
+    if (!input || input.selectionStart === input.selectionEnd) return '';
+    return inputVal.slice(input.selectionStart ?? 0, input.selectionEnd ?? 0);
+  })();
+
+  const copyTerminalSelection = () => {
+    const selected = contextMenu?.selection || inputSelection || logContainerRef.current?.innerText || '';
+    void copyText(selected);
+  };
+
+  const selectTerminalLogs = () => {
+    const node = logContainerRef.current;
+    if (!node) return;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  };
+
+  const pasteIntoPrompt = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) return;
+      const input = inputRef.current;
+      const start = input?.selectionStart ?? inputVal.length;
+      const end = input?.selectionEnd ?? inputVal.length;
+      const next = `${inputVal.slice(0, start)}${text}${inputVal.slice(end)}`;
+      setInputVal(next);
+      requestAnimationFrame(() => {
+        input?.focus();
+        const caret = start + text.length;
+        input?.setSelectionRange(caret, caret);
+      });
+    } catch {
+      // Clipboard read can require permission; leave the prompt untouched.
+    }
+  };
+
+  const extractTextToFile = (value: string, source: string) => {
+    if (!value.trim()) return;
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const blob = new Blob([value], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `terminus-${source}-${stamp}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const pasteIntoPty = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) return;
+      ptyRef.current?.paste(text);
+    } catch {
+      // Clipboard read can require permission; leave the terminal untouched.
+    }
+  };
+
+  const extractArchive = async () => {
+    const api = window.terminusArchive;
+    if (!api?.available) return;
+    const selection = contextMenu?.selection.trim() ?? '';
+    try {
+      const result = await api.extract({
+        defaultPath: selection || undefined,
+        cwd: nativeShellCwd || undefined,
+      });
+      if (result.canceled) return;
+      const message = result.ok
+        ? `Extraído ${result.archivePath ?? 'archivo'} en ${result.destination ?? 'destino'}`
+        : `No se pudo extraer: ${result.error ?? 'error desconocido'}`;
+      if (ptyEnabled) ptyRef.current?.writeNotice(message);
+      else onExecuteCommand(`echo "${message.replace(/"/g, "'")}"`);
+    } catch (error) {
+      const message = `No se pudo extraer: ${error instanceof Error ? error.message : String(error)}`;
+      if (ptyEnabled) ptyRef.current?.writeNotice(message);
+      else onExecuteCommand(`echo "${message.replace(/"/g, "'")}"`);
+    }
+  };
+
+  const compressArchive = async () => {
+    const api = window.terminusArchive;
+    if (!api?.available) return;
+    const selection = contextMenu?.selection.trim() ?? '';
+    try {
+      const result = await api.create({
+        defaultPath: selection || undefined,
+        cwd: nativeShellCwd || undefined,
+      });
+      if (result.canceled) return;
+      const message = result.ok
+        ? `Comprimido ${result.sourcePath ?? 'origen'} en ${result.destination ?? 'destino'}`
+        : `No se pudo comprimir: ${result.error ?? 'error desconocido'}`;
+      if (ptyEnabled) ptyRef.current?.writeNotice(message);
+      else onExecuteCommand(`echo "${message.replace(/"/g, "'")}"`);
+    } catch (error) {
+      const message = `No se pudo comprimir: ${error instanceof Error ? error.message : String(error)}`;
+      if (ptyEnabled) ptyRef.current?.writeNotice(message);
+      else onExecuteCommand(`echo "${message.replace(/"/g, "'")}"`);
+    }
+  };
+
+  const openContextMenu = (event: React.MouseEvent) => {
+    event.preventDefault();
+    setIsHistoryMenuOpen(false);
+    setIsQuickMenuOpen(false);
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      selection: ptyEnabled ? ptyRef.current?.getSelection() ?? '' : window.getSelection()?.toString() ?? '',
+    });
+  };
+
+  const terminalPath = isNativeShellMode ? nativeShellCwd || currentPath : currentPath;
+  const emulatedMenuItems: ContextMenuItem[] = [
+    {
+      id: 'copy-selection',
+      label: 'Copiar selección',
+      hint: 'Ctrl+Shift+C',
+      disabled: !contextMenu?.selection && !inputSelection,
+      onSelect: copyTerminalSelection,
+    },
+    {
+      id: 'copy-output',
+      label: 'Copiar salida',
+      disabled: logs.length === 0,
+      onSelect: () => void copyText(logContainerRef.current?.innerText ?? ''),
+    },
+    {
+      id: 'extract-output',
+      label: 'Extraer salida a .txt',
+      hint: 'TXT',
+      disabled: !contextMenu?.selection && !inputSelection && logs.length === 0,
+      onSelect: () =>
+        extractTextToFile(
+          contextMenu?.selection || inputSelection || logContainerRef.current?.innerText || '',
+          'terminal',
+        ),
+    },
+    {
+      id: 'extract-archive',
+      label: 'Extraer .zip / .tar…',
+      hint: 'ZIP/TAR',
+      disabled: !window.terminusArchive?.available,
+      onSelect: () => void extractArchive(),
+    },
+    {
+      id: 'compress-archive',
+      label: 'Comprimir .zip / .tar…',
+      hint: 'ZIP/TAR',
+      disabled: !window.terminusArchive?.available,
+      onSelect: () => void compressArchive(),
+    },
+    { id: 'paste', label: 'Pegar en el prompt', hint: 'Ctrl+V', onSelect: () => void pasteIntoPrompt() },
+    {
+      id: 'copy-path',
+      label: 'Copiar ruta actual',
+      disabled: !terminalPath,
+      separatorBefore: true,
+      onSelect: () => void copyText(terminalPath),
+    },
+    {
+      id: 'select-all',
+      label: 'Seleccionar salida',
+      disabled: logs.length === 0,
+      onSelect: selectTerminalLogs,
+    },
+    {
+      id: 'clear',
+      label: 'Limpiar terminal',
+      hint: 'clear',
+      disabled: logs.length === 0,
+      onSelect: onClearLogs,
+    },
+    {
+      id: 'help',
+      label: 'Abrir ayuda',
+      disabled: !onOpenHelp,
+      separatorBefore: true,
+      onSelect: () => onOpenHelp?.(),
+    },
+    {
+      id: 'files',
+      label: 'Abrir explorador',
+      disabled: !onOpenFileExplorer,
+      onSelect: () => onOpenFileExplorer?.(),
+    },
+  ];
+
+  const ptyMenuItems: ContextMenuItem[] = [
+    {
+      id: 'pty-copy-selection',
+      label: 'Copiar selección',
+      hint: 'Ctrl+Shift+C',
+      disabled: !contextMenu?.selection,
+      onSelect: () => void copyText(ptyRef.current?.getSelection() ?? ''),
+    },
+    {
+      id: 'pty-copy-output',
+      label: 'Copiar salida',
+      onSelect: () => void copyText(ptyRef.current?.getBufferText() ?? ''),
+    },
+    {
+      id: 'pty-extract',
+      label: 'Extraer salida a .txt',
+      hint: 'TXT',
+      onSelect: () => {
+        const text = ptyRef.current?.getSelection() || ptyRef.current?.getBufferText() || '';
+        extractTextToFile(text, 'pty');
+      },
+    },
+    {
+      id: 'pty-extract-archive',
+      label: 'Extraer .zip / .tar…',
+      hint: 'ZIP/TAR',
+      disabled: !window.terminusArchive?.available,
+      onSelect: () => void extractArchive(),
+    },
+    {
+      id: 'pty-compress-archive',
+      label: 'Comprimir .zip / .tar…',
+      hint: 'ZIP/TAR',
+      disabled: !window.terminusArchive?.available,
+      onSelect: () => void compressArchive(),
+    },
+    { id: 'pty-paste', label: 'Pegar', hint: 'Ctrl+Shift+V', onSelect: () => void pasteIntoPty() },
+    {
+      id: 'pty-copy-path',
+      label: 'Copiar ruta actual',
+      disabled: !terminalPath,
+      separatorBefore: true,
+      onSelect: () => void copyText(terminalPath),
+    },
+    { id: 'pty-select-all', label: 'Seleccionar todo', onSelect: () => ptyRef.current?.selectAll() },
+    { id: 'pty-clear', label: 'Limpiar terminal', onSelect: () => ptyRef.current?.clear() },
+    {
+      id: 'pty-help',
+      label: 'Abrir ayuda',
+      disabled: !onOpenHelp,
+      separatorBefore: true,
+      onSelect: () => onOpenHelp?.(),
+    },
+    {
+      id: 'pty-files',
+      label: 'Abrir explorador',
+      disabled: !onOpenFileExplorer,
+      onSelect: () => onOpenFileExplorer?.(),
+    },
+  ];
+
+  const terminalMenuItems = ptyEnabled ? ptyMenuItems : emulatedMenuItems;
+
   return (
     <div
-      onClick={focusInput}
+      onClick={ptyEnabled ? undefined : focusInput}
+      onContextMenu={openContextMenu}
       className="flex flex-col flex-1 h-full font-mono text-xs overflow-hidden select-text relative"
       style={{
         backgroundColor: theme.bg,
@@ -790,11 +1214,48 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
             <span>CONSOLA & NAVEGADOR WEB</span>
           </span>
           <span className="text-[10px] opacity-60 hidden sm:inline">
-            Tab: autocompletar · ↑↓: historial
+            {isNativeShellMode ? 'Shell nativo · ruta persistente' : 'Tab: autocompletar · ↑↓: historial'}
           </span>
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+          {/* Shell selector: TERMINUS is the internal interpreter; the rest run real local shells. */}
+          <div className="flex items-center gap-1 shrink-0">
+            <span className="text-[9px] opacity-50">SHELL</span>
+            <select
+              value={shellMode}
+              onClick={(event) => event.stopPropagation()}
+              onChange={(event) => onSelectShellMode?.(event.target.value as TerminalShellMode)}
+              className="px-1.5 py-0.5 text-[10px] font-bold border rounded-xs cursor-pointer focus:outline-hidden"
+              style={{
+                backgroundColor: isNativeShellMode ? 'rgba(245, 158, 11, 0.16)' : theme.bg,
+                borderColor: isNativeShellMode ? '#f59e0b' : theme.border,
+                color: isNativeShellMode ? '#fbbf24' : theme.accent,
+              }}
+              title={
+                nativeShellAvailable
+                  ? `TERMINUS: intérprete interno · AUTO/CMD/POWERSHELL/BASH: ${
+                      ptyBridgeAvailable
+                        ? 'terminal interactiva (vim, top, ssh) con los permisos de tu usuario'
+                        : 'comandos reales no interactivos con los permisos de tu usuario'
+                    }`
+                  : 'El shell nativo solo está disponible en la aplicación de escritorio de Terminus'
+              }
+              aria-label="Seleccionar intérprete de la terminal"
+            >
+              {shellOptions.map((option) => (
+                <option
+                  key={option.id}
+                  value={option.id}
+                  disabled={option.id !== 'terminus' && !nativeShellAvailable}
+                  title={option.title}
+                >
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Small Collapsible Quick Actions Menu (Menú pequeño plegable sin emojis, solo iconos vectoriales) */}
           <div className="relative" ref={quickMenuRef}>
             <button
@@ -848,7 +1309,13 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                     onClick={() => {
                       soundEffects.playKeyClick();
                       setIsQuickMenuOpen(false);
-                      onExecuteCommand('ls');
+                      runCommandFromPrompt(
+                        shellMode === 'cmd'
+                          ? 'dir'
+                          : shellMode === 'powershell'
+                            ? 'Get-ChildItem'
+                            : 'ls'
+                      );
                     }}
                     className="w-full flex items-center gap-2 px-2 py-1 rounded-xs hover:bg-white/10 cursor-pointer text-left text-slate-200 hover:text-white"
                   >
@@ -1017,27 +1484,44 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
             <Trash2 className="w-3 h-3" />
           </button>
 
-          {onToggleExpand && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                soundEffects.playKeyClick();
-                onToggleExpand();
-              }}
-              className="p-1 border hover:opacity-80 cursor-pointer"
-              style={{ borderColor: theme.border }}
-              title={isExpanded ? 'Restaurar vista dividida' : 'Maximizar terminal (Modo solo terminal)'}
-            >
-              {isExpanded ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
-            </button>
-          )}
         </div>
       </div>
+
+      {isNativeShellMode && (
+        <div
+          className="px-3 py-1.5 border-b flex flex-wrap items-center justify-between gap-2 text-[10px] select-none font-mono shrink-0"
+          style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}
+        >
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="opacity-50">SHELL:</span>
+            <span className="font-bold" style={{ color: '#fbbf24' }}>{nativeShellLabel}</span>
+            <span className="opacity-40">·</span>
+            <span className="opacity-50">CWD:</span>
+            <span
+              className="font-bold truncate max-w-[44ch]"
+              style={{ color: '#fbbf24' }}
+              title={nativeShellCwd || 'workspace'}
+            >
+              {nativeShellCwd || 'workspace'}
+            </span>
+            <span className="opacity-40">·</span>
+            <span className="opacity-60">cd &lt;ruta&gt; · cd ~</span>
+          </div>
+          <span className="text-[9px] opacity-50">
+            {ptyEnabled
+              ? 'PTY interactivo · vim · top · ssh · Ctrl+C interrumpe'
+              : ptyFailed
+                ? 'Modo no interactivo · ruta persistente por pestaña'
+                : 'Comandos no interactivos · ruta persistente por pestaña'}
+          </span>
+        </div>
+      )}
 
       {/* Terminal Location Bar (Clean Clickable Monospace Text) */}
       <div
         className="px-3 py-1.5 border-b flex items-center justify-between gap-2 text-[11px] select-none font-mono shrink-0"
         style={{
+          display: isNativeShellMode ? 'none' : undefined,
           backgroundColor: theme.cardBg,
           borderColor: theme.border,
         }}
@@ -1081,7 +1565,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         </div>
 
         {/* Minimal text-based mount & system triggers */}
-        <div className="flex items-center gap-3 text-[10px] font-mono">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-mono">
           <span
             onClick={(e) => {
               e.stopPropagation();
@@ -1119,11 +1603,70 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           >
             [workspace]
           </span>
+
+          {localMountToRestore && localMountToRestore.permission !== 'granted' && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                if (localMountToRestore.permission === 'prompt' && !localMountToRestore.restoring) {
+                  onRestoreLocalMount?.();
+                }
+              }}
+              disabled={
+                localMountToRestore.permission !== 'prompt' ||
+                localMountToRestore.restoring ||
+                !onRestoreLocalMount
+              }
+              className="max-w-[240px] truncate border-0 bg-transparent p-0 font-mono text-[10px] font-semibold text-amber-300 cursor-pointer hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
+              title={
+                localMountToRestore.permission === 'denied'
+                  ? `El navegador denegó el acceso a "${localMountToRestore.name}". Vuelve a elegirla con [montar disco].`
+                  : `Renovar el permiso de "${localMountToRestore.name}" y montarla de nuevo`
+              }
+            >
+              {localMountToRestore.restoring
+                ? `[restaurando ${localMountToRestore.name}…]`
+                : localMountToRestore.permission === 'denied'
+                ? `[permiso denegado: ${localMountToRestore.name}]`
+                : `[restaurar ${localMountToRestore.name}]`}
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Real interactive shell: the PTY lives in the Electron main process. */}
+      {ptyEnabled && tabId && (
+        <div className="min-h-0 flex-1">
+          <PtyTerminalPane
+            ref={ptyRef}
+            tabId={tabId}
+            shell={shellMode as NativeShellId}
+            cwd={nativeShellCwd}
+            theme={theme}
+            onUnavailable={handlePtyUnavailable}
+          />
+        </div>
+      )}
+
+      {isNativeShellMode && ptyFailed && (
+        <div
+          className="px-3 py-1.5 border-b flex items-center justify-between gap-2 text-[10px] font-mono shrink-0"
+          style={{ backgroundColor: 'rgba(127, 29, 29, 0.35)', borderColor: '#ef4444', color: '#fca5a5' }}
+        >
+          <span className="truncate" title={ptyError}>
+            [PTY] {ptyError || 'No se pudo iniciar la sesión interactiva.'}
+          </span>
+          <span className="opacity-75 shrink-0">Modo no interactivo activo</span>
+        </div>
+      )}
+
       {/* Terminal Logs Output Scrollback */}
-      <div className="flex-1 p-3 overflow-y-auto space-y-2 selection:bg-emerald-500/30">
+      <div
+        ref={logContainerRef}
+        className="flex-1 p-3 overflow-y-auto space-y-2 selection:bg-emerald-500/30"
+        style={{ display: ptyEnabled ? 'none' : undefined }}
+      >
         {logs.map((log) => {
           // Command Echo: Clean clickable text line to re-run or edit
           if (log.type === 'command') {
@@ -1142,7 +1685,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                 title="Haga clic para cargar este comando en la barra de entrada"
               >
                 <span style={{ color: theme.accent }} className="shrink-0 select-none">
-                  {theme.promptSymbol}
+                  {isNativeShellMode
+                    ? getNativeShellPrompt(shellMode, nativeShellPlatform, log.cwd || nativeShellCwd)
+                    : theme.promptSymbol}
                 </span>
                 <span className="flex-1 whitespace-pre-wrap">{log.command}</span>
               </div>
@@ -1157,6 +1702,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                   theme={theme}
                   notification={log.notification}
                   onExecuteCommand={onExecuteCommand}
+                  onDismiss={onDismissNotification}
                 />
               </div>
             );
@@ -1176,38 +1722,36 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           if (log.type === 'system') {
             return (
               <div key={log.id} className="pl-4 py-1 text-cyan-400 font-mono text-[11px] space-y-1.5">
-                <ClickableTerminalText
-                  text={log.output}
-                  theme={theme}
-                  onExecuteCommand={onExecuteCommand}
-                />
+                <ClickableTerminalText text={log.output} onExecuteCommand={onExecuteCommand} />
                 {/* Clickable files attached to system event - clean monospace text */}
                 {log.interactiveFiles && log.interactiveFiles.length > 0 && (
                   <div className="pt-1.5 font-mono text-[11px]">
                     <div className="opacity-50 text-[10px] mb-1">
-                      [ARCHIVOS DISPONIBLES · CLIC PARA INTERACTUAR]:
+                      [CONTENIDO · CLIC, TAP O TAB+ENTER SOBRE CUALQUIER ELEMENTO]:
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1">
-                      {log.interactiveFiles.map((file) => {
+                      {log.interactiveFiles.map((file, fileIndex) => {
                         const isDir = file.type === 'dir';
                         return (
-                          <div
+                          <button
                             key={file.name}
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               soundEffects.playKeyClick();
                               onExecuteCommand(file.action);
                             }}
-                            className="group flex items-center gap-2 cursor-pointer py-0.5"
+                            className="group flex w-full items-center gap-2 cursor-pointer py-0.5 text-left touch-manipulation"
                             title={`Clic para ejecutar: ${file.action}`}
                           >
+                            <span className="shrink-0 opacity-40">{String(fileIndex + 1).padStart(2, '0')}</span>
                             <span className={`shrink-0 font-bold ${isDir ? 'text-amber-400' : 'text-emerald-400'}`}>
                               {isDir ? '[DIR] ' : '[FILE]'}
                             </span>
                             <span className="truncate group-hover:underline text-slate-200 group-hover:text-white">
                               {file.name}{isDir ? '/' : ''}
                             </span>
-                          </div>
+                          </button>
                         );
                       })}
                     </div>
@@ -1218,10 +1762,53 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           }
 
           if (log.type === 'ascii') {
+            // Only the boot sign swaps to the compact variant; manual/category blocks keep their readable size.
+            const isBootSign = log.output.includes('NAVEGADOR WEB BASADO EN LÍNEA DE COMANDOS');
+            if (isBootSign) {
+              return (
+                <div key={log.id} className="ascii-boot ascii-glow opacity-90" style={glowStyle}>
+                  <pre className="ascii-sign ascii-sign-wide font-mono select-none" aria-hidden="true">
+                    {log.output}
+                  </pre>
+                  <pre className="ascii-sign ascii-sign-compact font-mono select-none" aria-hidden="true">
+                    {BOOT_ASCII_COMPACT}
+                  </pre>
+                  <div
+                    className="ascii-latency"
+                    title={`Glow ${latencyGlow.label} · Latencia de red actual: ${latencyLabel}`}
+                  >
+                    <span className="ascii-latency-dot" aria-hidden="true" />
+                    <span>[ GLOW ] · [ LATENCIA {latencyLabel} ]</span>
+                  </div>
+                </div>
+              );
+            }
+            const isManual = log.output.includes('MANUAL DE COMANDOS');
+            if (isManual) {
+              const compactManual = formatCompactAsciiManual(log.output);
+              return (
+                <div key={log.id} className="ascii-manual-block">
+                  <pre
+                    className="ascii-manual ascii-manual-wide mx-auto w-fit max-w-full font-mono text-[10px] leading-tight select-none opacity-90 overflow-x-auto"
+                    style={{ color: theme.accent }}
+                    aria-label="Manual de comandos"
+                  >
+                    {log.output}
+                  </pre>
+                  <pre
+                    className="ascii-manual ascii-manual-compact mx-auto w-fit max-w-full font-mono text-[10px] leading-tight select-none opacity-90"
+                    style={{ color: theme.accent }}
+                    aria-label="Manual de comandos para móvil"
+                  >
+                    {compactManual}
+                  </pre>
+                </div>
+              );
+            }
             return (
               <pre
                 key={log.id}
-                className="font-mono text-[10px] leading-tight select-none opacity-90 overflow-x-auto"
+                className="mx-auto w-fit max-w-full font-mono text-[10px] leading-tight select-none opacity-90 overflow-x-auto"
                 style={{ color: theme.accent }}
               >
                 {log.output}
@@ -1236,8 +1823,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                 <TerminalWebpageView
                   theme={theme}
                   webpage={log.webpage}
+                  isLatest={allowInlineFrames && log.id === lastWebpageEntryId(logs)}
                   onNavigate={(url) => onExecuteCommand(`goto ${url}`)}
-                  onOpenSplitWeb={(url) => onExecuteCommand(`goto ${url}`)}
                 />
               </div>
             );
@@ -1247,40 +1834,38 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           return (
             <div key={log.id} className="pl-4 space-y-1.5 leading-relaxed opacity-95">
               {log.output && (
-                <ClickableTerminalText
-                  text={log.output}
-                  theme={theme}
-                  onExecuteCommand={onExecuteCommand}
-                />
+                <ClickableTerminalText text={log.output} onExecuteCommand={onExecuteCommand} />
               )}
 
               {/* Interactive Clickable Files & Directories Strip - clean monospace text */}
               {log.interactiveFiles && log.interactiveFiles.length > 0 && (
                 <div className="pt-1.5 font-mono text-[11px]">
                   <div className="opacity-50 text-[10px] mb-1">
-                    [ARCHIVOS DISPONIBLES · CLIC PARA INTERACTUAR]:
+                    [CONTENIDO · CLIC, TAP O TAB+ENTER SOBRE CUALQUIER ELEMENTO]:
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1">
-                    {log.interactiveFiles.map((file) => {
+                    {log.interactiveFiles.map((file, fileIndex) => {
                       const isDir = file.type === 'dir';
                       return (
-                        <div
+                        <button
                           key={file.name}
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             soundEffects.playKeyClick();
                             onExecuteCommand(file.action);
                           }}
-                          className="group flex items-center gap-2 cursor-pointer py-0.5"
+                          className="group flex w-full items-center gap-2 cursor-pointer py-0.5 text-left touch-manipulation"
                           title={`Clic para ejecutar: ${file.action}`}
                         >
+                          <span className="shrink-0 opacity-40">{String(fileIndex + 1).padStart(2, '0')}</span>
                           <span className={`shrink-0 font-bold ${isDir ? 'text-amber-400' : 'text-emerald-400'}`}>
                             {isDir ? '[DIR] ' : '[FILE]'}
                           </span>
                           <span className="truncate group-hover:underline text-slate-200 group-hover:text-white">
                             {file.name}{isDir ? '/' : ''}
                           </span>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -1353,17 +1938,20 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         <div className="flex items-center gap-2 text-[10px] opacity-75 truncate">
           <span className="font-bold flex items-center gap-1" style={{ color: theme.accent }}>
             <span>❯</span>
-            <span>TERMBROWSER</span>
+            <span>TERMINUS</span>
           </span>
           <span className="opacity-50 hidden sm:inline truncate">
-            home · ir a &lt;url&gt; · pestaña 1/2 · archivos · monitor · limpiar · exit
+            {isNativeShellMode
+              ? ptyEnabled
+                ? `${nativeShellLabel} · PTY interactivo · Ctrl+C interrumpe · exit cierra`
+                : `${nativeShellLabel} · cd <ruta> · Enter ejecuta · salida al terminar`
+              : `home · ir a <url> · pestaña ${tabSummary} · Ctrl+T nueva · archivos · monitor · limpiar · exit`}
           </span>
         </div>
 
         {/* Pair of retro CRT eyes personal assistant on the right */}
         <div className="ml-auto flex items-center pl-2">
           <RetroAssistantEyes
-            theme={theme}
             lastCommand={[...logs].reverse().find((l) => l.type === 'command')?.command}
             lastLogType={logs[logs.length - 1]?.type}
             onExecuteCommand={onExecuteCommand}
@@ -1440,15 +2028,21 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         onSubmit={handleSubmit}
         className="flex items-center px-3 py-2 border-t select-none shrink-0 relative"
         style={{
+          display: ptyEnabled ? 'none' : undefined,
           backgroundColor: theme.cardBg,
           borderColor: theme.border,
         }}
       >
         <span
-          className="font-bold mr-2 whitespace-nowrap text-xs select-none"
-          style={{ color: theme.accent }}
+          className="font-bold mr-2 max-w-[52vw] truncate text-xs select-none sm:max-w-[46ch]"
+          style={{ color: isNativeShellMode ? '#fbbf24' : theme.accent }}
+          title={
+            isNativeShellMode
+              ? `Shell nativo: ${nativeShellLabel}\nCWD: ${nativeShellCwd || 'workspace'}`
+              : 'Intérprete interno de Terminus'
+          }
         >
-          {theme.promptSymbol}
+          {promptSymbol}
         </span>
 
         {historyIndex !== -1 && commandHistory.length > 0 && (
@@ -1465,27 +2059,47 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           </span>
         )}
 
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputVal}
-          onChange={(e) => {
-            isTabCyclingRef.current = false;
-            setInputVal(e.target.value);
-          }}
-          onKeyDown={handleKeyDown}
-          autoFocus
-          placeholder="Escriba cualquier búsqueda o comando (Tab: autocompletar · ↑/↓: historial persistente)..."
-          className="flex-1 bg-transparent border-0 outline-hidden font-mono text-xs focus:ring-0 placeholder:opacity-45"
-          style={{ color: theme.text }}
-        />
-
-        {/* Retro Blinking CRT Cursor */}
-        <span
-          className="inline-block w-2 h-3.5 ml-0.5 animate-pulse shrink-0 select-none"
-          style={{ backgroundColor: theme.cursorColor || theme.accent }}
-          title="Cursor CRT parpadeante"
-        />
+        <div className="relative min-w-0 flex-1 overflow-hidden">
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputVal}
+            onChange={(e) => {
+              isTabCyclingRef.current = false;
+              setInputVal(e.target.value);
+              updateInputCaretPosition();
+            }}
+            onKeyDown={handleKeyDown}
+            onKeyUp={updateInputCaretPosition}
+            onClick={updateInputCaretPosition}
+            onSelect={updateInputCaretPosition}
+            onScroll={updateInputCaretPosition}
+            onFocus={updateInputCaretPosition}
+            onBlur={() => {
+              setInputFocused(false);
+              setInputCaretVisible(false);
+            }}
+            autoFocus
+            placeholder={
+              isNativeShellMode
+                ? `Comando para ${nativeShellLabel} (se ejecuta en el workspace)...`
+                : 'Escriba cualquier búsqueda o comando (Tab: autocompletar · ↑/↓: historial persistente)...'
+            }
+            className="w-full min-w-0 bg-transparent border-0 p-0 outline-hidden font-mono text-xs focus:ring-0 placeholder:opacity-45"
+            style={{ color: theme.text, caretColor: 'transparent' }}
+          />
+          {inputFocused && inputCaretVisible && (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 h-3.5 w-[2px] -translate-y-1/2 rounded-xs"
+              style={{
+                left: `${inputCaretLeft}px`,
+                backgroundColor: theme.cursorColor || theme.accent,
+                boxShadow: `0 0 5px ${theme.cursorColor || theme.accent}`,
+              }}
+            />
+          )}
+        </div>
 
         {/* Persistent Command History Popover Button (localStorage) */}
         <div className="relative ml-1" ref={historyMenuRef}>
@@ -1578,7 +2192,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                           onClick={() => {
                             soundEffects.playExecute();
                             setIsHistoryMenuOpen(false);
-                            onExecuteCommand(item.cmd);
+                            runCommandFromPrompt(item.cmd);
                           }}
                           className="opacity-60 group-hover:opacity-100 hover:underline text-[9px] font-bold px-1 shrink-0 cursor-pointer"
                           style={{ color: theme.accent }}
@@ -1637,6 +2251,17 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           <CornerDownLeft className="w-3.5 h-3.5" />
         </button>
       </form>
+
+      {contextMenu && (
+        <ContextMenu
+          theme={theme}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          title={`TERMINAL · ${isNativeShellMode ? nativeShellLabel : 'INTÉRPRETE'}`}
+          items={terminalMenuItems}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 };

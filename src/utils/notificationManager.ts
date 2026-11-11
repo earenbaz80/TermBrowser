@@ -1,5 +1,5 @@
 /**
- * Integrated Web Browser & Terminal Notification Manager for TermBrowser OS
+ * Integrated Web Browser & Terminal Notification Manager for Terminus
  * Connects the Web Notifications API (W3C standard) with the retro terminal
  * log stream, audio chimes, and anomaly alerts.
  */
@@ -33,7 +33,7 @@ class NotificationManager {
       }
       return perm;
     } catch (err: any) {
-      throw new Error(`Error al solicitar permisos: ${err.message}`);
+      throw new Error(`Error al solicitar permisos: ${err.message}`, { cause: err });
     }
   }
 
