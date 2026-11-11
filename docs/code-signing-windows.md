@@ -79,4 +79,4 @@ Resultado esperado: `Status: Valid`, un firmante con el nombre del editor y un `
 
 ## Estado actual
 
-La release `v0.2.0` existente se generó sin certificado y su instalador figura como `NotSigned`. Para publicar una versión firmada hay que configurar los dos secretos, volver a ejecutar el CI y subir el nuevo instalador; no se debe presentar el instalador actual como firmado.
+La release `v0.2.2` se generó sin certificado y su instalador figura como `NotSigned`. Para publicar una versión firmada hay que configurar los dos secretos, volver a ejecutar el CI y subir el nuevo instalador; no se debe presentar el instalador actual como firmado.
