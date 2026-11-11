@@ -107,7 +107,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           <Terminal className="w-4 h-4" />
           <span>Terminus</span>
         </span>
-        <span className="text-[10px] opacity-60">v0.2.0 [AES-256]</span>
+        <span className="text-[10px] opacity-60">v0.2.1 [AES-256]</span>
       </div>
 
       {/* Zone 2: Browser Tabs and Quick Navigation Links (Single-line) */}

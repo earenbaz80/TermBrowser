@@ -310,7 +310,7 @@ async function startServer() {
       const startTime = Date.now();
       const response = await fetchRemote(targetUrl, {
         headers: {
-          'User-Agent': 'Terminus/0.2.0 (CLI Web Navigator; local browser)',
+          'User-Agent': 'Terminus/0.2.1 (CLI Web Navigator; local browser)',
           'Accept': 'text/html,application/xhtml+xml,application/xml,text/plain,application/json;q=0.9,*/*;q=0.8',
         },
         signal: AbortSignal.timeout(REMOTE_FETCH_TIMEOUT_MS),
@@ -453,7 +453,7 @@ async function startServer() {
     try {
       const upstream = await fetchRemote(target, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; Terminus/0.2.0)',
+          'User-Agent': 'Mozilla/5.0 (compatible; Terminus/0.2.1)',
           'Accept': 'image/avif,image/webp,image/*,*/*;q=0.8',
           ...(referer ? { Referer: referer } : {}),
         },
@@ -499,7 +499,7 @@ async function startServer() {
     try {
       const upstream = await fetchRemote(target, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; Terminus/0.2.0)',
+          'User-Agent': 'Mozilla/5.0 (compatible; Terminus/0.2.1)',
           Accept: 'text/html,application/xhtml+xml,application/octet-stream,*/*;q=0.8',
         },
         signal: AbortSignal.timeout(REMOTE_FETCH_TIMEOUT_MS),
@@ -553,7 +553,7 @@ async function startServer() {
 
       const response = await fetchRemote(targetUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Terminus/0.2.0',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Terminus/0.2.1',
           Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
         },
         signal: AbortSignal.timeout(REMOTE_FETCH_TIMEOUT_MS),
@@ -620,7 +620,7 @@ async function startServer() {
       // 1. Query DuckDuckGo Instant Answer API
       try {
         const ddgRes = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Terminus/0.2.0' },
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Terminus/0.2.1' },
           signal: AbortSignal.timeout(SEARCH_FETCH_TIMEOUT_MS),
         });
         if (ddgRes.ok) {
@@ -684,7 +684,7 @@ async function startServer() {
       if (results.length < 3) {
         try {
           const htmlRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Terminus/0.2.0' },
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Terminus/0.2.1' },
             signal: AbortSignal.timeout(SEARCH_FETCH_TIMEOUT_MS),
           });
           if (htmlRes.ok) {
