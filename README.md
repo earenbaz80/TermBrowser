@@ -68,7 +68,7 @@ npm run test:e2e:installed    # Windows: Ctrl+F y búsqueda OSCURO/TEXTO
 npm run test:e2e:python-sandbox # Chromium real; requiere npx playwright install chromium
 ```
 
-Estado esperado: typecheck limpio, pruebas de unidad en verde y ambos builds correctos. Referencia actual: `npm test` con 39 archivos y 171 pruebas.
+Estado esperado: typecheck limpio, pruebas de unidad en verde y ambos builds correctos. Referencia actual: `npm test` con 40 archivos y 175 pruebas.
 
 `test:e2e:adblock` arranca `release/win-unpacked/Terminus.exe` con Playwright, sirve un fixture local de anuncios y comprueba el bloqueo de red y de popups. Después navega a `https://example.com/` para verificar que los cosméticos de EasyList se aplican al iframe proxificado; el fixture local no sirve para cosméticos porque `127.0.0.1` no tiene eTLD. Requiere haber ejecutado `npm run desktop:dir` antes.
 
