@@ -1,6 +1,6 @@
 # Terminus 0.3.0 — Windows x64
 
-Release construida sobre el rediseño de interfaz (`4ca78bf`) desde la rama del PR #11, que además incluye la internacionalización; ese trabajo está hoy mergeado en `main` (`644c2ba`). La versión queda centralizada en un único módulo y la instalación sigue siendo por usuario, sin firma de código.
+Release construida sobre el rediseño de interfaz desde la rama del PR #11, que además incluye la internacionalización; todo ese trabajo está mergeado en `main` y publicado con el tag `v0.3.0`. La versión queda centralizada en un único módulo y la instalación sigue siendo por usuario, sin firma de código.
 
 ## Cambios
 
@@ -20,9 +20,9 @@ Release construida sobre el rediseño de interfaz (`4ca78bf`) desde la rama del 
 - `Get-AuthenticodeSignature`: `NotSigned`.
 - `npm run test:e2e:installed` sobre la `0.3.0` instalada: `Ctrl+F` en REAL desde un iframe cross-origin y búsquedas reales en OSCURO y TEXTO, con tres `PASS` y salida `0`.
 
-> Estas cifras corresponden al árbol que generó este instalador, con la internacionalización del PR #11 incluida (hoy `main` en `644c2ba`). Antes de esa tanda la suite era de 29 archivos y 134 pruebas.
+> Estas cifras corresponden al árbol que generó este instalador, con la internacionalización del PR #11 incluida (publicada con el tag `v0.3.0`). Antes de esa tanda la suite era de 29 archivos y 134 pruebas.
 
-> La revisión visual a ojo de la cabecera, el menú de configuración y el glitch sigue pendiente de confirmación humana; el ROADMAP la registra como abierta.
+> La revisión visual de la cabecera, el menú de configuración y el glitch quedó confirmada el 12 de noviembre de 2026 y el ROADMAP la registra como cerrada.
 
 ## Artefactos
 
