@@ -50,7 +50,7 @@ export const COMMAND_DOCS: CommandDoc[] = [
     command: 'home / inicio',
     syntax: 'home | inicio',
     category: 'navegación',
-    summary: 'Regresa al portal de inicio de la pestaña activa.',
+    summary: 'Regresa a la pantalla de inicio de la pestaña activa.',
     description: 'Restaura el entorno inicial de la pestaña para ejecutar nuevas búsquedas o comandos.',
     examples: [
       { code: 'home', description: 'Volver a la página principal del navegador' },

@@ -383,32 +383,38 @@ Escriba "help <comando>" para ver la sintaxis detallada de cualquier comando.
   }
 
   if (primaryCmd === 'home' || primaryCmd === 'inicio') {
+    // The home page is the start screen of a new tab, not the Terminus Search portal.
+    const startUrl = 'about:blank';
     ctx.setTabs((prev) =>
-      prev.map((t) =>
-        t.id === ctx.activeTabId
-          ? {
-              ...t,
-              title: 'Terminus Search',
-              url: TERMINUS_SEARCH_URL,
-              displayUrl: TERMINUS_SEARCH_URL,
-              isLoading: false,
-              statusCode: 200,
-              content: '',
-              readerText: '',
-              links: [],
-              images: [],
-              search: undefined,
-              latencyMs: undefined,
-              sizeBytes: undefined,
-            }
-          : t
-      )
+      prev.map((t) => {
+        if (t.id !== ctx.activeTabId) return t;
+        // Keep back/forward coherent: the start screen becomes the newest entry.
+        const history = [...t.history.slice(0, t.historyIndex + 1), startUrl];
+        return {
+          ...t,
+          title: 'Nueva Pestaña',
+          url: startUrl,
+          displayUrl: startUrl,
+          isLoading: false,
+          statusCode: undefined,
+          content: '',
+          readerText: '',
+          links: [],
+          images: [],
+          search: undefined,
+          latencyMs: undefined,
+          sizeBytes: undefined,
+          frameable: false,
+          history,
+          historyIndex: history.length - 1,
+        };
+      })
     );
     return {
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'system',
-      output: '[✓] Terminus Search abierto. Escriba una búsqueda o use "ir a <url>" para navegar directamente.',
+      output: '[✓] Página de inicio abierta. Escriba una dirección o una búsqueda.',
     };
   }
 
@@ -869,7 +875,7 @@ Compatibilidad: ${supported ? 'COMPATIBLE [DISPONIBLE]' : 'NO DISPONIBLE EN ESTE
 Atajo de teclado: [Ctrl + M] o pulse el icono de micrófono en la barra inferior.
 
 Comandos de voz recomendados:
-  • "inicio" / "home"          → Navega al portal de inicio
+  • "inicio" / "home"          → Navega a la pantalla de inicio
   • "ir a <url>"               → Visita una página web (ej. "ir a wikipedia punto org")
   • "buscar <consulta>"        → Búsqueda web automática
   • "listar archivos" / "ls"   → Muestra archivos y carpetas clicables

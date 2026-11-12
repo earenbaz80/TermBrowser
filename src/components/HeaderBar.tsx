@@ -7,7 +7,6 @@ import { APP_VERSION } from '../utils/version';
 import { useI18n } from '../i18n';
 import {
   Activity,
-  Blocks,
   Folder,
   Globe,
   HelpCircle,
@@ -15,7 +14,6 @@ import {
   Loader2,
   MoreHorizontal,
   Plus,
-  Shield,
   Terminal,
   Trash2,
   X,
@@ -83,8 +81,6 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
     ...(onOpenFileExplorer
       ? [{ id: 'files', label: t('header.files'), icon: Folder, color: '#fcd34d', onSelect: onOpenFileExplorer }]
       : []),
-    { id: 'security', label: t('header.security'), icon: Shield, color: '#22d3ee', onSelect: onOpenSecurity },
-    { id: 'extensions', label: t('header.extensions'), icon: Blocks, color: '#a78bfa', onSelect: onOpenExtensions },
     { id: 'shortcuts', label: t('header.shortcuts'), icon: Keyboard, color: '#94a3b8', onSelect: onOpenShortcuts },
     { id: 'help', label: t('header.help'), icon: HelpCircle, color: '#22d3ee', onSelect: onOpenHelp },
   ];
@@ -398,7 +394,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           crtEnabled={crtEnabled}
           onToggleCrt={onToggleCrt}
           onLockNow={onLockNow}
-          onOpenVault={onOpenSecurity}
+          onOpenSecurity={onOpenSecurity}
+          onOpenExtensions={onOpenExtensions}
         />
         <WindowControls theme={theme} />
       </div>

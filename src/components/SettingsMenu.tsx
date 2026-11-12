@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Languages, Menu, ShieldCheck, Volume2, VolumeX, X } from 'lucide-react';
+import { Blocks, Languages, Menu, ShieldCheck, Volume2, VolumeX, X } from 'lucide-react';
 import { ThemeConfig, ThemeId } from '../types';
 import { THEMES } from '../utils/themes';
 import { soundEffects, SoundTheme } from '../utils/soundEffects';
@@ -17,7 +17,8 @@ interface SettingsMenuProps {
   crtEnabled: boolean;
   onToggleCrt: () => void;
   onLockNow: () => void;
-  onOpenVault: () => void;
+  onOpenSecurity: () => void;
+  onOpenExtensions: () => void;
 }
 
 /**
@@ -33,7 +34,8 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({
   crtEnabled,
   onToggleCrt,
   onLockNow,
-  onOpenVault,
+  onOpenSecurity,
+  onOpenExtensions,
 }) => {
   const { t, locale, setLocale } = useI18n();
   const [open, setOpen] = useState(false);
@@ -298,6 +300,42 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({
             </section>
 
             <section
+              aria-label={t('settings.browser')}
+              className="mb-3 border-t pt-2"
+              style={{ borderColor: theme.border }}
+            >
+              {sectionTitle(t('settings.browser'))}
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundEffects.playKeyClick();
+                    setOpen(false);
+                    onOpenSecurity();
+                  }}
+                  className="flex flex-1 items-center justify-center gap-1.5 border px-2 py-1.5 cursor-pointer hover:bg-white/5"
+                  style={{ borderColor: theme.border, color: theme.text }}
+                >
+                  <ShieldCheck className="h-3 w-3 shrink-0" style={{ color: theme.accent }} />
+                  {t('header.security')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundEffects.playKeyClick();
+                    setOpen(false);
+                    onOpenExtensions();
+                  }}
+                  className="flex flex-1 items-center justify-center gap-1.5 border px-2 py-1.5 cursor-pointer hover:bg-white/5"
+                  style={{ borderColor: theme.border, color: theme.text }}
+                >
+                  <Blocks className="h-3 w-3 shrink-0" style={{ color: theme.accent }} />
+                  {t('header.extensions')}
+                </button>
+              </div>
+            </section>
+
+            <section
               aria-label={t('settings.security')}
               className="mb-1 border-t pt-2"
               style={{ borderColor: theme.border }}
@@ -305,24 +343,13 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({
               {sectionTitle(t('settings.security'))}
               <LockSettings theme={theme} onLockNow={onLockNow} />
 
+              {/* Security opens from the Navegador section, so this block only describes the vault. */}
               <div className="mt-3 border-t pt-2" style={{ borderColor: theme.border }}>
                 <div className="mb-1 flex items-center gap-1.5 text-[9px] uppercase tracking-[0.14em] opacity-60">
                   <ShieldCheck className="h-3 w-3" />
                   {t('settings.vault')}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    soundEffects.playKeyClick();
-                    setOpen(false);
-                    onOpenVault();
-                  }}
-                  className="w-full cursor-pointer border px-2 py-1.5 text-left hover:bg-white/5"
-                  style={{ borderColor: theme.border, color: theme.text }}
-                >
-                  {t('settings.vaultOpen')}
-                </button>
-                <p className="mt-1 text-[9px] leading-4 opacity-45">{t('settings.vaultHint')}</p>
+                <p className="text-[9px] leading-4 opacity-45">{t('settings.vaultHint')}</p>
               </div>
             </section>
 

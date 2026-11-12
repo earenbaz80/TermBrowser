@@ -15,8 +15,8 @@ const makeTab = () =>
   }) as unknown as BrowserTab;
 
 /** Only the pieces goto touches; the rest answer as empty state or no-ops. */
-const makeContext = () => {
-  let tabs: BrowserTab[] = [makeTab()];
+const makeContext = (initialTabs: BrowserTab[] = [makeTab()]) => {
+  let tabs: BrowserTab[] = initialTabs;
   const seed: Record<string, unknown> = {
     activeTabId: 'tab_1',
     bookmarks: [],
@@ -47,6 +47,28 @@ const makeContext = () => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe('home', () => {
+  it('returns the tab to the start screen and appends it to the history', async () => {
+    const pageTab = {
+      ...makeTab(),
+      title: 'Example Domain',
+      url: 'https://example.com',
+      displayUrl: 'https://example.com',
+      history: ['about:blank', 'https://example.com'],
+      historyIndex: 1,
+    } as BrowserTab;
+    const { ctx, tab } = makeContext([pageTab]);
+
+    await processCommand('home', ctx);
+
+    expect(tab().url).toBe('about:blank');
+    expect(tab().displayUrl).toBe('about:blank');
+    expect(tab().title).toBe('Nueva Pestaña');
+    expect(tab().history).toEqual(['about:blank', 'https://example.com', 'about:blank']);
+    expect(tab().historyIndex).toBe(2);
+  });
 });
 
 describe('proxy failures', () => {
