@@ -31,7 +31,7 @@ Release construida sobre el rediseño de interfaz (`4ca78bf`) desde la rama del 
 ### SHA-256
 
 ```text
-5574ec27c40256bd7aace77394e502b64b28374f17c78468c89570b8480265f7  Terminus Setup 0.3.0.exe
+2b0c21108416f32e13fb0e3747e8faebad9e57c1f4e5582b7b92d9fa5a041dfb  Terminus Setup 0.3.0.exe
 ```
 
 El hash del ZIP se publica en `SHA256SUMS.txt` junto al artefacto que genere el CI.
