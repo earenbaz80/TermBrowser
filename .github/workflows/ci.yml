@@ -294,6 +294,8 @@ jobs:
           INSTALLER_NAME: terminus-installer-${{ steps.version.outputs.version }}-run-${{ github.run_number }}-windows
           INSTALLER_URL: ${{ steps.upload-installer.outputs.artifact-url }}
           LOGS_URL: ${{ steps.upload-e2e-logs.outputs.artifact-url }}
+          SUMS_NAME: terminus-sha256sums-${{ steps.version.outputs.version }}-run-${{ github.run_number }}-windows
+          SUMS_URL: ${{ steps.upload-sha256sums.outputs.artifact-url }}
         run: |
           $version = if ($env:APP_VERSION) { $env:APP_VERSION } else { 'desconocida' }
           $status = if ($env:JOB_STATUS) { $env:JOB_STATUS } else { 'desconocido' }
@@ -335,6 +337,8 @@ jobs:
           $installerName = $env:INSTALLER_NAME
           $installerLink = if ($env:INSTALLER_URL) { "[Descargar]($env:INSTALLER_URL)" } else { 'No disponible' }
           $logsLink = if ($env:LOGS_URL) { "[Descargar]($env:LOGS_URL)" } else { 'No disponible' }
+          $sumsName = $env:SUMS_NAME
+          $sumsLink = if ($env:SUMS_URL) { "[Descargar]($env:SUMS_URL)" } else { 'No disponible' }
 
           $lines = @(
             '## Terminus CI',
@@ -347,6 +351,7 @@ jobs:
             "- **Ejecución:** [$runNumber]($runUrl)",
             "- **Instalador:** $installerName - $installerLink",
             "- **Logs E2E:** e2e-installed-logs - $logsLink",
+            "- **Sumas SHA-256:** $sumsName - $sumsLink",
             ''
           )
           $lines | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
