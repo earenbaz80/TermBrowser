@@ -10,7 +10,8 @@ El modelo de confianza es de un solo usuario en su equipo. El terminal nativo ej
 
 | Versión | Soporte |
 | --- | --- |
-| 0.2.x | Sí |
+| 0.3.x | Sí (versión actual del paquete; release pendiente de publicar) |
+| 0.2.x | Sí (última release publicada, 0.2.2) |
 | Anteriores | No |
 
 ## Reportar una vulnerabilidad

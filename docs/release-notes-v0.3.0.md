@@ -1,6 +1,6 @@
 # Terminus 0.3.0 — Windows x64
 
-Release construida desde `main` sobre el rediseño de interfaz (`4ca78bf`), con la versión centralizada en un único módulo. La instalación sigue siendo por usuario, sin firma de código.
+Release construida sobre el rediseño de interfaz (`4ca78bf`) desde la rama del PR #11, que además incluye la internacionalización; ese trabajo está hoy mergeado en `main` (`a83f00c`). La versión queda centralizada en un único módulo y la instalación sigue siendo por usuario, sin firma de código.
 
 ## Cambios
 
@@ -14,10 +14,12 @@ Release construida desde `main` sobre el rediseño de interfaz (`4ca78bf`), con 
 
 ## Verificación
 
-- `npm run lint:types`: correcto.
-- `npm test`: **29 archivos, 134 pruebas**, todas pasan.
+- `npm run lint`: correcto (tsc y eslint).
+- `npm test`: **38 archivos, 160 pruebas**, todas pasan.
 - `npm run desktop:build` (incluye `build` y `build:server`): correcto; genera `Terminus Setup 0.3.0.exe`.
 - `Get-AuthenticodeSignature`: `NotSigned`.
+
+> Estas cifras corresponden al árbol que generó este instalador, con la internacionalización del PR #11 incluida (hoy `main` en `a83f00c`). Antes de esa tanda la suite era de 29 archivos y 134 pruebas.
 
 ## Artefactos
 
@@ -29,7 +31,7 @@ Release construida desde `main` sobre el rediseño de interfaz (`4ca78bf`), con 
 ### SHA-256
 
 ```text
-5574ec27c40256bd7aace77394e502b64b28374f17c78468c89570b8480265f7  Terminus Setup 0.3.0.exe
+2b0c21108416f32e13fb0e3747e8faebad9e57c1f4e5582b7b92d9fa5a041dfb  Terminus Setup 0.3.0.exe
 ```
 
 El hash del ZIP se publica en `SHA256SUMS.txt` junto al artefacto que genere el CI.

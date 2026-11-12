@@ -14,6 +14,7 @@ El estado del proyecto, los pendientes y las decisiones cerradas están en [ROAD
 - **Búsqueda en página** con `Ctrl+F` en las tres vistas; en Electron un atajo global la captura incluso con el foco dentro de un iframe REAL cross-origin. **Zoom por pestaña** con `Ctrl++`, `Ctrl+-` y `Ctrl+0`.
 - **Terminal**: intérprete interno, PTY real con CMD/PowerShell/Bash en Electron, comandos de navegación, archivos virtuales y workspace local.
 - **Panel de archivos**, monitor de recursos, scripts, extensiones, atajos, ayuda y bóveda cifrada.
+- **Interfaz en cinco idiomas**: español, alemán, francés, italiano e inglés, con cambio en vivo desde Configuración y español como referencia.
 - **Persistencia local** de tema, sesión, pestañas, marcadores, zoom e historial. No hay backend remoto de usuario.
 
 ## Requisitos
@@ -52,7 +53,7 @@ El instalador se distribuye sin firma Authenticode por decisión del proyecto: W
 ## Scripts de verificación
 
 ```bash
-npm run lint                  # tsc --noEmit
+npm run lint                  # tsc --noEmit + eslint
 npm test                      # Vitest
 npm run build                 # cliente Vite con code-splitting
 npm run build:server
@@ -61,7 +62,7 @@ npm run test:e2e:installed    # Windows: Ctrl+F y búsqueda OSCURO/TEXTO
 npm run test:e2e:python-sandbox # Chromium real; requiere npx playwright install chromium
 ```
 
-Estado esperado: typecheck limpio, pruebas de unidad en verde y ambos builds correctos. Referencia actual: `npm test` con 29 archivos y 134 pruebas.
+Estado esperado: typecheck limpio, pruebas de unidad en verde y ambos builds correctos. Referencia actual: `npm test` con 38 archivos y 160 pruebas.
 
 `test:e2e:adblock` arranca `release/win-unpacked/Terminus.exe` con Playwright, sirve un fixture local de anuncios y comprueba el bloqueo de red y de popups. Después navega a `https://example.com/` para verificar que los cosméticos de EasyList se aplican al iframe proxificado; el fixture local no sirve para cosméticos porque `127.0.0.1` no tiene eTLD. Requiere haber ejecutado `npm run desktop:dir` antes.
 
@@ -126,6 +127,7 @@ La prueba automatizada equivalente es `npm run test:e2e:installed`, que además 
 - `src/components/TerminusSearchPage.tsx`: resultados de búsqueda y sugerencias compartidas con la pantalla de inicio.
 - `src/components/TerminalView.tsx`: terminal interna y puente PTY.
 - `src/utils/version.ts`: única fuente de la versión; los User-Agent, el log de arranque y los rótulos la importan.
+- `src/i18n/`: catálogos de interfaz, consola, fichas de ayuda, extensiones y temas en español, alemán, francés, italiano e inglés; el español es la referencia.
 - `src/utils/commandProcessor.ts`: procesador de comandos y navegación.
 - `src/utils/localFileSystem.ts`: cliente de workspace local con token de sesión.
 - `server.ts`: Express, proxy, CSP, APIs locales y servidor Vite en desarrollo.
