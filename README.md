@@ -65,6 +65,7 @@ npm run build                 # cliente Vite con code-splitting
 npm run build:server
 npm run test:e2e:adblock     # Electron empaquetado: red, popups y cosméticos
 npm run test:e2e:installed    # Windows: Ctrl+F y búsqueda OSCURO/TEXTO
+npm run test:e2e:installed:ui # Windows: cabecera, tema persistido y búsqueda en un paso
 npm run test:e2e:python-sandbox # Chromium real; requiere npx playwright install chromium
 ```
 
@@ -73,6 +74,8 @@ Estado esperado: typecheck limpio, pruebas de unidad en verde y ambos builds cor
 `test:e2e:adblock` arranca `release/win-unpacked/Terminus.exe` con Playwright, sirve un fixture local de anuncios y comprueba el bloqueo de red y de popups. Después navega a `https://example.com/` para verificar que los cosméticos de EasyList se aplican al iframe proxificado; el fixture local no sirve para cosméticos porque `127.0.0.1` no tiene eTLD. Requiere haber ejecutado `npm run desktop:dir` antes.
 
 `test:e2e:installed` requiere Windows, una sesión de escritorio interactiva y la app instalada a partir del build actual. Arranca una copia aislada con perfil temporal, usa `https://example.com/` para el iframe REAL cross-origin y un fixture local para las vistas proxificadas, envía `Ctrl+F` con `SendKeys` y comprueba una búsqueda real en OSCURO y TEXTO. Si el ejecutable está en otra ruta, define `TERMINUS_INSTALLED_EXE`.
+
+`test:e2e:installed:ui` usa el mismo arranque aislado (perfil temporal y CDP) contra la app empaquetada y cubre la interfaz: un solo `<header>` con las pestañas y los controles de ventana dentro, el menú de configuración abierto y un cambio de tema que queda en `localStorage` y se aplica tras recargar el renderer, y la búsqueda del inicio en un paso (escribir y Enter, sin botón intermedio). Falla si el build instalado no es el actual.
 
 Para preparar un runner de GitHub Actions con escritorio interactivo, configurar las etiquetas y lanzar el E2E manualmente, consulta [docs/e2e-installed-windows.md](docs/e2e-installed-windows.md).
 

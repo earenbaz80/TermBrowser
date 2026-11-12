@@ -121,7 +121,7 @@ El job `windows` ejecuta, en orden:
 10. Instala el instalador más reciente con `/S`.
 11. Detiene cualquier instancia de Terminus que el instalador haya abierto.
 12. Define `TERMINUS_INSTALLED_EXE` apuntando a `%LOCALAPPDATA%\Programs\Terminus\Terminus.exe`.
-13. Ejecuta `npm run test:e2e:installed`, guardando la salida en `artifacts/e2e/e2e-installed.log`.
+13. Ejecuta `npm run test:e2e:installed` y `npm run test:e2e:installed:ui`, guardando la salida en `artifacts/e2e/e2e-installed.log`.
 14. Publica el log del E2E y un resumen del job.
 
 El E2E solo se ejecuta si se cumple una de estas condiciones:
@@ -188,7 +188,7 @@ En Git Bash:
 TERMINUS_INSTALLED_EXE="C:\ruta\Terminus.exe" npm run test:e2e:installed
 ```
 
-El script crea su propio servidor de fixture, perfil temporal y puerto CDP, y limpia todo al terminar. No requiere que la app esté abierta; de hecho, conviene cerrar instancias previas. Debe ejecutarse en la misma sesión interactiva y sobre el build recién instalado: el script comprueba que `app.asar` contiene el marcador del atajo global y falla si la instalación está desactualizada.
+`npm run test:e2e:installed:ui` comparte requisitos y aislamiento, y añade las comprobaciones de interfaz: cabecera única, cambio de tema persistido tras recargar y búsqueda del inicio en un paso. El script crea su propio servidor de fixture, perfil temporal y puerto CDP, y limpia todo al terminar. No requiere que la app esté abierta; de hecho, conviene cerrar instancias previas. Debe ejecutarse en la misma sesión interactiva y sobre el build recién instalado: el script comprueba que `app.asar` contiene el marcador del atajo global y falla si la instalación está desactualizada.
 
 ## Diagnóstico
 
