@@ -3,8 +3,8 @@
 Este documento es la fuente de verdad de lo que falta. El repositorio no usa issues ni milestones en GitHub, así que el estado se mantiene aquí y se actualiza al cerrar cada hito.
 
 - Última release publicada: `0.2.2`; el paquete ya está en `0.3.0` y el instalador está generado, pendiente de publicar.
-- Rama `main` en `4ca78bf` (rediseño de interfaz), más el bump de versión y las notas sin commitear.
-- Verificación actual: `npm run lint:types` correcto, `npm test` con 29 archivos y 134 pruebas, cliente y servidor compilados, instalador `0.3.0` generado y `NotSigned`.
+- Rama `main` en `a83f00c`: rediseño de interfaz (`4ca78bf`) e internacionalización (PR #11) ya mergeados.
+- Verificación actual: `npm run lint` correcto (tsc y eslint), `npm test` con 38 archivos y 160 pruebas, cliente y servidor compilados, instalador `0.3.0` generado y `NotSigned`.
 - No hay fechas comprometidas. Los hitos se ordenan por prioridad, no por calendario.
 
 ## Decisiones cerradas
@@ -20,23 +20,25 @@ No son pendientes; están aquí para que no vuelvan a aparecer como deuda.
 
 ## Hitos
 
-### 1. Publicar la nueva interfaz (`0.3.0`) — en curso
+### 1. Publicar la nueva interfaz (`0.3.0`) — código mergeado, pendiente de revisión manual y publicación
 
-Trabajo ya hecho y commiteado en `4ca78bf`:
+Trabajo ya hecho y commiteado (rediseño en `4ca78bf`, internacionalización mergeada en `a83f00c`):
 
 - Menú de configuración (audio, temas, B&W, CRT) en la cabecera, con los controles de ventana a su lado.
 - Eliminación de la barra de título duplicada; una sola cabecera.
 - Buscador en la pantalla de inicio con sugerencias clicables, sin botón intermedio.
 - Glitch del cartel ASCII con bandas, separación cromática y variante para `prefers-reduced-motion`.
 - Terminus Search sin cabecera interna propia.
+- Internacionalización completa (PR #11): interfaz, consola, fichas de ayuda, extensiones, temas, scripts de ejemplo y archivos de muestra en español, alemán, francés, italiano e inglés.
 
 Pendiente:
 
 - [ ] Revisión manual de la UI en Electron instalado: cabecera, menú, buscador desde el inicio, glitch a velocidad normal y con movimiento reducido.
 - [x] Commit del rediseño y `package.json` a `0.3.0`, con la versión centralizada en `src/utils/version.ts` (versión visible y User-Agent incluidos).
 - [x] `docs/release-notes-v0.3.0.md` con cambios, verificación y SHA-256 del instalador.
-- [ ] Publicar la release `0.3.0` con el instalador y `SHA256SUMS.txt`.
-- [ ] README actualizado: arquitectura (`SettingsMenu`, `WindowControls`), flujo de búsqueda desde el inicio y recuento de pruebas.
+- [x] `main` con el PR #11 mergeado en `a83f00c` y el CI en verde sobre ese commit (lint, pruebas, cobertura y E2E opcional), sin anotaciones.
+- [ ] Publicar la release `0.3.0` con el instalador y `SHA256SUMS.txt`; la última release publicada sigue siendo `v0.2.2`.
+- [x] README actualizado: arquitectura (`SettingsMenu`, `WindowControls`, `src/i18n`), flujo de búsqueda desde el inicio, idiomas y recuento de pruebas.
 
 Cierre: lint, pruebas y builds en verde; instalador generado, revisado a mano e instalado; release `0.3.0` publicada con hashes; la búsqueda funciona desde la pantalla de inicio sin pasar por otra vista.
 
