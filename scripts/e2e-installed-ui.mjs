@@ -31,7 +31,9 @@ const LOG = '[e2e-installed-ui]';
 const THEME_KEY = 'termbrowser_theme_v1';
 const HISTORY_KEY = 'termbrowser_cmd_history_v1';
 const UI_MARKER = 'terminus-theme-select';
-const ADDRESS_SELECTOR = 'input[aria-label="Barra de direcciones y búsqueda"]';
+// La barra de direcciones se identifica por su relación con la lista de sugerencias
+// (atributos del DOM, no el aria-label del idioma activo), así la prueba sirve en cualquier idioma.
+const ADDRESS_SELECTOR = 'input[aria-controls="terminus-address-suggestions"]';
 const SEARCH_QUERY = 'terminus e2e ui';
 const START_FORM = 'form[role="search"]';
 const THEMES = {
