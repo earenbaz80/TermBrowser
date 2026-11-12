@@ -36,6 +36,8 @@ import { isPrivateTargetUrl } from '../utils/networkPolicy';
 import { ContextMenu, ContextMenuItem } from './ContextMenu';
 import { useI18n } from '../i18n';
 import type { MessageKey } from '../i18n/messages';
+import { SignalLostScene } from './SignalLostScene';
+import { useNetworkStatus } from '../utils/useNetworkStatus';
 
 /** App forwards the standard Ctrl/Cmd+L browser shortcut through this event. */
 export const FOCUS_ADDRESS_EVENT = 'termbrowser:focus-address';
@@ -242,6 +244,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
     '--ascii-glow-color': latencyGlow.color,
   } as React.CSSProperties;
   const { t } = useI18n();
+  const online = useNetworkStatus();
   const [address, setAddress] = useState('');
   const [startQuery, setStartQuery] = useState('');
   const [commandHistory, setCommandHistory] = useState<string[]>(() => getPersistedCommandHistory());
@@ -924,7 +927,21 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
 
       {/* Page */}
       <div className="relative min-h-0 flex-1">
-        {isTerminusSearch && tab ? (
+        {!online ? (
+          <SignalLostScene
+            theme={theme}
+            variant="offline"
+            url={tab?.url}
+            onRetry={() => go(hasPage ? 'reload' : 'home')}
+          />
+        ) : hasExternalPage && typeof tab?.statusCode === 'number' && tab.statusCode >= 400 ? (
+          <SignalLostScene
+            theme={theme}
+            variant="not-found"
+            url={tab?.url}
+            onRetry={() => go('reload')}
+          />
+        ) : isTerminusSearch && tab ? (
           <TerminusSearchPage
             theme={theme}
             query={tab.search?.query || getTerminusSearchQuery(tab.url)}

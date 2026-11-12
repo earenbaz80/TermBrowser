@@ -338,4 +338,27 @@ describe('WebBrowserSurface', () => {
       delete window.terminusDesktop;
     }
   });
+
+  it('replaces the page with the no-signal scene while the browser is offline', () => {
+    Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: false });
+    try {
+      const { onCommand } = renderSurface(pageTab);
+
+      expect(screen.getByRole('alert', { name: 'SIN CONEXIÓN' })).toBeTruthy();
+      expect(document.querySelector('iframe')).toBeNull();
+
+      fireEvent.click(screen.getByRole('button', { name: 'REINTENTAR' }));
+      expect(onCommand).toHaveBeenCalledWith('reload');
+    } finally {
+      delete (window.navigator as unknown as { onLine?: boolean }).onLine;
+    }
+  });
+
+  it('shows the not-found variant for an error status', () => {
+    const { onCommand } = renderSurface({ ...pageTab, statusCode: 404 });
+
+    expect(screen.getByRole('alert', { name: 'PÁGINA NO ENCONTRADA' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'REINTENTAR' }));
+    expect(onCommand).toHaveBeenCalledWith('reload');
+  });
 });

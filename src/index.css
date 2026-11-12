@@ -628,3 +628,100 @@ button:not(:disabled):not([aria-disabled='true']):active {
     transition: none;
   }
 }
+/* Dead-channel scene: animated static, a rolling scan band and a torn title. */
+.signal-static {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  opacity: 0.14;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.6) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.4) 0 1px, transparent 1px 4px);
+  animation: signal-static-shift 0.24s steps(2, end) infinite;
+}
+
+.signal-scan {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.14) 48%, transparent 54%);
+  background-size: 100% 240%;
+  animation: signal-scan-roll 3.6s linear infinite;
+}
+
+.signal-title {
+  position: relative;
+  font-size: clamp(20px, 5vw, 44px);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  line-height: 1.1;
+  animation: signal-jitter 2.8s steps(1, end) infinite;
+}
+
+.signal-title::before,
+.signal-title::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  mix-blend-mode: screen;
+}
+
+.signal-title::before {
+  color: #ff4d6d;
+  animation: signal-tear-a 2.8s steps(1, end) infinite;
+}
+
+.signal-title::after {
+  color: #3ee8ff;
+  animation: signal-tear-b 2.8s steps(1, end) infinite;
+}
+
+@keyframes signal-static-shift {
+  0% { background-position: 0 0, 0 0; }
+  100% { background-position: 4px 9px, 7px 4px; }
+}
+
+@keyframes signal-scan-roll {
+  0% { background-position: 0 -120%; }
+  100% { background-position: 0 120%; }
+}
+
+@keyframes signal-jitter {
+  0%, 46%, 52%, 100% { transform: translate(0, 0) skewX(0); }
+  47% { transform: translate(-3px, 1px) skewX(-0.8deg); }
+  48% { transform: translate(5px, -1px) skewX(1.2deg); }
+  49% { transform: translate(-6px, 0) skewX(-2deg); }
+  50% { transform: translate(2px, 1px) skewX(0.6deg); }
+}
+
+@keyframes signal-tear-a {
+  0%, 46%, 52%, 100% { opacity: 0; transform: translate(0, 0); }
+  47% { opacity: 0.85; transform: translate(-6px, 1px); }
+  48% { opacity: 0.6; transform: translate(8px, -1px); }
+  49% { opacity: 0.75; transform: translate(-9px, 2px); }
+  50% { opacity: 0; transform: translate(0, 0); }
+}
+
+@keyframes signal-tear-b {
+  0%, 46%, 52%, 100% { opacity: 0; transform: translate(0, 0); }
+  47% { opacity: 0.55; transform: translate(5px, -1px); }
+  48% { opacity: 0.8; transform: translate(-7px, 2px); }
+  49% { opacity: 0.5; transform: translate(9px, -1px); }
+  50% { opacity: 0; transform: translate(0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signal-static,
+  .signal-scan,
+  .signal-title {
+    animation: none;
+  }
+
+  .signal-title::before,
+  .signal-title::after {
+    display: none;
+  }
+}

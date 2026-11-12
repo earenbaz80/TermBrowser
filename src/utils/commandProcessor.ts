@@ -674,8 +674,8 @@ Comandos en español que puedes usar:
                   ...t,
                   isLoading: false,
                   title: new URL(targetUrl).hostname,
-                  statusCode: 200,
-                  content: `Contenido cargado directamente en el visor web: ${targetUrl}`,
+                  statusCode: proxyRes.status >= 400 ? proxyRes.status : 502,
+                  content: `El proxy no pudo cargar la página: ${targetUrl}`,
                   latencyMs,
                 }
               : t
@@ -685,16 +685,16 @@ Comandos en español que puedes usar:
         const fallbackPayload: WebpagePayload = {
           url: targetUrl,
           title: new URL(targetUrl).hostname,
-          statusCode: 200,
+          statusCode: proxyRes.status >= 400 ? proxyRes.status : 502,
           latencyMs,
           images: [],
-          headings: ['Conexión Directa Establecida'],
+          headings: ['Fallo del proxy'],
           paragraphs: [
-            `El servidor remoto respondió pero restringió el acceso directo por proxy. Se ha cargado la página directamente en el visor web.`,
-            `Puede ver el sitio en la ventana derecha de la terminal o interactuar con el sandbox del navegador.`,
+            `El proxy de Terminus no pudo cargar ${targetUrl} (HTTP ${proxyRes.status}).`,
+            'La pestaña muestra la escena de error hasta que la página vuelva a responder.',
           ],
           links: [{ text: targetUrl, href: targetUrl }],
-          summary: 'Conexión web completada con éxito.',
+          summary: `[HTTP ${proxyRes.status}] Proxy sin respuesta para ${targetUrl}.`,
         };
 
         return {
@@ -702,7 +702,7 @@ Comandos en español que puedes usar:
           timestamp,
           type: 'webpage',
           webpage: fallbackPayload,
-          output: `[OK] Navegando a ${targetUrl} en el visor web seguro.`,
+          output: `[HTTP ${proxyRes.status}] No se pudo cargar ${targetUrl} a través del proxy.`,
         };
       }
     } catch {
@@ -714,23 +714,23 @@ Comandos en español que puedes usar:
                 ...t,
                 isLoading: false,
                 title: new URL(targetUrl).hostname,
-                statusCode: 200,
-                content: `Visualización directa en el sandbox web: ${targetUrl}`,
+                statusCode: 502,
+                content: `El proxy no está disponible: ${targetUrl}`,
               }
             : t
         )
       );
 
-      const offlinePayload: WebpagePayload = {
-        url: targetUrl,
-        title: new URL(targetUrl).hostname,
-        statusCode: 200,
-        latencyMs: 10,
-        images: [],
-        headings: ['Conexión Activa'],
-        paragraphs: [`Página web asociada a la pestaña activa: ${targetUrl}`],
-        links: [{ text: targetUrl, href: targetUrl }],
-        summary: `Canal abierto hacia ${targetUrl}.`,
+              const offlinePayload: WebpagePayload = {
+          url: targetUrl,
+          title: new URL(targetUrl).hostname,
+          statusCode: 502,
+          latencyMs: 10,
+          images: [],
+          headings: ['Fallo del proxy'],
+          paragraphs: [`El proxy de Terminus no respondió al cargar ${targetUrl}.`],
+          links: [{ text: targetUrl, href: targetUrl }],
+          summary: `[HTTP 502] Proxy sin respuesta para ${targetUrl}.`,
       };
 
       return {
@@ -738,7 +738,7 @@ Comandos en español que puedes usar:
         timestamp,
         type: 'webpage',
         webpage: offlinePayload,
-        output: `[OK] Conectado a ${targetUrl}.`,
+        output: `[HTTP 502] No se pudo cargar ${targetUrl} a través del proxy.`,
       };
     }
   }
