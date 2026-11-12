@@ -201,6 +201,31 @@ jobs:
           path: release/Terminus Setup *.exe
           if-no-files-found: error
 
+      - name: Generar SHA256SUMS.txt
+        id: sha256sums
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -LiteralPath release -Filter 'Terminus Setup *.exe' |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if (-not $installer) {
+            throw 'No se generó el instalador NSIS.'
+          }
+
+          # Mismo formato que el SHA256SUMS.txt del release: hash, dos espacios y el nombre.
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer.FullName).Hash.ToLowerInvariant()
+          $path = Join-Path (Resolve-Path -LiteralPath release) 'SHA256SUMS.txt'
+          [System.IO.File]::WriteAllText($path, "$hash  $($installer.Name)`n", (New-Object System.Text.UTF8Encoding($false)))
+          Get-Content -LiteralPath $path
+
+      - name: Publicar SHA256SUMS.txt
+        id: upload-sha256sums
+        uses: actions/upload-artifact@v7
+        with:
+          name: terminus-sha256sums-${{ steps.version.outputs.version }}-run-${{ github.run_number }}-windows
+          path: release/SHA256SUMS.txt
+          if-no-files-found: error
+
       - name: Instalar el build actual
         if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.run_installed_e2e == 'true') || (vars.TERMINUS_RUN_INSTALLED_E2E == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) }}
         shell: pwsh
