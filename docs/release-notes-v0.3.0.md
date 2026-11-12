@@ -1,6 +1,6 @@
 # Terminus 0.3.0 — Windows x64
 
-Release construida sobre el rediseño de interfaz (`4ca78bf`) desde la rama del PR #11, que además incluye la internacionalización; ese trabajo está hoy mergeado en `main` (`a83f00c`). La versión queda centralizada en un único módulo y la instalación sigue siendo por usuario, sin firma de código.
+Release construida sobre el rediseño de interfaz (`4ca78bf`) desde la rama del PR #11, que además incluye la internacionalización; ese trabajo está hoy mergeado en `main` (`644c2ba`). La versión queda centralizada en un único módulo y la instalación sigue siendo por usuario, sin firma de código.
 
 ## Cambios
 
@@ -18,8 +18,11 @@ Release construida sobre el rediseño de interfaz (`4ca78bf`) desde la rama del 
 - `npm test`: **38 archivos, 160 pruebas**, todas pasan.
 - `npm run desktop:build` (incluye `build` y `build:server`): correcto; genera `Terminus Setup 0.3.0.exe`.
 - `Get-AuthenticodeSignature`: `NotSigned`.
+- `npm run test:e2e:installed` sobre la `0.3.0` instalada: `Ctrl+F` en REAL desde un iframe cross-origin y búsquedas reales en OSCURO y TEXTO, con tres `PASS` y salida `0`.
 
-> Estas cifras corresponden al árbol que generó este instalador, con la internacionalización del PR #11 incluida (hoy `main` en `a83f00c`). Antes de esa tanda la suite era de 29 archivos y 134 pruebas.
+> Estas cifras corresponden al árbol que generó este instalador, con la internacionalización del PR #11 incluida (hoy `main` en `644c2ba`). Antes de esa tanda la suite era de 29 archivos y 134 pruebas.
+
+> La revisión visual a ojo de la cabecera, el menú de configuración y el glitch sigue pendiente de confirmación humana; el ROADMAP la registra como abierta.
 
 ## Artefactos
 

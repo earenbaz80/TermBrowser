@@ -113,9 +113,9 @@ Para preparar un runner de GitHub Actions con escritorio interactivo, configurar
 
 La captura de `Ctrl+F` ocurre en el proceso principal mediante `before-input-event`; el renderer recibe el aviso por `terminusDesktop.onFindShortcut`. Esto cubre iframes REAL cross-origin, cuyos eventos de teclado no llegan a la ventana principal.
 
-Comprobado el 10 de noviembre de 2026 con Electron 45 en desarrollo y con Terminus 0.2.0 instalado mediante el instalador NSIS (`%LOCALAPPDATA%\Programs\Terminus\Terminus.exe`), sobre `https://example.com/` en modo `REAL`: en ambos casos el foco estaba dentro del iframe, `Ctrl+F` abrió «Buscar en la página» y el campo de búsqueda recibió el foco.
+Comprobado el 10 de noviembre de 2026 con Electron 45 en desarrollo y con Terminus 0.2.0 instalado mediante el instalador NSIS (`%LOCALAPPDATA%\Programs\Terminus\Terminus.exe`), sobre `https://example.com/` en modo `REAL`: en ambos casos el foco estaba dentro del iframe, `Ctrl+F` abrió «Buscar en la página» y el campo de búsqueda recibió el foco. El 12 de noviembre de 2026 se repitió con la `0.3.0` instalada mediante `npm run test:e2e:installed`, con tres `PASS` (REAL, OSCURO y TEXTO).
 
-La prueba automatizada equivalente es `npm run test:e2e:installed`, que además verifica búsquedas reales en OSCURO y TEXTO.
+La prueba automatizada equivalente es `npm run test:e2e:installed`, que además verifica búsquedas reales en OSCURO y TEXTO. La revisión visual a ojo de la interfaz (cabecera, menú de configuración y glitch) sigue pendiente de confirmación humana y el ROADMAP la registra como abierta.
 
 ## Arquitectura
 
