@@ -34,7 +34,7 @@ Release construida sobre el rediseño de interfaz (`4ca78bf`) desde la rama del 
 2b0c21108416f32e13fb0e3747e8faebad9e57c1f4e5582b7b92d9fa5a041dfb  Terminus Setup 0.3.0.exe
 ```
 
-El hash del ZIP se publica en `SHA256SUMS.txt` junto al artefacto que genere el CI.
+`SHA256SUMS.txt` contiene los hashes del instalador y de su `.blockmap`. El del ZIP se añade cuando el CI empaqueta ese artefacto.
 
 ## Instalación
 
