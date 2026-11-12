@@ -16,7 +16,6 @@ const renderPage = (query: string, state?: TerminusSearchState) => {
       state={state}
       onSearch={onSearch}
       onOpenResult={onOpenResult}
-      onGoHome={vi.fn()}
     />
   );
   return { onSearch, onOpenResult };

@@ -55,7 +55,11 @@ const searchTab: BrowserTab = {
 
 const renderSurface = (
   tab: BrowserTab = blankTab,
-  options: { globalHistory?: string[]; onSetZoom?: (zoom: number) => void } = {}
+  options: {
+    globalHistory?: string[];
+    onSetZoom?: (zoom: number) => void;
+    onPageStatus?: (status: number) => void;
+  } = {}
 ) => {
   const onCommand = vi.fn();
   render(
@@ -69,6 +73,7 @@ const renderSurface = (
       onSetViewMode={vi.fn()}
       globalHistory={options.globalHistory}
       onSetZoom={options.onSetZoom}
+      onPageStatus={options.onPageStatus}
       latencyMs={18}
     />
   );
@@ -337,5 +342,46 @@ describe('WebBrowserSurface', () => {
     } finally {
       delete window.terminusDesktop;
     }
+  });
+
+  it('replaces the page with the no-signal scene while the browser is offline', () => {
+    Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: false });
+    try {
+      const { onCommand } = renderSurface(pageTab);
+
+      expect(screen.getByRole('alert', { name: 'SIN CONEXIÓN' })).toBeTruthy();
+      expect(document.querySelector('iframe')).toBeNull();
+
+      fireEvent.click(screen.getByRole('button', { name: 'REINTENTAR' }));
+      expect(onCommand).toHaveBeenCalledWith('reload');
+    } finally {
+      delete (window.navigator as unknown as { onLine?: boolean }).onLine;
+    }
+  });
+
+  it('deja que el visor del proxy pida la escena cuando falla dentro del marco', () => {
+    const onPageStatus = vi.fn();
+    renderSurface(pageTab, { onPageStatus });
+
+    const iframe = document.querySelector('iframe') as HTMLIFrameElement | null;
+    expect(iframe).not.toBeNull();
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { source: 'termbrowser-view-error', status: 413 },
+        origin: 'null',
+        source: iframe!.contentWindow,
+      })
+    );
+
+    expect(onPageStatus).toHaveBeenCalledWith(413);
+  });
+
+  it('shows the not-found variant for an error status', () => {
+    const { onCommand } = renderSurface({ ...pageTab, statusCode: 404 });
+
+    expect(screen.getByRole('alert', { name: 'PÁGINA NO ENCONTRADA' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'REINTENTAR' }));
+    expect(onCommand).toHaveBeenCalledWith('reload');
   });
 });

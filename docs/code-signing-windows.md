@@ -79,4 +79,6 @@ Resultado esperado: `Status: Valid`, un firmante con el nombre del editor y un `
 
 ## Estado actual
 
-La release `v0.2.2` se generó sin certificado y su instalador figura como `NotSigned`. Para publicar una versión firmada hay que configurar los dos secretos, volver a ejecutar el CI y subir el nuevo instalador; no se debe presentar el instalador actual como firmado.
+Terminus se distribuye **sin firma** por decisión del proyecto, no por falta de configuración: no se va a adquirir un certificado. Esta guía se conserva como referencia técnica y como camino documentado por si esa decisión cambia; mientras tanto el workflow sigue sin firmar y no hay secretos de firma configurados.
+
+La release `v0.2.2` se generó sin certificado y su instalador figura como `NotSigned`. Cada release debe publicar los `SHA256SUMS.txt` y decir explícitamente que el binario no está firmado; no se debe presentar un instalador como firmado ni prometer que SmartScreen dejará de advertir.

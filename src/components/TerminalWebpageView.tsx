@@ -3,6 +3,7 @@ import { ThemeConfig, ThemeId, WebpagePayload } from '../types';
 import { isPrivateTargetUrl } from '../utils/networkPolicy';
 import { expectedFrameMessageOrigin, isTrustedFrameMessage } from '../utils/frameMessageSecurity';
 import { soundEffects } from '../utils/soundEffects';
+import { useI18n } from '../i18n';
 
 interface TerminalWebpageViewProps {
   theme: ThemeConfig;
@@ -28,13 +29,13 @@ interface CrtLook {
 
 /** Each theme gets its own phosphor, so the CRT effect matches the terminal palette */
 const CRT_LOOKS: Record<ThemeId, CrtLook> = {
-  'monochrome-green': { tint: '#33ff77', tintOpacity: 0.32, dim: 'rgba(0, 0, 0, 0.55)', vignette: 'rgba(0, 0, 0, 0.62)' },
-  'amber-crt': { tint: '#ffb000', tintOpacity: 0.34, dim: 'rgba(10, 5, 0, 0.55)', vignette: 'rgba(0, 0, 0, 0.62)' },
-  'cyberpunk-obsidian': { tint: '#ff2d95', tintOpacity: 0.28, dim: 'rgba(6, 0, 16, 0.56)', vignette: 'rgba(0, 0, 0, 0.64)' },
-  'retro-futurista': { tint: '#67e8f9', tintOpacity: 0.28, dim: 'rgba(0, 8, 24, 0.58)', vignette: 'rgba(0, 0, 0, 0.66)' },
-  'ms-dos': { tint: '#4da3ff', tintOpacity: 0.3, dim: 'rgba(0, 0, 20, 0.55)', vignette: 'rgba(0, 0, 0, 0.6)' },
-  'matrix-dark': { tint: '#00ff41', tintOpacity: 0.34, dim: 'rgba(0, 8, 0, 0.55)', vignette: 'rgba(0, 0, 0, 0.64)' },
-  'black-and-white': { tint: '#ffffff', tintOpacity: 0.1, dim: 'rgba(0, 0, 0, 0.66)', vignette: 'rgba(0, 0, 0, 0.7)' },
+  'monochrome-green': { tint: '#33ff77', tintOpacity: 0.14, dim: 'rgba(0, 0, 0, 0.12)', vignette: 'rgba(0, 0, 0, 0.3)' },
+  'amber-crt': { tint: '#ffb000', tintOpacity: 0.14, dim: 'rgba(10, 5, 0, 0.12)', vignette: 'rgba(0, 0, 0, 0.3)' },
+  'cyberpunk-obsidian': { tint: '#ff2d95', tintOpacity: 0.12, dim: 'rgba(6, 0, 16, 0.12)', vignette: 'rgba(0, 0, 0, 0.32)' },
+  'retro-futurista': { tint: '#67e8f9', tintOpacity: 0.12, dim: 'rgba(0, 8, 24, 0.12)', vignette: 'rgba(0, 0, 0, 0.32)' },
+  'ms-dos': { tint: '#4da3ff', tintOpacity: 0.13, dim: 'rgba(0, 0, 20, 0.12)', vignette: 'rgba(0, 0, 0, 0.3)' },
+  'matrix-dark': { tint: '#00ff41', tintOpacity: 0.14, dim: 'rgba(0, 8, 0, 0.12)', vignette: 'rgba(0, 0, 0, 0.3)' },
+  'black-and-white': { tint: '#ffffff', tintOpacity: 0.04, dim: 'rgba(0, 0, 0, 0.16)', vignette: 'rgba(0, 0, 0, 0.34)' },
 };
 
 /**
@@ -44,6 +45,7 @@ const CRT_LOOKS: Record<ThemeId, CrtLook> = {
  * TEXTO is the flat extraction, the lightest option for slow links.
  */
 export const TerminalWebpageView: React.FC<TerminalWebpageViewProps> = ({ theme, webpage, onNavigate, isLatest = true }) => {
+  const { t } = useI18n();
   const [enlargedImage, setEnlargedImage] = useState<{ src: string; alt?: string; direct?: boolean } | null>(null);
   const frameRef = useRef<HTMLIFrameElement>(null);
 
@@ -173,7 +175,7 @@ export const TerminalWebpageView: React.FC<TerminalWebpageViewProps> = ({ theme,
             }}
             className="inline cursor-pointer font-bold underline touch-manipulation"
             style={{ color: theme.accent }}
-            title={`Abrir [${part}]: ${link.href}`}
+            title={t('webpage.openLink', { part, href: link.href })}
           >
             [{part}]
           </button>
@@ -192,7 +194,9 @@ export const TerminalWebpageView: React.FC<TerminalWebpageViewProps> = ({ theme,
               setEnlargedImage(image);
             }}
             className="my-0.5 mr-1 inline-block cursor-zoom-in align-middle touch-manipulation"
-            title={`Ampliar imagen${image.alt ? `: ${image.alt}` : ''}`}
+            title={
+              image.alt ? t('webpage.zoomImageAlt', { alt: image.alt }) : t('webpage.zoomImage')
+            }
           >
             <img
               src={proxiedImage(image.src)}
@@ -239,8 +243,14 @@ export const TerminalWebpageView: React.FC<TerminalWebpageViewProps> = ({ theme,
       {/* One plain status line instead of a header bar */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] opacity-70">
         <span className="min-w-0 truncate opacity-80">
-          ── [{webpage.statusCode || 200}] {webpage.url} · {webpage.latencyMs || 0}ms · {images.length} imágenes ·{' '}
-          {links.length} enlaces{directFrame ? '' : ' · vía proxy'} ──
+          {t('webpage.status', {
+            code: webpage.statusCode || 200,
+            url: webpage.url,
+            ms: webpage.latencyMs || 0,
+            images: images.length,
+            links: links.length,
+            proxy: directFrame ? '' : t('webpage.viaProxy'),
+          })}
         </span>
         <button
           type="button"
@@ -248,12 +258,10 @@ export const TerminalWebpageView: React.FC<TerminalWebpageViewProps> = ({ theme,
           className="shrink-0 cursor-pointer border px-1.5 py-0.5 hover:opacity-100 touch-manipulation"
           style={{ borderColor: theme.border, color: theme.accent }}
           title={
-            canFrame
-              ? 'Vistas: WEB (página original) → RETRO (estructura) → TEXTO (plano)'
-              : 'El sitio prohíbe mostrarse en marco: vistas RETRO (estructura) y TEXTO (plano). Use "abrir original" para verlo completo.'
+            canFrame ? t('webpage.viewTitleFrames') : t('webpage.viewTitleNoFrames')
           }
         >
-          VISTA {current.toUpperCase()}
+          {t('webpage.view', { mode: current.toUpperCase() })}
         </button>
         <a
           href={webpage.url}
@@ -261,9 +269,9 @@ export const TerminalWebpageView: React.FC<TerminalWebpageViewProps> = ({ theme,
           rel="noreferrer"
           className="shrink-0 underline opacity-80 hover:opacity-100 touch-manipulation"
           style={{ color: theme.text }}
-          title="Abrir la página original en una pestaña del navegador"
+          title={t('webpage.openOriginalTitle')}
         >
-          abrir original ↗
+          {t('webpage.openOriginal')}
         </a>
         {canFrame && (
           <button
@@ -271,7 +279,7 @@ export const TerminalWebpageView: React.FC<TerminalWebpageViewProps> = ({ theme,
             onClick={toggleCrt}
             className="shrink-0 cursor-pointer border px-1.5 py-0.5 hover:opacity-100 touch-manipulation"
             style={{ borderColor: theme.border, color: crtOn ? theme.accent : theme.text }}
-            title="Activar o desactivar el efecto CRT (tinte de fósforo, viñeta y líneas de barrido) sobre la página original"
+            title={t('webpage.crtTitle')}
           >
             CRT {crtOn ? 'ON' : 'OFF'}
           </button>
@@ -350,13 +358,13 @@ export const TerminalWebpageView: React.FC<TerminalWebpageViewProps> = ({ theme,
           ))}
         </div>
       ) : (
-        <div className="opacity-80">{webpage.summary || 'Página cargada sin texto extraíble.'}</div>
+        <div className="opacity-80">{webpage.summary || t('webpage.emptyText')}</div>
       )}
 
       {links.length > 0 && (
         <div className="space-y-0.5 pt-1">
           <div className="text-[10px] uppercase tracking-wider opacity-50">
-            ── enlaces ({links.length}) · clic, tap o escriba el número ──
+            {t('webpage.linksHeading', { count: links.length })}
           </div>
           {links.map((link, index) => (
             <button

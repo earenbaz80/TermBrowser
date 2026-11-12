@@ -130,6 +130,17 @@ describe('proxied image rewriting', () => {
     expect(result).toContain('src="data:image/png;base64,AAAA"');
   });
 
+  it('attaches the per-view image capability to proxied URLs', () => {
+    const result = rewriteProxiedImageSources(
+      '<img src="/foto.jpg" srcset="/uno.jpg 1x">',
+      'https://example.com/nota',
+      'http://127.0.0.1:3000',
+      { view: 'view+/=', token: '123.signature' }
+    );
+
+    expect(result).toContain('&amp;view=view%2B%2F%3D&amp;token=123.signature');
+  });
+
   it('does not let a private image URL reach the browser directly', () => {
     const result = rewriteProxiedImageSources(
       '<img src="http://127.0.0.1:9000/private.png">',

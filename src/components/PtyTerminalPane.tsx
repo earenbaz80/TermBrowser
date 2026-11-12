@@ -3,6 +3,7 @@ import { Terminal, ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { NativeShellId, ThemeConfig } from '../types';
+import { useI18n } from '../i18n';
 
 interface PtyTerminalPaneProps {
   tabId: string;
@@ -57,12 +58,16 @@ export const PtyTerminalPane = forwardRef<PtyTerminalHandle, PtyTerminalPaneProp
   { tabId, shell, cwd, theme, onUnavailable },
   ref,
 ) {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const cwdRef = useRef(cwd ?? '');
   const onUnavailableRef = useRef(onUnavailable);
   const themeRef = useRef(theme);
   themeRef.current = theme;
+  // The PTY effect must not restart when the locale changes, so it reads the latest t().
+  const tRef = useRef(t);
+  tRef.current = t;
   const [restartKey, setRestartKey] = useState(0);
   const [exited, setExited] = useState<{ code: number | null; signal?: number | string } | null>(null);
   const [error, setError] = useState('');
@@ -121,7 +126,7 @@ export const PtyTerminalPane = forwardRef<PtyTerminalHandle, PtyTerminalPaneProp
 
     const bridge = window.terminusPty;
     if (!bridge?.available) {
-      onUnavailableRef.current('El puente PTY no está disponible en esta instalación.');
+      onUnavailableRef.current(tRef.current('pty.unavailable'));
       return;
     }
     // Non-optional alias so the async startup and event callbacks keep the narrowed type.
@@ -185,7 +190,11 @@ export const PtyTerminalPane = forwardRef<PtyTerminalHandle, PtyTerminalPaneProp
       if (disposed || event.id !== tabId) return;
       setExited({ code: event.exitCode, signal: event.signal });
       term.write(
-        `\r\n\x1b[33m[PTY] El proceso terminó${event.exitCode !== null ? ` con código ${event.exitCode}` : ''}.\x1b[0m\r\n`
+        `\r\n\x1b[33m${
+          event.exitCode !== null
+            ? tRef.current('pty.exitedCode', { code: event.exitCode })
+            : tRef.current('pty.exited')
+        }\x1b[0m\r\n`
       );
     });
 
@@ -201,7 +210,7 @@ export const PtyTerminalPane = forwardRef<PtyTerminalHandle, PtyTerminalPaneProp
         if (disposed) return;
 
         if (!result.ok) {
-          const message = result.error || 'No se pudo iniciar la sesión PTY.';
+          const message = result.error || tRef.current('pty.startError');
           setError(message);
           term.write(`\r\n\x1b[31m[PTY] ${message}\x1b[0m\r\n`);
           onUnavailableRef.current(message);
@@ -265,11 +274,11 @@ export const PtyTerminalPane = forwardRef<PtyTerminalHandle, PtyTerminalPaneProp
             style={{ backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }}
           >
             <div className="font-bold" style={{ color: theme.accent }}>
-              PTY FINALIZADO
+              {t('pty.finished')}
             </div>
             <div className="mt-1 opacity-75">
-              {exited.code !== null ? `Código de salida: ${exited.code}` : 'El proceso cerró la sesión.'}
-              {exited.signal ? ` · señal: ${exited.signal}` : ''}
+              {exited.code !== null ? t('pty.exitCodeLine', { code: exited.code }) : t('pty.closed')}
+              {exited.signal ? t('pty.signal', { signal: exited.signal }) : ''}
             </div>
             {error && <div className="mt-2 text-red-400">{error}</div>}
             <button
@@ -278,7 +287,7 @@ export const PtyTerminalPane = forwardRef<PtyTerminalHandle, PtyTerminalPaneProp
               className="mt-3 border px-2 py-1 font-bold cursor-pointer hover:opacity-80"
               style={{ borderColor: theme.accent, color: theme.accent }}
             >
-              REINICIAR SHELL
+              {t('pty.restart')}
             </button>
           </div>
         </div>

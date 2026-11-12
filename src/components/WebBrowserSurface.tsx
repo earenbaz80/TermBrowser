@@ -30,10 +30,14 @@ import {
   Star,
   X,
 } from 'lucide-react';
-import { TerminusSearchPage } from './TerminusSearchPage';
+import { SUGGESTED_QUERY_KEYS, TerminusSearchPage } from './TerminusSearchPage';
 import { getTerminusSearchQuery, isTerminusSearchUrl } from '../utils/terminusSearch';
 import { isPrivateTargetUrl } from '../utils/networkPolicy';
 import { ContextMenu, ContextMenuItem } from './ContextMenu';
+import { useI18n } from '../i18n';
+import type { MessageKey } from '../i18n/messages';
+import { SignalLostScene } from './SignalLostScene';
+import { useNetworkStatus } from '../utils/useNetworkStatus';
 
 /** App forwards the standard Ctrl/Cmd+L browser shortcut through this event. */
 export const FOCUS_ADDRESS_EVENT = 'termbrowser:focus-address';
@@ -52,15 +56,17 @@ interface WebBrowserSurfaceProps {
   onClearHistory?: () => void;
   /** Persist this tab's page zoom. */
   onSetZoom?: (zoom: number) => void;
+  /** A framed proxy page reports its own failure so the surface can show the error scene. */
+  onPageStatus?: (status: number) => void;
   latencyMs?: number;
 }
 
 const sameUrl = (a: string, b: string) => a.replace(/\/+$/, '') === b.replace(/\/+$/, '');
 
-const PAGE_MODES: { id: PageMode; label: string; title: string }[] = [
-  { id: 'real', label: 'REAL', title: 'Página real, tal como la sirve el sitio' },
-  { id: 'dark', label: 'OSCURO', title: 'Misma página con el tema retro oscuro inyectado (vía proxy)' },
-  { id: 'text', label: 'TEXTO', title: 'Solo el texto legible de la página, sin maquetación' },
+const PAGE_MODES: { id: PageMode; labelKey: MessageKey; titleKey: MessageKey }[] = [
+  { id: 'real', labelKey: 'browser.modeReal', titleKey: 'browser.modeRealTitle' },
+  { id: 'dark', labelKey: 'browser.modeDark', titleKey: 'browser.modeDarkTitle' },
+  { id: 'text', labelKey: 'browser.modeText', titleKey: 'browser.modeTextTitle' },
 ];
 
 const MODE_STORAGE_KEY = 'termbrowser.page-mode';
@@ -97,7 +103,11 @@ const rememberMode = (host: string, mode: PageMode): void => {
   saveModeMap({ ...loadModeMap(), [host]: mode });
 };
 
-const MODE_LABELS: Record<PageMode, string> = { real: 'real', dark: 'oscuro', text: 'texto' };
+const MODE_LABELS: Record<PageMode, MessageKey> = {
+  real: 'browser.modeReal',
+  dark: 'browser.modeDark',
+  text: 'browser.modeText',
+};
 
 const START_LINKS = [
   { label: 'Wikipedia', url: 'https://es.wikipedia.org/wiki/Wikipedia:Portada' },
@@ -108,23 +118,23 @@ const START_LINKS = [
 
 interface WebCommandOption {
   command: string;
-  label: string;
+  labelKey: MessageKey;
   hint: string;
   needsValue?: boolean;
 }
 
 /** Mouse-friendly shortcuts for the commands a web session needs most often. */
 const WEB_COMMAND_OPTIONS: WebCommandOption[] = [
-  { command: 'goto ', label: 'Ir a una dirección', hint: 'goto https://…', needsValue: true },
-  { command: 'search ', label: 'Buscar en Terminus Search', hint: 'search términos', needsValue: true },
-  { command: 'home', label: 'Página de inicio', hint: 'home' },
-  { command: 'back', label: 'Atrás', hint: 'back' },
-  { command: 'forward', label: 'Adelante', hint: 'forward' },
-  { command: 'reload', label: 'Recargar', hint: 'reload' },
-  { command: 'tab new', label: 'Nueva pestaña', hint: 'tab new' },
-  { command: 'reader', label: 'Modo lectura', hint: 'reader' },
-  { command: 'help', label: 'Manual de comandos', hint: 'help' },
-  { command: 'top', label: 'Monitor de recursos', hint: 'top' },
+  { command: 'goto ', labelKey: 'cmd.goto', hint: 'goto https://…', needsValue: true },
+  { command: 'search ', labelKey: 'cmd.search', hint: 'search <query>', needsValue: true },
+  { command: 'home', labelKey: 'browser.home', hint: 'home' },
+  { command: 'back', labelKey: 'browser.back', hint: 'back' },
+  { command: 'forward', labelKey: 'browser.forward', hint: 'forward' },
+  { command: 'reload', labelKey: 'browser.reloadLabel', hint: 'reload' },
+  { command: 'tab new', labelKey: 'cmd.newTab', hint: 'tab new' },
+  { command: 'reader', labelKey: 'browser.readerMode', hint: 'reader' },
+  { command: 'help', labelKey: 'browser.manual', hint: 'help' },
+  { command: 'top', labelKey: 'cmd.top', hint: 'top' },
 ];
 
 interface AddressSuggestion {
@@ -144,12 +154,12 @@ const hostLabel = (url: string): string => {
   }
 };
 
-const getConnectionState = (url: string): { kind: ConnectionKind; label: string } => {
-  if (!url) return { kind: 'none', label: 'Sin página cargada' };
-  if (/^https:\/\//i.test(url)) return { kind: 'secure', label: 'HTTPS · conexión cifrada' };
-  if (/^http:\/\//i.test(url)) return { kind: 'insecure', label: 'HTTP · conexión sin cifrar' };
-  if (isTerminusSearchUrl(url)) return { kind: 'internal', label: 'Página interna de Terminus' };
-  return { kind: 'local', label: 'Página local' };
+const getConnectionState = (url: string): { kind: ConnectionKind; labelKey: MessageKey } => {
+  if (!url) return { kind: 'none', labelKey: 'browser.connNone' };
+  if (/^https:\/\//i.test(url)) return { kind: 'secure', labelKey: 'browser.connSecure' };
+  if (/^http:\/\//i.test(url)) return { kind: 'insecure', labelKey: 'browser.connInsecure' };
+  if (isTerminusSearchUrl(url)) return { kind: 'internal', labelKey: 'browser.connInternal' };
+  return { kind: 'local', labelKey: 'browser.connLocal' };
 };
 
 /** Bookmarks and visited URLs turn the address bar into a browser-style suggestion list. */
@@ -157,6 +167,7 @@ const buildAddressSuggestions = (
   raw: string,
   bookmarks: Bookmark[],
   history: string[],
+  t: (key: MessageKey, vars?: Record<string, string>) => string,
   globalHistory: string[] = []
 ): AddressSuggestion[] => {
   const query = raw.trim();
@@ -178,7 +189,7 @@ const buildAddressSuggestions = (
   if (!looksLikeCommand && !looksLikeUrl) {
     push({
       kind: 'search',
-      label: `Buscar “${query}”`,
+      label: t('browser.suggestSearch', { query }),
       detail: 'Terminus Search',
       command: `search ${query}`,
     });
@@ -190,7 +201,7 @@ const buildAddressSuggestions = (
     push({
       kind: 'bookmark',
       label: bookmark.title || bookmark.url,
-      detail: `Marcador · ${hostLabel(bookmark.url)}`,
+      detail: t('browser.suggestBookmark', { host: hostLabel(bookmark.url) }),
       command: `goto ${bookmark.url}`,
     });
     if (suggestions.length >= 6) return suggestions;
@@ -202,7 +213,7 @@ const buildAddressSuggestions = (
     push({
       kind: 'history',
       label: url.replace(/^https?:\/\//i, ''),
-      detail: `Historial · ${hostLabel(url)}`,
+      detail: t('browser.suggestHistory', { host: hostLabel(url) }),
       command: `goto ${url}`,
     });
     if (suggestions.length >= 6) break;
@@ -226,6 +237,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
   globalHistory = [],
   onClearHistory,
   onSetZoom,
+  onPageStatus,
   latencyMs,
 }) => {
   const latencyLabel =
@@ -235,7 +247,10 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
     color: theme.accent,
     '--ascii-glow-color': latencyGlow.color,
   } as React.CSSProperties;
+  const { t } = useI18n();
+  const online = useNetworkStatus();
   const [address, setAddress] = useState('');
+  const [startQuery, setStartQuery] = useState('');
   const [commandHistory, setCommandHistory] = useState<string[]>(() => getPersistedCommandHistory());
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [draftCommand, setDraftCommand] = useState('');
@@ -264,7 +279,13 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
   const [localZoom, setLocalZoom] = useState(1);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const findInputRef = useRef<HTMLInputElement>(null);
-  const addressSuggestions = buildAddressSuggestions(address, bookmarks, tab?.history ?? [], globalHistory);
+  const addressSuggestions = buildAddressSuggestions(
+    address,
+    bookmarks,
+    tab?.history ?? [],
+    t,
+    globalHistory
+  );
   const zoom = Math.min(2, Math.max(0.5, tab?.zoom ?? localZoom));
 
   // Measure the text before the insertion point so the blinking cursor follows the caret
@@ -479,6 +500,22 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
     return () => window.removeEventListener('message', handleMessage);
   }, [onCommand, expectedFrameOrigin]);
 
+  // A page that fails inside /api/view reports its status here: the frame cannot read its
+  // own HTTP status, so the surface records it and swaps the frame for the error scene.
+  useEffect(() => {
+    const handleViewError = (event: MessageEvent) => {
+      if (expectedFrameOrigin !== 'null') return;
+      if (!isTrustedFrameMessage(event, iframeRef.current, expectedFrameOrigin)) return;
+      const data = event.data;
+      if (!data || data.source !== 'termbrowser-view-error') return;
+      const status = Number(data.status);
+      if (!Number.isFinite(status) || status < 400) return;
+      onPageStatus?.(status);
+    };
+    window.addEventListener('message', handleViewError);
+    return () => window.removeEventListener('message', handleViewError);
+  }, [expectedFrameOrigin, onPageStatus]);
+
   const selectSuggestion = (suggestion: AddressSuggestion) => {
     soundEffects.playKeyClick();
     setSuggestionsOpen(false);
@@ -628,6 +665,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
     : proxied(mode);
   const usesProxy = Boolean(hasExternalPage && (mode !== 'real' || !directFrame));
   const connection = getConnectionState(address.trim() || currentUrl);
+  const connectionLabel = t(connection.labelKey);
 
   const applyZoom = useCallback((next: number) => {
     const bounded = Math.min(2, Math.max(0.5, Math.round(next * 10) / 10));
@@ -641,14 +679,14 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
       return;
     }
     if (!usesProxy) {
-      setFindStatus('Cambia a OSCURO o TEXTO para buscar dentro de esta página.');
+      setFindStatus(t('find.changeMode'));
       return;
     }
     iframeRef.current?.contentWindow?.postMessage(
       { source: 'termbrowser-find', query: findQuery, backwards },
       '*'
     );
-  }, [findQuery, usesProxy]);
+  }, [findQuery, usesProxy, t]);
 
   const applyProxiedCosmetics = useCallback(async () => {
     if (!usesProxy || !tab?.url) return;
@@ -719,11 +757,11 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
       if (!isTrustedFrameMessage(event, iframeRef.current, expectedFrameOrigin)) return;
       const data = event.data;
       if (!data || data.source !== 'termbrowser-find-result' || !findOpen) return;
-      setFindStatus(data.found ? 'Coincidencia encontrada' : 'Sin coincidencias');
+      setFindStatus(data.found ? t('find.match') : t('find.noMatch'));
     };
     window.addEventListener('message', handleFindResult);
     return () => window.removeEventListener('message', handleFindResult);
-  }, [findOpen, expectedFrameOrigin]);
+  }, [findOpen, expectedFrameOrigin, t]);
 
   useEffect(() => {
     const closeFindWithEscape = (event: KeyboardEvent) => {
@@ -782,31 +820,31 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
   const canGoBack = Boolean(tab && tab.historyIndex > 0);
   const canGoForward = Boolean(tab && tab.historyIndex >= 0 && tab.historyIndex < tab.history.length - 1);
   const selectionQuery = contextMenu?.selectionText?.trim() ?? '';
-  const webMenuTitle = tab && currentUrl ? `WEB · ${hostOf(currentUrl) || 'local'}` : 'WEB · inicio';
+  const webMenuTitle = tab && currentUrl ? `WEB · ${hostOf(currentUrl) || 'local'}` : t('browser.menuHome');
   const webMenuItems: ContextMenuItem[] = [
-    { id: 'back', label: 'Atrás', hint: 'back', disabled: !canGoBack, onSelect: () => go('back') },
-    { id: 'forward', label: 'Adelante', hint: 'forward', disabled: !canGoForward, onSelect: () => go('forward') },
-    { id: 'reload', label: 'Recargar', hint: 'reload', disabled: !hasPage, onSelect: () => go('reload') },
-    { id: 'home', label: 'Página de inicio', hint: 'home', onSelect: () => go('home') },
+    { id: 'back', label: t('browser.back'), hint: 'back', disabled: !canGoBack, onSelect: () => go('back') },
+    { id: 'forward', label: t('browser.forward'), hint: 'forward', disabled: !canGoForward, onSelect: () => go('forward') },
+    { id: 'reload', label: t('browser.reloadLabel'), hint: 'reload', disabled: !hasPage, onSelect: () => go('reload') },
+    { id: 'home', label: t('browser.home'), hint: 'home', onSelect: () => go('home') },
     {
       id: 'bookmark',
-      label: savedBookmark ? 'Quitar marcador' : 'Guardar en marcadores',
+      label: savedBookmark ? t('browser.bookmarkRemove') : t('browser.bookmarkMenuSave'),
       disabled: !currentUrl || isTerminusSearch,
       separatorBefore: true,
       onSelect: toggleCurrentBookmark,
     },
     {
       id: 'copy-url',
-      label: 'Copiar dirección',
+      label: t('browser.copyUrl'),
       disabled: !currentUrl,
       onSelect: () => {
         void copyText(currentUrl);
       },
     },
-    { id: 'paste-url', label: 'Pegar en la barra', onSelect: () => void pasteIntoAddress() },
+    { id: 'paste-url', label: t('browser.pasteUrl'), onSelect: () => void pasteIntoAddress() },
     {
       id: 'find-in-page',
-      label: 'Buscar en la página',
+      label: t('browser.find'),
       hint: 'Ctrl+F',
       disabled: !hasPage || isTerminusSearch,
       separatorBefore: true,
@@ -816,7 +854,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
       ? [
           {
             id: 'copy-link',
-            label: 'Copiar enlace',
+            label: t('browser.copyLink'),
             onSelect: () => void copyText(contextMenu.linkURL ?? ''),
           },
         ]
@@ -825,7 +863,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
       ? [
           {
             id: 'search-selection',
-            label: 'Buscar selección',
+            label: t('browser.searchSelection'),
             hint: 'search',
             onSelect: () => go(`search ${selectionQuery}`),
           },
@@ -833,7 +871,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
       : []),
     {
       id: 'mode-real',
-      label: 'Vista real',
+      label: t('browser.viewReal'),
       checked: mode === 'real',
       disabled: !hasExternalPage,
       separatorBefore: true,
@@ -841,26 +879,26 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
     },
     {
       id: 'mode-dark',
-      label: 'Vista oscura',
+      label: t('browser.viewDark'),
       checked: mode === 'dark',
       disabled: !hasExternalPage,
       onSelect: () => selectMode('dark'),
     },
     {
       id: 'mode-text',
-      label: 'Vista de texto',
+      label: t('browser.viewText'),
       checked: mode === 'text',
       disabled: !hasExternalPage,
       onSelect: () => selectMode('text'),
     },
     {
       id: 'reader',
-      label: 'Modo lectura',
+      label: t('browser.readerMode'),
       disabled: !hasExternalPage,
       separatorBefore: true,
       onSelect: () => go('reader'),
     },
-    { id: 'help', label: 'Manual de comandos', hint: 'help', onSelect: () => go('help') },
+    { id: 'help', label: t('browser.manual'), hint: 'help', onSelect: () => go('help') },
   ];
 
   return (
@@ -875,10 +913,10 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
         style={{ backgroundColor: theme.bg, borderColor: theme.border }}
       >
         <span className="shrink-0 text-[9px] uppercase tracking-wide opacity-40" style={{ color: theme.accent }}>
-          Marcadores
+          {t('browser.bookmarks')}
         </span>
         {bookmarks.length === 0 ? (
-          <span className="text-[10px] opacity-40">Pulsa la estrella en una página para guardarla aquí.</span>
+          <span className="text-[10px] opacity-40">{t('browser.bookmarksEmpty')}</span>
         ) : (
           bookmarks.map((bm) => (
             <div
@@ -901,8 +939,8 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                   soundEffects.playKeyClick();
                   onRemoveBookmark(bm.id);
                 }}
-                title={`Eliminar marcador: ${bm.title}`}
-                aria-label={`Eliminar marcador ${bm.title}`}
+                title={t('browser.bookmarkRemoveTitle', { title: bm.title })}
+                aria-label={t('browser.bookmarkRemoveLabel', { title: bm.title })}
                 className="border-l px-1 py-0.5 cursor-pointer opacity-50 hover:opacity-100"
                 style={{ borderColor: theme.border, color: theme.accent }}
               >
@@ -915,14 +953,27 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
 
       {/* Page */}
       <div className="relative min-h-0 flex-1">
-        {isTerminusSearch && tab ? (
+        {!online ? (
+          <SignalLostScene
+            theme={theme}
+            variant="offline"
+            url={tab?.url}
+            onRetry={() => go(hasPage ? 'reload' : 'home')}
+          />
+        ) : hasExternalPage && typeof tab?.statusCode === 'number' && tab.statusCode >= 400 ? (
+          <SignalLostScene
+            theme={theme}
+            variant="not-found"
+            url={tab?.url}
+            onRetry={() => go('reload')}
+          />
+        ) : isTerminusSearch && tab ? (
           <TerminusSearchPage
             theme={theme}
             query={tab.search?.query || getTerminusSearchQuery(tab.url)}
             state={tab.search}
             onSearch={(query) => onCommand(`search ${query}`)}
             onOpenResult={(url) => onCommand(`goto ${url}`)}
-            onGoHome={() => onCommand('home')}
           />
         ) : hasPage && tab ? (
           <iframe
@@ -947,42 +998,108 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
           />
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center font-mono">
-            <div className="ascii-boot ascii-glow" style={glowStyle}>
-              <pre className="ascii-sign ascii-sign-wide select-none font-mono" aria-hidden="true">
+            <div className="ascii-boot" style={glowStyle}>
+              <pre
+                className="ascii-sign ascii-sign-wide select-none font-mono"
+                aria-hidden="true"
+                data-text={BOOT_ASCII}
+              >
                 {BOOT_ASCII}
               </pre>
-              <pre className="ascii-sign ascii-sign-compact select-none font-mono" aria-hidden="true">
+              <pre
+                className="ascii-sign ascii-sign-compact select-none font-mono"
+                aria-hidden="true"
+                data-text={BOOT_ASCII_COMPACT}
+              >
                 {BOOT_ASCII_COMPACT}
               </pre>
               <div
                 className="ascii-latency"
-                title={`Glow ${latencyGlow.label} · Latencia de red actual: ${latencyLabel}`}
+                title={t('browser.latencyTitle', { label: latencyLabel })}
               >
                 <span className="ascii-latency-dot" aria-hidden="true" />
-                <span>[ GLOW ] · [ LATENCIA {latencyLabel} ]</span>
+                <span>[ LATENCIA {latencyLabel} ]</span>
               </div>
             </div>
             <div
               className="text-[10px] font-bold uppercase tracking-[0.35em] opacity-70"
               style={{ color: theme.accent }}
             >
-              Modo web
+              {t('start.modeWeb')}
             </div>
-            <button
-              type="button"
-              onClick={() => go('home')}
-              className="flex items-center gap-2 border px-3 py-1.5 text-[11px] font-bold cursor-pointer hover:opacity-80"
-              style={{ borderColor: theme.accent, backgroundColor: theme.accent, color: theme.bg }}
-              title="Abrir Terminus Search"
+            {/* The start page searches in place: no extra screen, no extra click. */}
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                const clean = startQuery.trim();
+                if (!clean) return;
+                soundEffects.playKeyClick();
+                setStartQuery('');
+                go(`search ${clean}`);
+              }}
+              role="search"
+              aria-label={t('start.searchLabel')}
+              className="w-full max-w-md border p-1.5 text-left"
+              style={{
+                borderColor: theme.accent,
+                backgroundColor: theme.cardBg,
+                boxShadow: `0 0 0 1px ${theme.border}`,
+              }}
             >
-              <Search className="h-3.5 w-3.5" />
-              ABRIR TERMINUS SEARCH
-            </button>
-            <p className="max-w-md text-[11px] opacity-70">
-              Escribe un comando en la barra: <span style={{ color: theme.accent }}>goto &lt;url&gt;</span>,{' '}
-              <span style={{ color: theme.accent }}>search &lt;texto&gt;</span> o{' '}
-              <span style={{ color: theme.accent }}>help</span>. También acepta una URL o búsqueda directa. Cada pestaña
-              conserva su propia página e historial.
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 pl-2 text-sm font-bold" style={{ color: theme.accent }} aria-hidden="true">
+                  &gt;
+                </span>
+                <input
+                  type="search"
+                  value={startQuery}
+                  onChange={(event) => setStartQuery(event.target.value)}
+                  placeholder={t('start.placeholder')}
+                  aria-label={t('start.searchLabel')}
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  enterKeyHint="search"
+                  inputMode="search"
+                  className="min-w-0 flex-1 appearance-none bg-transparent px-1 py-2.5 text-[13px] outline-hidden placeholder:opacity-40"
+                  style={{ color: theme.text, caretColor: theme.accent }}
+                />
+                <button
+                  type="submit"
+                  disabled={!startQuery.trim()}
+                  aria-label={t('start.searchLabel')}
+                  className="flex shrink-0 items-center gap-1.5 border px-2.5 py-2 text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                  style={{ borderColor: theme.accent, backgroundColor: theme.accent, color: theme.bg }}
+                >
+                  <Search className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{t('start.search')}</span>
+                </button>
+              </div>
+            </form>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <span className="text-[9px] uppercase tracking-[0.18em] opacity-45">{t('start.tryWith')}</span>
+              {SUGGESTED_QUERY_KEYS.map((key) => t(key)).map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => {
+                    soundEffects.playKeyClick();
+                    setStartQuery(suggestion);
+                    go(`search ${suggestion}`);
+                  }}
+                  className="border px-2.5 py-1 text-[10px] cursor-pointer transition-opacity hover:opacity-70"
+                  style={{ borderColor: theme.border, color: theme.text }}
+                  title={t('start.searchFor', { query: suggestion })}
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>            <p className="max-w-md text-[11px] opacity-70">
+              {t('start.hintPrefix')} <span style={{ color: theme.accent }}>goto &lt;url&gt;</span>,{' '}
+              <span style={{ color: theme.accent }}>search &lt;texto&gt;</span> {t('start.hintOr')}{' '}
+              <span style={{ color: theme.accent }}>help</span>
+              {t('start.hintSuffix')}
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               {START_LINKS.map((link) => (
@@ -998,13 +1115,8 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                 </button>
               ))}
             </div>
-            <p className="text-[10px] opacity-55">
-              ¿No recuerdas la sintaxis? Pulsa <span className="font-bold" style={{ color: theme.accent }}>CMD</span>{' '}
-              en la barra y elige un comando con el ratón.
-            </p>
-            <p className="text-[10px] opacity-45">
-              Interacción por comandos · ↑/↓ recupera el historial · la salida de consola queda en MODO TERMINAL.
-            </p>
+            <p className="text-[10px] opacity-55">{t('start.syntaxHint')}</p>
+            <p className="text-[10px] opacity-45">{t('start.keyboardHint')}</p>
           </div>
         )}
 
@@ -1013,7 +1125,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
             className="absolute right-2 top-2 z-40 flex max-w-[calc(100%-1rem)] items-center gap-1 rounded-xs border px-1.5 py-1 font-mono text-[10px] shadow-[0_12px_32px_rgba(0,0,0,0.5)]"
             style={{ backgroundColor: theme.cardBg, borderColor: theme.accent, color: theme.text }}
             role="dialog"
-            aria-label="Buscar en la página"
+            aria-label={t('browser.findDialog')}
           >
             <Search className="h-3 w-3 shrink-0" style={{ color: theme.accent }} />
             <input
@@ -1028,8 +1140,8 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
               }}
               className="min-w-0 flex-1 bg-transparent px-1 py-0.5 text-[10px] outline-hidden"
               style={{ color: theme.text }}
-              placeholder="Buscar en la página…"
-              aria-label="Texto a buscar en la página"
+              placeholder={t('browser.findPlaceholder')}
+              aria-label={t('browser.findInput')}
               spellCheck={false}
             />
             <span className="max-w-32 truncate opacity-55" aria-live="polite">
@@ -1039,8 +1151,8 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
               type="button"
               onClick={() => sendFind(true)}
               className="shrink-0 cursor-pointer p-0.5 opacity-65 hover:opacity-100"
-              title="Coincidencia anterior (Shift+Enter)"
-              aria-label="Coincidencia anterior"
+              title={t('browser.findPrevTitle')}
+              aria-label={t('browser.findPrev')}
             >
               <ChevronUp className="h-3 w-3" />
             </button>
@@ -1048,8 +1160,8 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
               type="button"
               onClick={() => sendFind(false)}
               className="shrink-0 cursor-pointer p-0.5 opacity-65 hover:opacity-100"
-              title="Siguiente coincidencia (Enter)"
-              aria-label="Siguiente coincidencia"
+              title={t('browser.findNextTitle')}
+              aria-label={t('browser.findNext')}
             >
               <ChevronDown className="h-3 w-3" />
             </button>
@@ -1061,8 +1173,8 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                 setFindStatus('');
               }}
               className="shrink-0 cursor-pointer p-0.5 opacity-65 hover:opacity-100"
-              title="Cerrar búsqueda (Esc)"
-              aria-label="Cerrar búsqueda en la página"
+              title={t('browser.findCloseTitle')}
+              aria-label={t('browser.findClose')}
             >
               <X className="h-3 w-3" />
             </button>
@@ -1078,7 +1190,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
           className="flex shrink-0 items-center overflow-hidden rounded-xs border"
           style={{ borderColor: theme.border }}
           role="group"
-          aria-label="Controles de navegación"
+          aria-label={t('browser.navControls')}
         >
           <button
             type="button"
@@ -1086,8 +1198,8 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
             disabled={!tab || tab.historyIndex <= 0}
             className="border-r p-1.5 cursor-pointer transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
             style={{ borderColor: theme.border, color: theme.text }}
-            title="Atrás (historial de la pestaña)"
-            aria-label="Atrás"
+            title={t('browser.backTitle')}
+            aria-label={t('browser.back')}
           >
             <ArrowLeft className="w-3.5 h-3.5" />
           </button>
@@ -1097,8 +1209,8 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
             disabled={!tab || tab.historyIndex >= tab.history.length - 1}
             className="border-r p-1.5 cursor-pointer transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
             style={{ borderColor: theme.border, color: theme.text }}
-            title="Adelante"
-            aria-label="Adelante"
+            title={t('browser.forward')}
+            aria-label={t('browser.forward')}
           >
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
@@ -1108,8 +1220,8 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
             disabled={!hasPage}
             className="border-r p-1.5 cursor-pointer transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
             style={{ borderColor: theme.border, color: theme.text }}
-            title={tab?.isLoading ? 'Cargando la página…' : 'Recargar la página'}
-            aria-label="Recargar"
+            title={tab?.isLoading ? t('browser.reloadLoading') : t('browser.reload')}
+            aria-label={t('browser.reloadLabel')}
           >
             {tab?.isLoading ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1122,8 +1234,8 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
             onClick={() => go('home')}
             className="border-r p-1.5 cursor-pointer transition-colors hover:bg-white/10"
             style={{ borderColor: theme.border, color: theme.text }}
-            title="Página de inicio de la pestaña"
-            aria-label="Página de inicio"
+            title={t('browser.homeTitle')}
+            aria-label={t('browser.home')}
           >
             <Home className="w-3.5 h-3.5" />
           </button>
@@ -1135,12 +1247,12 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
             style={{ borderColor: theme.border, color: savedBookmark ? theme.accent : theme.text }}
             title={
               isTerminusSearch
-                ? 'Terminus Search es una página interna'
+                ? t('browser.bookmarkInternal')
                 : savedBookmark
-                ? `Quitar de marcadores: ${savedBookmark.title}`
-                : 'Guardar esta página en marcadores'
+                ? t('browser.bookmarkRemoveSaved', { title: savedBookmark.title })
+                : t('browser.bookmarkSave')
             }
-            aria-label={savedBookmark ? 'Quitar de marcadores' : 'Añadir a marcadores'}
+            aria-label={savedBookmark ? t('browser.bookmarkRemove') : t('browser.bookmarkAdd')}
           >
             <Star className="w-3.5 h-3.5" fill={savedBookmark ? 'currentColor' : 'none'} />
           </button>
@@ -1151,8 +1263,8 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
               onClick={() => soundEffects.playKeyClick()}
               className="border-l p-1.5 cursor-pointer transition-colors hover:bg-white/10"
               style={{ borderColor: theme.border, color: theme.text }}
-              title="Descargar el código fuente de esta página"
-              aria-label="Descargar página"
+              title={t('browser.downloadTitle')}
+              aria-label={t('browser.downloadLabel')}
             >
               <Download className="w-3.5 h-3.5" />
             </a>
@@ -1166,8 +1278,8 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
             disabled={!hasPage || isTerminusSearch}
             className="border-l p-1.5 cursor-pointer transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
             style={{ borderColor: theme.border, color: findOpen ? theme.accent : theme.text }}
-            title="Buscar en la página (Ctrl+F)"
-            aria-label="Buscar en la página"
+            title={t('browser.findTitle')}
+            aria-label={t('browser.find')}
             aria-keyshortcuts="Control+F"
             aria-expanded={findOpen}
           >
@@ -1182,8 +1294,8 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
               }}
               className="border-l p-1.5 cursor-pointer transition-colors hover:bg-white/10"
               style={{ borderColor: theme.border, color: historyOpen ? theme.accent : theme.text }}
-              title="Historial global de navegación"
-              aria-label="Abrir historial global"
+              title={t('browser.historyTitle')}
+              aria-label={t('browser.historyOpen')}
               aria-expanded={historyOpen}
             >
               <Clock3 className="w-3.5 h-3.5" />
@@ -1192,7 +1304,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
               <>
                 <button
                   type="button"
-                  aria-label="Cerrar historial global"
+                  aria-label={t('browser.historyClose')}
                   onClick={() => setHistoryOpen(false)}
                   className="fixed inset-0 z-40 cursor-default"
                 />
@@ -1200,17 +1312,17 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                   className="absolute bottom-full left-0 z-50 mb-1 w-80 max-w-[85vw] border rounded-xs font-mono text-[10px] shadow-[0_12px_32px_rgba(0,0,0,0.5)]"
                   style={{ backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }}
                   role="dialog"
-                  aria-label="Historial global de navegación"
+                  aria-label={t('browser.historyTitle')}
                 >
                   <div
                     className="flex items-center justify-between border-b px-2 py-1 text-[9px] uppercase tracking-wide opacity-55"
                     style={{ borderColor: theme.border }}
                   >
-                    <span>Historial global</span>
-                    <span>{globalHistory.length} páginas</span>
+                    <span>{t('browser.historyHeading')}</span>
+                    <span>{t('browser.historyPages', { n: globalHistory.length })}</span>
                   </div>
                   {globalHistory.length === 0 ? (
-                    <div className="px-2 py-2 opacity-50">Aún no hay páginas visitadas.</div>
+                    <div className="px-2 py-2 opacity-50">{t('browser.historyEmpty')}</div>
                   ) : (
                     <div className="max-h-56 overflow-y-auto">
                       {globalHistory.slice(0, 12).map((url) => (
@@ -1241,7 +1353,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                     className="w-full border-t px-2 py-1 text-left hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-30"
                     style={{ borderColor: theme.border, color: theme.accent }}
                   >
-                    Borrar historial
+                    {t('browser.historyClear')}
                   </button>
                 </div>
               </>
@@ -1261,8 +1373,8 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
             >
               <span
                 className="shrink-0"
-                title={connection.label}
-                aria-label={connection.label}
+                title={connectionLabel}
+                aria-label={connectionLabel}
                 style={{
                   color:
                     connection.kind === 'secure'
@@ -1310,18 +1422,18 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                     setCaretVisible(false);
                     setSuggestionsOpen(false);
                   }}
-                  placeholder="Escribe una dirección o busca en la web…"
+                  placeholder={t('browser.addressPlaceholder')}
                   spellCheck={false}
                   autoComplete="off"
                   autoCapitalize="none"
                   autoCorrect="off"
                   inputMode="url"
                   enterKeyHint="go"
-                  aria-label="Barra de direcciones y búsqueda"
+                  aria-label={t('browser.addressLabel')}
                   aria-autocomplete="list"
                   aria-controls="terminus-address-suggestions"
                   aria-expanded={suggestionsOpen && addressSuggestions.length > 0}
-                  title="Dirección o búsqueda · Enter para abrir · ↑/↓ sugerencias · Ctrl+L para enfocar"
+                  title={t('browser.addressTitle')}
                   className="w-full min-w-0 bg-transparent p-0 text-[11px] outline-hidden placeholder:opacity-40"
                   style={{ color: theme.text, caretColor: 'transparent' }}
                 />
@@ -1343,8 +1455,8 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                   onClick={clearAddress}
                   className="shrink-0 cursor-pointer p-0.5 opacity-45 transition-opacity hover:opacity-100"
                   style={{ color: theme.text }}
-                  title="Limpiar la barra de direcciones"
-                  aria-label="Limpiar dirección"
+                  title={t('browser.addressClear')}
+                  aria-label={t('browser.addressClearLabel')}
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -1355,7 +1467,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
               <div
                 id="terminus-address-suggestions"
                 role="listbox"
-                aria-label="Sugerencias de dirección"
+                aria-label={t('browser.suggestionsLabel')}
                 className="absolute bottom-full left-0 right-0 z-50 mb-1 overflow-hidden rounded-xs border font-mono text-[10px] shadow-[0_12px_32px_rgba(0,0,0,0.5)]"
                 style={{ backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }}
               >
@@ -1363,8 +1475,8 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                   className="flex items-center justify-between border-b px-2 py-1 text-[9px] uppercase tracking-wide opacity-55"
                   style={{ borderColor: theme.border }}
                 >
-                  <span>Sugerencias</span>
-                  <span>↑↓ mover · Enter abrir</span>
+                  <span>{t('browser.suggestionsHeading')}</span>
+                  <span>{t('browser.suggestionsHint')}</span>
                 </div>
                 {addressSuggestions.map((suggestion, index) => (
                   <button
@@ -1402,7 +1514,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
             type="submit"
             className="shrink-0 border px-2 py-1 text-[10px] font-bold cursor-pointer transition-colors hover:bg-white/10"
             style={{ borderColor: theme.border, color: theme.accent }}
-            title="Ejecutar comando (Enter)"
+            title={t('browser.runTitle')}
           >
             RUN
           </button>
@@ -1421,7 +1533,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                 backgroundColor: commandsOpen ? theme.accent : 'transparent',
                 color: commandsOpen ? theme.bg : theme.accent,
               }}
-              title="Abrir menú de comandos para elegir con el ratón"
+              title={t('browser.cmdTitle')}
               aria-haspopup="menu"
               aria-expanded={commandsOpen}
             >
@@ -1432,7 +1544,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
               <>
                 <button
                   type="button"
-                  aria-label="Cerrar menú de comandos"
+                  aria-label={t('browser.cmdClose')}
                   onClick={() => setCommandsOpen(false)}
                   className="fixed inset-0 z-40 cursor-default"
                 />
@@ -1440,13 +1552,13 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                   className="absolute right-0 bottom-full z-50 mb-1 w-72 max-w-[80vw] overflow-hidden border rounded-xs font-mono text-[10px]"
                   style={{ backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }}
                   role="menu"
-                  aria-label="Comandos de navegación"
+                  aria-label={t('browser.cmdMenu')}
                 >
                   <div
                     className="border-b px-2 py-1 text-[9px] uppercase tracking-wide opacity-50"
                     style={{ borderColor: theme.border }}
                   >
-                    Comandos de navegación
+                    {t('browser.cmdMenu')}
                   </div>
                   <div className="max-h-72 overflow-y-auto">
                     {WEB_COMMAND_OPTIONS.map((option) => (
@@ -1459,11 +1571,11 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                         style={{ borderColor: theme.border }}
                       >
                         <span className="min-w-0">
-                          <span className="block font-bold">{option.label}</span>
+                          <span className="block font-bold">{t(option.labelKey)}</span>
                           <span className="block text-[9px] opacity-50">{option.hint}</span>
                         </span>
                         {option.needsValue && (
-                          <span className="shrink-0 text-[9px] opacity-40">completar</span>
+                          <span className="shrink-0 text-[9px] opacity-40">{t('browser.cmdComplete')}</span>
                         )}
                       </button>
                     ))}
@@ -1478,7 +1590,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
           <div
             className="hidden shrink-0 items-center overflow-hidden rounded-xs border text-[9px] font-bold sm:flex"
             style={{ borderColor: theme.border }}
-            title="Cómo se muestra esta página (se recuerda por sitio)"
+            title={t('browser.pageModeTitle')}
           >
             {PAGE_MODES.map((option) => (
               <button
@@ -1490,10 +1602,10 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                   backgroundColor: mode === option.id ? theme.accent : 'transparent',
                   color: mode === option.id ? theme.bg : theme.text,
                 }}
-                title={option.title}
+                title={t(option.titleKey)}
                 aria-pressed={mode === option.id}
               >
-                {option.label}
+                {t(option.labelKey)}
               </button>
             ))}
           </div>
@@ -1503,15 +1615,15 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
           className="hidden shrink-0 items-center overflow-hidden rounded-xs border text-[9px] font-bold sm:flex"
           style={{ borderColor: theme.border }}
           role="group"
-          aria-label="Zoom de página"
+          aria-label={t('browser.zoomGroup')}
         >
           <button
             type="button"
             onClick={() => applyZoom(zoom - 0.1)}
             disabled={zoom <= 0.5}
             className="p-1 cursor-pointer hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
-            title="Reducir zoom (Ctrl+-)"
-            aria-label="Reducir zoom"
+            title={t('browser.zoomOut')}
+            aria-label={t('browser.zoomOutLabel')}
           >
             <Minus className="h-3 w-3" />
           </button>
@@ -1520,7 +1632,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
             onClick={() => applyZoom(1)}
             className="min-w-9 border-x px-1 py-0.5 cursor-pointer hover:bg-white/10"
             style={{ borderColor: theme.border, color: theme.accent }}
-            title="Restablecer zoom al 100% (Ctrl+0)"
+            title={t('browser.zoomReset')}
           >
             {Math.round(zoom * 100)}%
           </button>
@@ -1529,8 +1641,8 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
             onClick={() => applyZoom(zoom + 0.1)}
             disabled={zoom >= 2}
             className="p-1 cursor-pointer hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
-            title="Aumentar zoom (Ctrl++)"
-            aria-label="Aumentar zoom"
+            title={t('browser.zoomIn')}
+            aria-label={t('browser.zoomInLabel')}
           >
             <Plus className="h-3 w-3" />
           </button>
@@ -1548,10 +1660,10 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
             }}
             className="border rounded-xs px-1.5 py-1 text-[9px] font-bold cursor-pointer hover:opacity-80"
             style={{ borderColor: theme.border, color: theme.text }}
-            title="Ver y borrar los modos de vista guardados por sitio"
+            title={t('browser.sitesTitle')}
             aria-expanded={savedOpen}
           >
-            SITIOS
+            {t('browser.sites')}
             <span className="ml-1 opacity-60">{Object.keys(savedModes).length}</span>
           </button>
 
@@ -1559,7 +1671,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
             <>
               <button
                 type="button"
-                aria-label="Cerrar lista de sitios"
+                aria-label={t('browser.sitesClose')}
                 onClick={() => setSavedOpen(false)}
                 className="fixed inset-0 z-40 cursor-default"
               />
@@ -1571,10 +1683,10 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                   className="border-b px-2 py-1 text-[9px] uppercase tracking-wide opacity-50"
                   style={{ borderColor: theme.border }}
                 >
-                  Vista guardada por sitio
+                  {t('browser.sitesHeading')}
                 </div>
                 {Object.keys(savedModes).length === 0 ? (
-                  <div className="px-2 py-2 opacity-50">Ningún sitio tiene vista fija: todos abren en REAL.</div>
+                  <div className="px-2 py-2 opacity-50">{t('browser.sitesEmpty')}</div>
                 ) : (
                   Object.entries(savedModes).map(([host, saved]) => (
                     <div
@@ -1586,15 +1698,15 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                         {host}
                       </span>
                       <span className="shrink-0 text-[9px] uppercase opacity-60" style={{ color: theme.accent }}>
-                        {MODE_LABELS[saved] ?? saved}
+                        {t(MODE_LABELS[saved])}
                       </span>
                       <button
                         type="button"
                         onClick={() => forgetMode(host)}
                         className="shrink-0 px-1 cursor-pointer opacity-60 hover:opacity-100"
                         style={{ color: theme.accent }}
-                        title={`Olvidar la vista de ${host}`}
-                        aria-label={`Olvidar vista de ${host}`}
+                        title={t('browser.siteForgetTitle', { host })}
+                        aria-label={t('browser.siteForgetLabel', { host })}
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -1607,9 +1719,9 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                   disabled={Object.keys(savedModes).length === 0}
                   className="w-full px-2 py-1 text-left cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 hover:opacity-80"
                   style={{ color: theme.accent }}
-                  title="Borrar todas las preferencias de vista"
+                  title={t('browser.sitesForgetAllTitle')}
                 >
-                  Olvidar todas
+                  {t('browser.siteForgetAll')}
                 </button>
               </div>
             </>
@@ -1617,8 +1729,18 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
         </div>
 
         <span className="hidden shrink-0 text-[10px] opacity-50 sm:inline">
-          {tab?.isLoading ? 'CARGANDO…' : tab?.statusCode ? `HTTP ${tab.statusCode}` : 'EN BLANCO'}
-          {usesProxy ? (mode === 'text' ? ' · texto' : mode === 'dark' ? ' · oscuro' : ' · proxy') : ''}
+          {tab?.isLoading
+            ? t('browser.statusLoading')
+            : tab?.statusCode
+            ? `HTTP ${tab.statusCode}`
+            : t('browser.statusBlank')}
+          {usesProxy
+            ? mode === 'text'
+              ? ` · ${t('browser.statusText')}`
+              : mode === 'dark'
+              ? ` · ${t('browser.statusDark')}`
+              : ` · ${t('browser.statusProxy')}`
+            : ''}
         </span>
 
         {/* DOSY floats frameless above the address bar, out of the controls row */}

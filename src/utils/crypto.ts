@@ -2,6 +2,7 @@
  * Cryptographic Subsystem: AES-256-GCM & MFA (TOTP)
  * Built with standard Web Crypto API (FIPS 140-2 compliant primitives)
  */
+import { tStandalone } from '../i18n/standalone';
 
 // Helper: Uint8Array <-> Base64
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -76,7 +77,7 @@ export async function encryptAES256(plainText: string, masterKey: string): Promi
 export async function decryptAES256(encryptedPackage: string, masterKey: string): Promise<string> {
   const parts = encryptedPackage.split('.');
   if (parts.length !== 3) {
-    throw new Error('Formato cifrado inválido. Se esperaba salt.iv.ciphertext');
+    throw new Error(tStandalone('error.invalidCipherFormat'));
   }
 
   const [saltB64, ivB64, cipherB64] = parts;

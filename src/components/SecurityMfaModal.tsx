@@ -3,6 +3,7 @@ import { SecurityState, ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
 import { generateTOTP, verifyTOTP, encryptAES256, decryptAES256 } from '../utils/crypto';
 import { Shield, Lock, Key, Cloud, CheckCircle, Copy, RefreshCw } from 'lucide-react';
+import { useI18n } from '../i18n';
 
 interface SecurityMfaModalProps {
   theme: ThemeConfig;
@@ -23,6 +24,7 @@ export const SecurityMfaModal: React.FC<SecurityMfaModalProps> = ({
   onSyncPush,
   onSyncPull,
 }) => {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<'aes' | 'mfa' | 'sync'>('aes');
   const [passkey, setPasskey] = useState('master-termpass-2026');
   const [mfaInputCode, setMfaInputCode] = useState('');
@@ -79,14 +81,14 @@ export const SecurityMfaModal: React.FC<SecurityMfaModalProps> = ({
       soundEffects.playExecute();
     } catch (err: any) {
       soundEffects.playError();
-      setCipherOutput(`Error de cifrado: ${err.message}`);
+      setCipherOutput(t('modal.security.encryptError', { message: err.message }));
     }
   };
 
   const handleVerifyMfa = async () => {
     soundEffects.playKeyClick();
     if (!mfaInputCode.trim()) {
-      setMfaFeedback({ msg: 'Ingrese el token de 6 dígitos.', isError: true });
+      setMfaFeedback({ msg: t('modal.security.codeRequired'), isError: true });
       return;
     }
 
@@ -98,47 +100,47 @@ export const SecurityMfaModal: React.FC<SecurityMfaModalProps> = ({
         mfaVerified: true,
         mfaEnabled: true,
       });
-      setMfaFeedback({ msg: 'Token MFA verificado con éxito. Sesión de doble factor confirmada.', isError: false });
+      setMfaFeedback({ msg: t('modal.security.verified'), isError: false });
     } else {
       soundEffects.playError();
-      setMfaFeedback({ msg: 'Token MFA incorrecto o expirado. Verifique el reloj del sistema.', isError: true });
+      setMfaFeedback({ msg: t('modal.security.wrongToken'), isError: true });
     }
   };
 
   const handleCloudPush = async () => {
     soundEffects.playKeyClick();
     setIsSyncing(true);
-    setSyncStatus('Cifrando bóveda con AES-256 y transmitiendo a la nube...');
+    setSyncStatus(t('modal.security.encrypting'));
 
     const res = await onSyncPush(passkey);
     setIsSyncing(false);
     if (res.success) {
       soundEffects.playExecute();
-      setSyncStatus(`✓ Éxito: ${res.message}`);
+      setSyncStatus(t('modal.security.syncOk', { message: res.message }));
     } else {
       soundEffects.playError();
-      setSyncStatus(`✗ Error: ${res.message}`);
+      setSyncStatus(t('modal.security.syncError', { message: res.message }));
     }
   };
 
   const handleCloudPull = async () => {
     soundEffects.playKeyClick();
     if (security.mfaEnabled && !mfaInputCode.trim()) {
-      setSyncStatus('✗ Requiere ingresar el código MFA activo para restaurar la bóveda.');
+      setSyncStatus(t('modal.security.pullNeedsMfa'));
       return;
     }
 
     setIsSyncing(true);
-    setSyncStatus('Descargando bóveda cifrada y validando token MFA...');
+    setSyncStatus(t('modal.security.pulling'));
 
     const res = await onSyncPull(passkey, mfaInputCode);
     setIsSyncing(false);
     if (res.success) {
       soundEffects.playExecute();
-      setSyncStatus(`✓ Restauración completa: ${res.message}`);
+      setSyncStatus(t('modal.security.pullOk', { message: res.message }));
     } else {
       soundEffects.playError();
-      setSyncStatus(`✗ Error al restaurar: ${res.message}`);
+      setSyncStatus(t('modal.security.pullError', { message: res.message }));
     }
   };
 
@@ -159,7 +161,7 @@ export const SecurityMfaModal: React.FC<SecurityMfaModalProps> = ({
         >
           <div className="flex items-center gap-2 font-bold">
             <Shield className="w-4 h-4 text-emerald-400" />
-            <span>CENTRO DE SEGURIDAD AES-256, MFA & SINCRONIZACIÓN EN LA NUBE</span>
+            <span>{t('modal.security.title')}</span>
           </div>
           <button
             onClick={() => {
@@ -186,7 +188,7 @@ export const SecurityMfaModal: React.FC<SecurityMfaModalProps> = ({
             style={{ borderColor: theme.border }}
           >
             <Lock className="w-3.5 h-3.5" />
-            <span>CIFRADO AES-256-GCM</span>
+            <span>{t('modal.security.tabAes')}</span>
           </button>
           <button
             onClick={() => {
@@ -199,7 +201,7 @@ export const SecurityMfaModal: React.FC<SecurityMfaModalProps> = ({
             style={{ borderColor: theme.border }}
           >
             <Key className="w-3.5 h-3.5" />
-            <span>DOBLE FACTOR (MFA)</span>
+            <span>{t('modal.security.tabMfa')}</span>
           </button>
           <button
             onClick={() => {
@@ -211,7 +213,7 @@ export const SecurityMfaModal: React.FC<SecurityMfaModalProps> = ({
             }`}
           >
             <Cloud className="w-3.5 h-3.5" />
-            <span>NUBE SEGURA</span>
+            <span>{t('modal.security.tabSync')}</span>
           </button>
         </div>
 
@@ -221,24 +223,24 @@ export const SecurityMfaModal: React.FC<SecurityMfaModalProps> = ({
             <div className="space-y-3">
               <div className="p-3 border rounded-xs space-y-2" style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}>
                 <div className="font-bold flex items-center justify-between text-xs">
-                  <span>ESTADO DE LA BÓVEDA LOCAL:</span>
+                  <span>{t('modal.security.vaultStatus')}</span>
                   <span className="text-emerald-400 flex items-center gap-1 font-bold">
                     <CheckCircle className="w-3.5 h-3.5" />
-                    AES-256-GCM ACTIVO & VERIFICADO
+                    {t('modal.security.vaultActive')}
                   </span>
                 </div>
                 <div className="text-[11px] opacity-80 leading-relaxed">
-                  Todas las credenciales, historial de navegación, bookmarks, scripts y tokens se cifran localmente mediante Web Crypto API antes de ser persistidos.
+                  {t('modal.security.vaultBody')}
                 </div>
                 <div className="flex items-center gap-2 pt-1 text-[11px]">
-                  <span className="opacity-70">CHECKSUM DE INTEGRIDAD SHA-256:</span>
+                  <span className="opacity-70">{t('modal.security.checksum')}</span>
                   <code className="font-bold text-[10px] truncate max-w-xs">{security.integrityChecksum}</code>
                 </div>
               </div>
 
               {/* Master Passkey Input */}
               <div>
-                <label className="block text-[10px] opacity-75 mb-0.5">CONTRASEÑA MAESTRA / LLAVE DE CIFRADO</label>
+                <label className="block text-[10px] opacity-75 mb-0.5">{t('modal.security.passkeyLabel')}</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="password"
@@ -255,16 +257,16 @@ export const SecurityMfaModal: React.FC<SecurityMfaModalProps> = ({
                     className="px-3 py-1 border text-xs font-bold cursor-pointer"
                     style={{ borderColor: theme.border }}
                   >
-                    {security.vaultLocked ? 'Desbloquear Bóveda' : 'Bloquear Bóveda'}
+                    {security.vaultLocked ? t('modal.security.unlockVault') : t('modal.security.lockVault')}
                   </button>
                 </div>
               </div>
 
               {/* Encryption Test Utility */}
               <div className="border p-3 rounded-xs space-y-2" style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}>
-                <div className="font-bold text-[11px]">PROBADOR INTERACTIVO DE CIFRADO AES-256</div>
+                <div className="font-bold text-[11px]">{t('modal.security.tester')}</div>
                 <div>
-                  <label className="block text-[10px] opacity-75 mb-0.5">TEXTO PLANO A CIFRAR:</label>
+                  <label className="block text-[10px] opacity-75 mb-0.5">{t('modal.security.plainLabel')}</label>
                   <input
                     type="text"
                     value={plainInput}
@@ -279,18 +281,18 @@ export const SecurityMfaModal: React.FC<SecurityMfaModalProps> = ({
                     className="px-3 py-1 text-xs font-bold border rounded-xs hover:opacity-90 cursor-pointer"
                     style={{ backgroundColor: theme.accent, color: theme.bg, borderColor: theme.accent }}
                   >
-                    Cifrar y Descifrar (AES-256)
+                    {t('modal.security.encryptAction')}
                   </button>
                 </div>
                 {cipherOutput && (
                   <div className="space-y-1 pt-1 border-t text-[11px]" style={{ borderColor: theme.border }}>
-                    <div className="opacity-75">PAQUETE CIFRADO (SALT.IV.CIPHERTEXT):</div>
+                    <div className="opacity-75">{t('modal.security.packet')}</div>
                     <div className="p-1.5 border font-mono text-[10px] break-all max-h-16 overflow-y-auto" style={{ backgroundColor: theme.bg, borderColor: theme.border }}>
                       {cipherOutput}
                     </div>
                     {decryptedOutput && (
                       <div className="text-emerald-400 font-bold text-[11px]">
-                        ✓ Descifrado verificado: "{decryptedOutput}"
+                        {t('modal.security.decryptedOk', { text: decryptedOutput })}
                       </div>
                     )}
                   </div>
@@ -303,20 +305,20 @@ export const SecurityMfaModal: React.FC<SecurityMfaModalProps> = ({
             <div className="space-y-3">
               <div className="p-3 border rounded-xs space-y-2" style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}>
                 <div className="font-bold text-xs flex items-center justify-between">
-                  <span>AUTENTICADOR TOTP (RFC 6238)</span>
+                  <span>{t('modal.security.totpTitle')}</span>
                   <span className={`px-2 py-0.5 border text-[10px] font-bold ${security.mfaEnabled ? 'text-emerald-400 border-emerald-400' : 'text-amber-400 border-amber-400'}`}>
-                    {security.mfaEnabled ? 'MFA HABILITADO' : 'MFA NO CONFIGURADO'}
+                    {security.mfaEnabled ? t('modal.security.mfaEnabled') : t('modal.security.mfaNone')}
                   </span>
                 </div>
                 <div className="text-[11px] opacity-80 leading-relaxed">
-                  Generación de códigos de un solo uso basados en tiempo (30 segundos). Compatible con Google Authenticator, Authy y terminales seguras.
+                  {t('modal.security.mfaBody')}
                 </div>
               </div>
 
               {/* Secret and Live Code Display */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="border p-3 rounded-xs space-y-2" style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}>
-                  <div className="text-[10px] opacity-75">CLAVE SECRETA TOTP (BASE32):</div>
+                  <div className="text-[10px] opacity-75">{t('modal.security.secretLabel')}</div>
                   <div className="flex items-center gap-2">
                     <code className="p-1.5 border flex-1 text-center font-bold text-xs tracking-widest" style={{ backgroundColor: theme.bg, borderColor: theme.border }}>
                       {security.mfaSecret}
@@ -328,27 +330,27 @@ export const SecurityMfaModal: React.FC<SecurityMfaModalProps> = ({
                       }}
                       className="p-1.5 border hover:opacity-80 cursor-pointer"
                       style={{ borderColor: theme.border }}
-                      title="Copiar secreto"
+                      title={t('modal.security.copySecret')}
                     >
                       <Copy className="w-3.5 h-3.5" />
                     </button>
                   </div>
                   <div className="text-[10px] opacity-60">
-                    Guarde este secreto en su aplicación de autenticación para vincular su terminal.
+                    {t('modal.security.secretHint')}
                   </div>
                 </div>
 
                 <div className="border p-3 rounded-xs flex flex-col justify-between" style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}>
                   <div>
-                    <div className="text-[10px] opacity-75">TOKEN ACTIVO GENERADO:</div>
+                    <div className="text-[10px] opacity-75">{t('modal.security.activeToken')}</div>
                     <div className="text-2xl font-bold tracking-widest text-center py-1 text-cyan-400 font-mono">
                       {currentTotp.code}
                     </div>
                   </div>
                   <div>
                     <div className="flex justify-between text-[10px] opacity-75 mb-1">
-                      <span>RELOJ TOTP:</span>
-                      <span>{currentTotp.secondsRemaining}s restantes</span>
+                      <span>{t('modal.security.clock')}</span>
+                      <span>{t('modal.security.secondsLeft', { n: currentTotp.secondsRemaining })}</span>
                     </div>
                     <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden">
                       <div
@@ -362,7 +364,7 @@ export const SecurityMfaModal: React.FC<SecurityMfaModalProps> = ({
 
               {/* Verify form */}
               <div className="border p-3 rounded-xs space-y-2" style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}>
-                <div className="text-[11px] font-bold">VERIFICAR TOKEN DE ACCESO</div>
+                <div className="text-[11px] font-bold">{t('modal.security.verify')}</div>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -378,7 +380,7 @@ export const SecurityMfaModal: React.FC<SecurityMfaModalProps> = ({
                     className="px-4 py-1.5 text-xs font-bold border rounded-xs hover:opacity-90 cursor-pointer"
                     style={{ backgroundColor: theme.accent, color: theme.bg, borderColor: theme.accent }}
                   >
-                    Validar Token
+                    {t('modal.security.validate')}
                   </button>
                 </div>
                 {mfaFeedback && (
@@ -394,22 +396,24 @@ export const SecurityMfaModal: React.FC<SecurityMfaModalProps> = ({
             <div className="space-y-3">
               <div className="p-3 border rounded-xs space-y-2" style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}>
                 <div className="font-bold text-xs flex items-center justify-between">
-                  <span>SINCRONIZACIÓN EN LA NUBE CON SELLO AES-256</span>
+                  <span>{t('modal.security.syncTitle')}</span>
                   <span className="text-[11px] opacity-75">
-                    Último respaldo: {security.lastBackup || 'Sin respaldo aún'}
+                    {t('modal.security.lastBackup', {
+                      date: security.lastBackup || t('modal.security.noBackup'),
+                    })}
                   </span>
                 </div>
                 <div className="text-[11px] opacity-80 leading-relaxed">
-                  Permite exportar y sincronizar remotamente el estado completo de la terminal mediante una bóveda encriptada protegida por su clave maestra y verificación MFA.
+                  {t('modal.security.syncBody')}
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="border p-3 rounded-xs space-y-3 flex flex-col justify-between" style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}>
                   <div>
-                    <h4 className="font-bold text-xs">SUBIR RESPALDO A LA NUBE (PUSH)</h4>
+                    <h4 className="font-bold text-xs">{t('modal.security.pushTitle')}</h4>
                     <p className="text-[11px] opacity-75 mt-1">
-                      Cifra pestañas, marcadores, historial y scripts con AES-256 y envía el paquete al microservicio remoto.
+                      {t('modal.security.pushBody')}
                     </p>
                   </div>
                   <button
@@ -419,15 +423,15 @@ export const SecurityMfaModal: React.FC<SecurityMfaModalProps> = ({
                     style={{ backgroundColor: theme.accent, color: theme.bg, borderColor: theme.accent }}
                   >
                     <Cloud className="w-4 h-4" />
-                    <span>SINCRONIZAR AHORA</span>
+                    <span>{t('modal.security.syncNow')}</span>
                   </button>
                 </div>
 
                 <div className="border p-3 rounded-xs space-y-3 flex flex-col justify-between" style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}>
                   <div>
-                    <h4 className="font-bold text-xs">RESTAURAR DESDE LA NUBE (PULL)</h4>
+                    <h4 className="font-bold text-xs">{t('modal.security.pullTitle')}</h4>
                     <p className="text-[11px] opacity-75 mt-1">
-                      Descarga el paquete remoto, valida la clave maestra y el token MFA de 6 dígitos para restaurar su entorno.
+                      {t('modal.security.pullBody')}
                     </p>
                   </div>
                   <button
@@ -437,7 +441,7 @@ export const SecurityMfaModal: React.FC<SecurityMfaModalProps> = ({
                     style={{ borderColor: theme.border, backgroundColor: theme.bg }}
                   >
                     <RefreshCw className="w-4 h-4 text-cyan-400" />
-                    <span>DESCARGAR Y RESTAURAR</span>
+                    <span>{t('modal.security.pullAction')}</span>
                   </button>
                 </div>
               </div>
@@ -464,7 +468,7 @@ export const SecurityMfaModal: React.FC<SecurityMfaModalProps> = ({
             className="px-4 py-1 border text-xs font-bold cursor-pointer"
             style={{ borderColor: theme.border }}
           >
-            Cerrar
+            {t('common.close')}
           </button>
         </div>
       </div>

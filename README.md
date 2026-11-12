@@ -2,10 +2,14 @@
 
 Terminus es un navegador web de terminal con una consola integrada, pensado para leer la web con una estética retro y para trabajar con archivos, shells y automatizaciones desde la misma ventana. Corre como aplicación de escritorio Electron y también como aplicación web local.
 
+El estado del proyecto, los pendientes y las decisiones cerradas están en [ROADMAP.md](ROADMAP.md).
+
 ## Características
 
 - **Dos superficies**: navegador web real y terminal interactiva, con pestañas independientes.
+- **Cabecera única**: pestañas, herramientas, controles de ventana y menú de configuración (audio, temas, B&W y CRT) en una sola barra.
 - **Navegador**: barra de direcciones con sugerencias de marcadores e historial global, historial por pestaña, favoritos, indicador HTTPS/HTTP y descarga de la página.
+- **Búsqueda web desde el inicio**: el campo de la pantalla de inicio busca directamente, sin abrir otra pantalla antes; las sugerencias son clicables y los resultados aparecen en Terminus Search.
 - **Vistas de página**: `REAL` (iframe directo cuando el sitio lo permite), `OSCURO` (proxy con hoja retro) y `TEXTO` (extracción legible).
 - **Búsqueda en página** con `Ctrl+F` en las tres vistas; en Electron un atajo global la captura incluso con el foco dentro de un iframe REAL cross-origin. **Zoom por pestaña** con `Ctrl++`, `Ctrl+-` y `Ctrl+0`.
 - **Terminal**: intérprete interno, PTY real con CMD/PowerShell/Bash en Electron, comandos de navegación, archivos virtuales y workspace local.
@@ -43,7 +47,7 @@ npm run desktop:build    # instalador en release/
 
 El instalador de Windows se genera con electron-builder y el icono de `build/icon.ico`.
 
-La firma Authenticode es opcional. Consulta [docs/code-signing-windows.md](docs/code-signing-windows.md) para configurar el certificado y los secretos; sin ellos, el build sigue generando un instalador sin firmar.
+El instalador se distribuye sin firma Authenticode por decisión del proyecto: Windows SmartScreen puede mostrar una advertencia. Verifica el binario con los hashes publicados en las notas de release. El flujo de firma queda documentado como referencia en [docs/code-signing-windows.md](docs/code-signing-windows.md).
 
 ## Scripts de verificación
 
@@ -57,7 +61,7 @@ npm run test:e2e:installed    # Windows: Ctrl+F y búsqueda OSCURO/TEXTO
 npm run test:e2e:python-sandbox # Chromium real; requiere npx playwright install chromium
 ```
 
-Estado esperado: typecheck limpio, pruebas de unidad en verde y ambos builds correctos.
+Estado esperado: typecheck limpio, pruebas de unidad en verde y ambos builds correctos. Referencia actual: `npm test` con 29 archivos y 134 pruebas.
 
 `test:e2e:adblock` arranca `release/win-unpacked/Terminus.exe` con Playwright, sirve un fixture local de anuncios y comprueba el bloqueo de red y de popups. Después navega a `https://example.com/` para verificar que los cosméticos de EasyList se aplican al iframe proxificado; el fixture local no sirve para cosméticos porque `127.0.0.1` no tiene eTLD. Requiere haber ejecutado `npm run desktop:dir` antes.
 
@@ -115,9 +119,13 @@ La prueba automatizada equivalente es `npm run test:e2e:installed`, que además 
 ## Arquitectura
 
 - `src/App.tsx`: estado de pestañas, sesión, historial global, modales y composición de la UI.
-- `src/components/WebBrowserSurface.tsx`: navegador, barra de direcciones, zoom, búsqueda, descargas y paneles.
-- `src/components/HeaderBar.tsx`: pestañas y controles globales.
+- `src/components/WebBrowserSurface.tsx`: navegador, barra de direcciones, zoom, búsqueda (incluido el campo de la pantalla de inicio), descargas y paneles.
+- `src/components/HeaderBar.tsx`: pestañas, herramientas y fila superior con el menú de configuración y los controles de ventana.
+- `src/components/SettingsMenu.tsx`: menú de configuración con audio (mute, sintetizador, WAV) y apariencia (temas, B&W, CRT).
+- `src/components/WindowControls.tsx`: minimizar, maximizar y cerrar sobre la API de escritorio.
+- `src/components/TerminusSearchPage.tsx`: resultados de búsqueda y sugerencias compartidas con la pantalla de inicio.
 - `src/components/TerminalView.tsx`: terminal interna y puente PTY.
+- `src/utils/version.ts`: única fuente de la versión; los User-Agent, el log de arranque y los rótulos la importan.
 - `src/utils/commandProcessor.ts`: procesador de comandos y navegación.
 - `src/utils/localFileSystem.ts`: cliente de workspace local con token de sesión.
 - `server.ts`: Express, proxy, CSP, APIs locales y servidor Vite en desarrollo.

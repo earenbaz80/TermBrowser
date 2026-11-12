@@ -5,6 +5,8 @@
  */
 
 import React, { Suspense, useState, useEffect, useCallback, useRef } from 'react';
+import { useI18n } from './i18n';
+import type { MessageKey } from './i18n/messages';
 import {
   ActivityLog,
   Bookmark,
@@ -23,6 +25,8 @@ import {
 import { THEMES } from './utils/themes';
 import { soundEffects } from './utils/soundEffects';
 import { BUILT_IN_EXTENSIONS } from './utils/extensions';
+import { useExampleScripts } from './utils/useExampleScripts';
+import { useLocalizedSampleFiles } from './utils/useLocalizedSampleFiles';
 import { DEFAULT_KEYBINDINGS, ShortcutsModal } from './components/ShortcutsModal';
 import { HelpModal } from './components/HelpModal';
 const ResourceMonitorHUD = React.lazy(() =>
@@ -44,7 +48,6 @@ const TerminalView = React.lazy(() =>
   import('./components/TerminalView').then((module) => ({ default: module.TerminalView }))
 );
 import { HeaderBar } from './components/HeaderBar';
-import { WindowTitleBar } from './components/WindowTitleBar';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { FOCUS_ADDRESS_EVENT, WebBrowserSurface } from './components/WebBrowserSurface';
 import {
@@ -56,9 +59,12 @@ import {
 import { apiFetch } from './utils/apiClient';
 import { processCommand } from './utils/commandProcessor';
 import { computeSHA256, encryptAES256, decryptAES256, generateMfaSecret } from './utils/crypto';
-import { INITIAL_FILESYSTEM, VirtualFile } from './utils/interpreter';
+import { buildInitialFileSystem, VirtualFile } from './utils/interpreter';
 import { notificationManager } from './utils/notificationManager';
 import { appendCommandToHistory } from './utils/commandHistoryStorage';
+import { APP_VERSION } from './utils/version';
+import { LockScreen } from './components/LockScreen';
+import { hasLockPassword } from './utils/lockStorage';
 import {
   formatNativeShellResult,
   getNativeFsInfo,
@@ -80,60 +86,18 @@ import {
 } from './utils/lastMountStorage';
 import type { LastNativeMount, NativeMountPermission } from './utils/lastMountStorage';
 
-const titleForWebTab = (url: string): string => {
-  if (!url || url === 'about:blank') return 'Nueva Pestaña';
+const titleForWebTab = (url: string, t: (key: MessageKey) => string): string => {
+  if (!url || url === 'about:blank') return t('tabs.new');
   if (url.startsWith('terminus://search')) return 'Terminus Search';
   try {
-    return new URL(url).hostname.replace(/^www\./i, '') || 'Navegador';
+    return new URL(url).hostname.replace(/^www\./i, '') || t('tabs.browser');
   } catch {
-    return 'Navegador';
+    return t('tabs.browser');
   }
 };
 
-const INITIAL_SCRIPTS: UserScript[] = [
-  {
-    id: 'script_audit',
-    name: 'Auditoría de Seguridad y Cifrado AES-256',
-    description: 'Verifica la integridad de la sesión, estado del cifrado y certificados.',
-    steps: [
-      'echo "=== INICIANDO AUDITORÍA CRIPTOGRÁFICA ==="',
-      'whoami',
-      'date',
-      'vault status',
-      'echo "Bóveda cifrada y verificada."',
-    ],
-    createdAt: '2026-11-07',
-    runCount: 2,
-  },
-  {
-    id: 'script_morning_news',
-    name: 'Ronda Matutina de Noticias Tecnológicas',
-    description: 'Carga Hacker News, activa modo lectura y extrae titulares.',
-    steps: [
-      'echo "Obteniendo titulares de Hacker News..."',
-      'goto https://news.ycombinator.com',
-      'reader',
-      'echo "Listo para lectura libre de publicidad."',
-    ],
-    createdAt: '2026-11-07',
-    runCount: 5,
-  },
-  {
-    id: 'script_benchmark',
-    name: 'Prueba de Cómputo Python y Rendimiento',
-    description: 'Ejecuta cálculo en tiempo real y prueba la latencia de red.',
-    steps: [
-      'echo "Ejecutando algoritmo en Python 3.12..."',
-      'python -c "print(\'Calculo factorial:\', sum([x**2 for x in range(100)]))"',
-      'speedtest',
-      'top',
-    ],
-    createdAt: '2026-11-07',
-    runCount: 1,
-  },
-];
-
 export default function App() {
+  const { t, tc, locale } = useI18n();
   // Theme and Aesthetic State (persisted in localStorage)
   const [currentThemeId, setCurrentThemeId] = useState<ThemeId>(() => {
     try {
@@ -156,11 +120,16 @@ export default function App() {
   // Tabs Management: the last session (tabs, active tab, each tab's view) is restored on load
   const [restoredSession] = useState(() => loadSession());
   const [tabs, setTabs] = useState<BrowserTab[]>(
-    restoredSession?.tabs ?? [
+    // Blank tab titles are defaults, so a restored session follows the current language.
+    restoredSession?.tabs.map((tab) =>
+      tab.kind === 'web' && (!tab.url || tab.url === 'about:blank')
+        ? { ...tab, title: tab.id === 'tab_1' ? t('tabs.start') : t('tabs.new') }
+        : tab
+    ) ?? [
       {
         id: 'tab_1',
         kind: 'web',
-        title: 'Portal de Inicio',
+        title: t('tabs.start'),
         url: 'about:blank',
         displayUrl: 'about:blank',
         isLoading: false,
@@ -187,7 +156,7 @@ export default function App() {
       id: 'boot_welcome',
       timestamp: new Date().toLocaleTimeString(),
       type: 'system',
-      output: `[✓] Sistema inicializado. Núcleo WebAssembly activo. Cifrado AES-256-GCM preparado.\nEscriba "help" para ver la lista de comandos o use "goto <url>" para navegar.`,
+      output: tc('out.bootBanner'),
     },
 
   ]);
@@ -259,7 +228,8 @@ export default function App() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => loadBookmarks());
   const [browserHistory, setBrowserHistory] = useState(() => loadBrowserHistory());
   const lastHistorySignatureRef = useRef('');
-  const [scripts, setScripts] = useState<UserScript[]>(INITIAL_SCRIPTS);
+  // Shipped examples follow the live language; user-edited ones keep their own text.
+  const [scripts, setScripts] = useExampleScripts(t);
   const [extensions, setExtensions] = useState<ExtensionManifest[]>(BUILT_IN_EXTENSIONS);
   const [keybindings, setKeybindings] = useState<KeyBinding[]>(DEFAULT_KEYBINDINGS);
 
@@ -310,9 +280,12 @@ export default function App() {
     anomalies: [],
   });
 
+  // Local password gate: only engaged when the user configured a password.
+  const [locked, setLocked] = useState(() => hasLockPassword());
+
   // Activity Logs (for JSON / TXT export)
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([
-    { id: 'act_1', timestamp: new Date().toISOString(), level: 'SYS', module: 'BOOT', message: 'Terminus kernel v0.2.2 initialized.' },
+    { id: 'act_1', timestamp: new Date().toISOString(), level: 'SYS', module: 'BOOT', message: `Terminus kernel v${APP_VERSION} initialized.` },
     { id: 'act_2', timestamp: new Date().toISOString(), level: 'SEC', module: 'CRYPTO', message: 'AES-256-GCM cipher suite negotiated.' },
     { id: 'act_3', timestamp: new Date().toISOString(), level: 'HTTP', module: 'NETWORK', message: 'Secure tunnel established with proxy gateway.' },
   ]);
@@ -336,7 +309,9 @@ export default function App() {
     (path: string) => setPathsByTab((prev) => ({ ...prev, [activeTabId]: path })),
     [activeTabId]
   );
-  const [fileSystem, setFileSystem] = useState<Record<string, VirtualFile[]>>(INITIAL_FILESYSTEM);
+  const [fileSystem, setFileSystem] = useState<Record<string, VirtualFile[]>>(buildInitialFileSystem);
+  // The demo files follow the live language; user-edited ones keep their text.
+  useLocalizedSampleFiles(setFileSystem, t);
 
   // Remember the last native directory so a reload can restore it. The handle
   // lives in IndexedDB; a browser that still grants read/write access is mounted
@@ -644,13 +619,15 @@ export default function App() {
         exportLogs: helpers.handleExportLogs,
         runAutomatedScript: helpers.runAutomatedScript,
         onNativeMountSaved: () => setPendingLocalMount(null),
+        tc,
+        locale,
       });
 
       if (resultLog && (resultLog.output || resultLog.interactiveFiles)) {
         setLogs((prev) => [...prev, resultLog]);
       }
     },
-    [tabs, activeTabId, currentThemeId, crtEnabled, isMuted, bookmarks, scripts, extensions, keybindings, security, metrics, activityLogs, currentPath, fileSystem, setCurrentPath, setLogs]
+          [tabs, activeTabId, currentThemeId, crtEnabled, isMuted, bookmarks, scripts, extensions, keybindings, security, metrics, activityLogs, currentPath, fileSystem, setCurrentPath, setLogs, setScripts, tc, locale]
   );
 
   // Execute automated script sequentially
@@ -667,7 +644,7 @@ export default function App() {
         id: `scr_${Date.now()}`,
         timestamp: new Date().toLocaleTimeString(),
         type: 'system',
-        output: `[MACRO START] Ejecutando: "${script.name}" (${script.steps.length} pasos)`,
+        output: tc('out.macroStart', { name: script.name, steps: script.steps.length }),
       },
     ]);
 
@@ -678,12 +655,12 @@ export default function App() {
     }
 
     const notif = notificationManager.dispatch({
-      title: 'Script Automatizado Finalizado',
-      body: `El script "${script.name}" finalizó sus ${script.steps.length} pasos exitosamente.`,
+      title: tc('out.scriptTitle'),
+      body: tc('out.macroNotifyBody', { name: script.name, steps: script.steps.length }),
       category: 'script',
       severity: 'info',
       actionCommand: `script list`,
-      actionText: 'Ver Scripts',
+      actionText: t('notify.viewScripts'),
     });
 
     setLogs((prev) => [
@@ -693,7 +670,7 @@ export default function App() {
         timestamp: new Date().toLocaleTimeString(),
         type: 'notification',
         notification: notif,
-        output: `[NOTIFICACIÓN] Script "${script.name}" finalizado con éxito (${script.steps.length} pasos).`,
+        output: tc('out.macroNotifyDone', { name: script.name, steps: script.steps.length }),
       },
     ]);
   };
@@ -801,6 +778,27 @@ export default function App() {
     }
   };
 
+  // Tab operations
+  const handleNewTab = useCallback(
+    (kind: 'web' | 'terminal' = 'web') => {
+      const newId = `tab_${Date.now()}`;
+      const newTab: BrowserTab = {
+        id: newId,
+        kind,
+        title: kind === 'terminal' ? 'Terminal' : t('tabs.new'),
+        url: 'about:blank',
+        displayUrl: 'about:blank',
+        isLoading: false,
+        content: '',
+        history: ['about:blank'],
+        historyIndex: 0,
+      };
+      setTabs((prev) => [...prev, newTab]);
+      setActiveTabId(newId);
+    },
+    [t]
+  );
+
   // Global Keyboard Shortcuts handler
   useEffect(() => {
     const handleGlobalKey = (e: KeyboardEvent) => {
@@ -892,7 +890,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleGlobalKey);
     return () => window.removeEventListener('keydown', handleGlobalKey);
-  }, [keybindings, tabs, activeTabId, activeTab?.kind, setLogs, handleExecuteCommand]);
+  }, [keybindings, tabs, activeTabId, activeTab?.kind, setLogs, handleExecuteCommand, handleNewTab]);
 
   // The surface follows the active tab's kind, so a terminal tab and a page tab never disagree
   const surface: 'web' | 'terminal' = activeTab?.kind === 'terminal' ? 'terminal' : 'web';
@@ -915,34 +913,16 @@ export default function App() {
     if (next === surface) return;
     if (next === 'web') window.terminusPty?.kill(activeTabId);
     setTabs((prev) =>
-      prev.map((t) => {
-        if (t.id !== activeTabId) return t;
-        const blank = !t.url || t.url === 'about:blank';
+      prev.map((tab) => {
+        if (tab.id !== activeTabId) return tab;
+        const blank = !tab.url || tab.url === 'about:blank';
         return {
-          ...t,
+          ...tab,
           kind: next,
-          title: next === 'terminal' ? 'Terminal' : titleForWebTab(t.url),
+          title: next === 'terminal' ? 'Terminal' : titleForWebTab(tab.url, t),
         };
       })
     );
-  };
-
-  // Tab operations
-  const handleNewTab = (kind: 'web' | 'terminal' = 'web') => {
-    const newId = `tab_${Date.now()}`;
-    const newTab: BrowserTab = {
-      id: newId,
-      kind,
-      title: kind === 'terminal' ? 'Terminal' : 'Nueva Pestaña',
-      url: 'about:blank',
-      displayUrl: 'about:blank',
-      isLoading: false,
-      content: '',
-      history: ['about:blank'],
-      historyIndex: 0,
-    };
-    setTabs((prev) => [...prev, newTab]);
-    setActiveTabId(newId);
   };
 
   const performNewSession = () => {
@@ -951,7 +931,7 @@ export default function App() {
     const freshTab: BrowserTab = {
       id: newId,
       kind: 'web',
-      title: 'Nueva Pestaña',
+      title: t('tabs.new'),
       url: 'about:blank',
       displayUrl: 'about:blank',
       isLoading: false,
@@ -1229,6 +1209,10 @@ export default function App() {
     ]);
   };
 
+  if (locked) {
+    return <LockScreen theme={theme} onUnlock={() => setLocked(false)} />;
+  }
+
   return (
     <div
       className={`w-screen h-screen flex flex-col overflow-hidden ${crtEnabled ? 'crt-effect' : ''} ${
@@ -1239,8 +1223,6 @@ export default function App() {
         color: theme.text,
       }}
     >
-      <WindowTitleBar theme={theme} />
-
       {/* Top Bar Header following Top Bar Contract */}
       <HeaderBar
         theme={theme}
@@ -1266,6 +1248,7 @@ export default function App() {
         onOpenFileExplorer={() => setIsFileManagerOpen(true)}
         crtEnabled={crtEnabled}
         onToggleCrt={() => setCrtEnabled(!crtEnabled)}
+        onLockNow={() => setLocked(true)}
         surface={surface}
         onSelectSurface={handleSelectSurface}
       />
@@ -1284,6 +1267,13 @@ export default function App() {
             globalHistory={browserHistoryUrls(browserHistory)}
             onClearHistory={() => setBrowserHistory(clearBrowserHistory())}
             onSetZoom={handleSetZoom}
+            onPageStatus={(status) =>
+              setTabs((prev) =>
+                prev.map((tab) =>
+                  tab.id === activeTabId ? { ...tab, statusCode: status, isLoading: false } : tab
+                )
+              )
+            }
             latencyMs={metrics.latencyMs}
           />
         ) : (

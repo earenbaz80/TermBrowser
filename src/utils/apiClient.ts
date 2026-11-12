@@ -1,3 +1,5 @@
+import { tStandalone } from '../i18n/standalone';
+
 /**
  * Same-origin API client with a per-process session token.
  *
@@ -22,12 +24,12 @@ async function fetchSessionToken(): Promise<string> {
   });
 
   if (!response.ok) {
-    throw new Error(`No se pudo iniciar la sesión local (HTTP ${response.status}).`);
+    throw new Error(tStandalone('error.sessionStart', { status: response.status }));
   }
 
   const data = await response.json().catch(() => null);
   if (!data || typeof data.token !== 'string' || !data.token) {
-    throw new Error('El servidor no devolvió un token de sesión válido.');
+    throw new Error(tStandalone('error.sessionToken'));
   }
   return data.token;
 }

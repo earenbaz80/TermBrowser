@@ -30,6 +30,34 @@ const SHELL_IDS = new Set(['auto', 'cmd', 'powershell', 'bash']);
 const ADBLOCK_CACHE_FILENAME = 'adblock-engine.bin';
 let adblockBlocker = null;
 let adblockInitialization = null;
+
+// The user owns this switch from the settings menu; the env var still wins so a
+// deliberately started instance can ignore the stored preference.
+const ADBLOCK_STATE_FILENAME = 'adblock-state.json';
+let adblockEnabled = process.env.TERMINUS_DISABLE_ADBLOCK !== '1';
+
+const adblockStatePath = () => path.join(app.getPath('userData'), ADBLOCK_STATE_FILENAME);
+
+function loadAdblockState() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(adblockStatePath(), 'utf8'));
+    if (typeof parsed?.enabled === 'boolean') {
+      adblockEnabled = parsed.enabled && process.env.TERMINUS_DISABLE_ADBLOCK !== '1';
+    }
+  } catch {
+    // No stored preference: keep the default.
+  }
+}
+
+async function persistAdblockState() {
+  try {
+    await fs.promises.writeFile(adblockStatePath(), JSON.stringify({ enabled: adblockEnabled }), 'utf8');
+  } catch (error) {
+    console.warn('[Terminus] No se pudo guardar la preferencia del bloqueo de publicidad.', error);
+  }
+}
+
+loadAdblockState();
 let networkGuardOrigin = null;
 const dnsVerdictCache = new Map();
 const DNS_VERDICT_TTL_MS = 60_000;
@@ -1290,6 +1318,28 @@ function registerWindowIpc() {
     if (!windowForEvent(event)) return '';
     return getAdblockCosmetics(rawUrl);
   });
+
+  ipcMain.handle('terminus:adblock:state', (event) => {
+    if (!windowForEvent(event)) return { enabled: false, available: false };
+    return { enabled: adblockEnabled, available: true };
+  });
+
+  ipcMain.handle('terminus:adblock:set-enabled', async (event, enabled) => {
+    if (!windowForEvent(event)) return { enabled: adblockEnabled, available: false };
+    adblockEnabled = Boolean(enabled);
+    await persistAdblockState();
+    try {
+      if (adblockEnabled) {
+        const blocker = await initializeAdblock();
+        if (blocker) blocker.enableBlockingInSession(session.defaultSession);
+      } else if (adblockBlocker) {
+        adblockBlocker.disableBlockingInSession(session.defaultSession);
+      }
+    } catch (error) {
+      console.warn('[Terminus] No se pudo aplicar el bloqueo de publicidad.', error);
+    }
+    return { enabled: adblockEnabled, available: true };
+  });
 }
 
 function isAppOriginUrl(value, appOrigin) {
@@ -1301,7 +1351,7 @@ function isAppOriginUrl(value, appOrigin) {
 }
 
 function getAdblockCosmetics(rawUrl) {
-  if (!adblockBlocker || typeof rawUrl !== 'string') return '';
+  if (!adblockEnabled || !adblockBlocker || typeof rawUrl !== 'string') return '';
   let target;
   try {
     target = new URL(rawUrl);
@@ -1411,6 +1461,10 @@ function configureNetworkGuard(appOrigin) {
           }
           // Delegate to the easyList engine installed by Ghostery. This also
           // preserves its startup fallback when the engine is still loading.
+          if (!adblockEnabled) {
+            callback({});
+            return;
+          }
           if (adblockBlocker) {
             try {
               adblockBlocker.onBeforeRequest(details, callback);
@@ -1439,7 +1493,7 @@ function isBlockedSubframeNavigation(rawUrl, appOrigin) {
 }
 
 async function initializeAdblock() {
-  if (process.env.TERMINUS_DISABLE_ADBLOCK === '1') return null;
+  if (!adblockEnabled) return null;
   if (adblockBlocker) return adblockBlocker;
   if (adblockInitialization) return adblockInitialization;
 
@@ -1533,8 +1587,7 @@ function createWindow(appUrl) {
     if (isPrivateTargetUrl(url)) {
       return { action: 'deny' };
     }
-    const adBlocked =
-      process.env.TERMINUS_DISABLE_ADBLOCK !== '1' && isBlockedAdUrl(url);
+    const adBlocked = adblockEnabled && isBlockedAdUrl(url);
     // Background tabs and explicit popup windows are usually ads or tracking
     // flows. A normal foreground link may still open in the system browser.
     const unnecessaryPopup =

@@ -2,7 +2,9 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
 import { formatAsciiBox } from '../utils/asciiBox';
+import { APP_VERSION } from '../utils/version';
 import { VirtualFile } from '../utils/interpreter';
+import { useI18n } from '../i18n';
 import {
   Folder,
   FileText,
@@ -45,6 +47,7 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
   onSaveFileContent,
   onExecuteInTerminal,
 }) => {
+  const { t } = useI18n();
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const [selectedNames, setSelectedNames] = useState<Set<string>>(new Set());
   const [previewFile, setPreviewFile] = useState<VirtualFile | null>(null);
@@ -203,7 +206,7 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
 
   const handleDelete = (name: string) => {
     soundEffects.playKeyClick();
-    if (confirm(`¿Eliminar "${name}" del sistema de archivos?`)) {
+    if (confirm(t('fileManager.confirmDelete', { name }))) {
       onDeleteFile(currentPath, name);
       if (previewFile?.name === name) {
         setPreviewFile(null);
@@ -265,12 +268,12 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
             <pre
               className="m-0 shrink-0 whitespace-pre font-mono text-[10px] leading-tight select-none"
               style={{ color: theme.accent }}
-              aria-label="Terminus File Commander v0.2.2"
+              aria-label={`Terminus File Commander v${APP_VERSION}`}
             >
-              {formatAsciiBox('TERMINUS FILE COMMANDER v0.2.2')}
+              {formatAsciiBox(`TERMINUS FILE COMMANDER v${APP_VERSION}`)}
             </pre>
             <span className="hidden lg:inline text-[11px] opacity-75">
-              Navegación Táctil, Mouse & Atajos de Teclado (F3..F8)
+              {t('fileManager.touchTitle')}
             </span>
           </div>
           <button
@@ -296,10 +299,10 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
               disabled={currentPath === '/' || currentPath === '/home'}
               className="p-1 border rounded-xs hover:opacity-80 disabled:opacity-30 cursor-pointer flex items-center gap-1 text-[11px] font-bold"
               style={{ borderColor: theme.border }}
-              title="Subir un nivel (Backspace / cd ..)"
+              title={t('fileManager.upTitle')}
             >
               <CornerLeftUp className="w-3.5 h-3.5" />
-              <span>ARRIBA</span>
+              <span>{t('fileManager.up')}</span>
             </button>
 
             <span className="opacity-40">|</span>
@@ -317,10 +320,10 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
               }}
               className="flex items-center gap-1 px-2 py-0.5 border rounded-xs hover:opacity-80 cursor-pointer text-[11px] font-bold"
               style={{ borderColor: theme.border, backgroundColor: theme.cardBg }}
-              title="Crear nuevo archivo"
+              title={t('fileManager.newFileTitle')}
             >
               <Plus className="w-3 h-3 text-cyan-400" />
-              <span>+ Fichero</span>
+              <span>{t('fileManager.newFile')}</span>
             </button>
 
             <button
@@ -330,10 +333,10 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
               }}
               className="flex items-center gap-1 px-2 py-0.5 border rounded-xs hover:opacity-80 cursor-pointer text-[11px] font-bold"
               style={{ borderColor: theme.border, backgroundColor: theme.cardBg }}
-              title="Crear carpeta (F7 / mkdir)"
+              title={t('fileManager.newDirTitle')}
             >
               <Plus className="w-3 h-3 text-amber-400" />
-              <span>+ Directorio (F7)</span>
+              <span>{t('fileManager.newDir')}</span>
             </button>
           </div>
         </div>
@@ -380,11 +383,11 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
             className="p-2.5 border-b flex items-center gap-2 text-xs"
             style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}
           >
-            <span className="font-bold text-[11px]">CREAR FICHERO:</span>
+            <span className="font-bold text-[11px]">{t('fileManager.createFile')}</span>
             <input
               type="text"
               autoFocus
-              placeholder="archivo.py o texto.txt"
+              placeholder={t('fileManager.fileNamePlaceholder')}
               value={newFileName}
               onChange={(e) => setNewFileName(e.target.value)}
               className="px-2 py-1 text-xs border rounded-xs flex-1 focus:outline-hidden"
@@ -421,15 +424,15 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
               className="grid grid-cols-12 px-2 py-1.5 border-b font-bold opacity-75 text-[11px]"
               style={{ borderColor: theme.border }}
             >
-              <span className="col-span-1">SEL</span>
-              <span className="col-span-6">NOMBRE</span>
-              <span className="col-span-2 text-right">TAMAÑO</span>
-              <span className="col-span-3 text-right">MODIFICADO</span>
+              <span className="col-span-1">{t('fileManager.colSel')}</span>
+              <span className="col-span-6">{t('fileManager.colName')}</span>
+              <span className="col-span-2 text-right">{t('fileManager.colSize')}</span>
+              <span className="col-span-3 text-right">{t('fileManager.colModified')}</span>
             </div>
 
             {filesInCurrentDir.length === 0 ? (
               <div className="py-12 text-center opacity-60">
-                (Directorio vacío. Utilice los botones superiores para crear archivos o carpetas).
+                {t('fileManager.emptyDir')}
               </div>
             ) : (
               filesInCurrentDir.map((file, idx) => {
@@ -534,20 +537,20 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
                         onClick={() => handleEdit(previewFile)}
                         className="px-2 py-0.5 border text-[11px] font-bold hover:opacity-80 cursor-pointer flex items-center gap-1"
                         style={{ borderColor: theme.border }}
-                        title="Editar fichero (F4)"
+                        title={t('fileManager.editTitle')}
                       >
                         <Edit className="w-3 h-3 text-amber-400" />
-                        <span>Editar</span>
+                        <span>{t('fileManager.edit')}</span>
                       </button>
                     ) : (
                       <button
                         onClick={handleSaveEdit}
                         className="px-2.5 py-0.5 border text-[11px] font-bold cursor-pointer flex items-center gap-1"
                         style={{ backgroundColor: theme.accent, color: theme.bg, borderColor: theme.accent }}
-                        title="Guardar cambios"
+                        title={t('fileManager.saveTitle')}
                       >
                         <Save className="w-3 h-3" />
-                        <span>Guardar</span>
+                        <span>{t('fileManager.save')}</span>
                       </button>
                     )}
 
@@ -555,7 +558,7 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
                       onClick={() => handleDelete(previewFile.name)}
                       className="p-1 border text-red-400 hover:text-red-300 hover:bg-red-900/30 cursor-pointer"
                       style={{ borderColor: theme.border }}
-                      title="Eliminar (F8)"
+                      title={t('fileManager.deleteTitle')}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -573,7 +576,7 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
                     />
                   ) : (
                     <pre className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap select-text">
-                      {previewFile.content || '(Archivo vacío)'}
+                      {previewFile.content || t('fileManager.emptyFile')}
                     </pre>
                   )}
                 </div>
@@ -581,7 +584,7 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
                 {/* File Action Triggers */}
                 <div className="pt-2 flex items-center justify-between gap-2 shrink-0">
                   <div className="text-[10px] opacity-65">
-                    {(previewFile.content || '').length} caracteres · UTF-8
+                    {t('fileManager.charCount', { count: (previewFile.content || '').length })}
                   </div>
 
                   <div className="flex items-center gap-1.5">
@@ -592,7 +595,7 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
                         style={{ backgroundColor: theme.accent, color: theme.bg, borderColor: theme.accent }}
                       >
                         <Play className="w-3 h-3 fill-current" />
-                        <span>Ejecutar Script</span>
+                        <span>{t('fileManager.runScript')}</span>
                       </button>
                     )}
 
@@ -603,7 +606,7 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
                         style={{ borderColor: theme.border }}
                       >
                         <Globe className="w-3 h-3 text-cyan-400" />
-                        <span>Ver Marcadores</span>
+                        <span>{t('fileManager.viewBookmarks')}</span>
                       </button>
                     )}
                   </div>
@@ -612,10 +615,8 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-center opacity-65 space-y-2">
                 <FileText className="w-8 h-8 opacity-40" />
-                <div className="font-bold">Ningún archivo previsualizado</div>
-                <div className="text-[11px] max-w-xs">
-                  Haga clic o use [F3] para inspeccionar, [F4] para editar o doble clic para abrir.
-                </div>
+                <div className="font-bold">{t('fileManager.noPreview')}</div>
+                <div className="text-[11px] max-w-xs">{t('fileManager.previewHint')}</div>
               </div>
             )}
           </div>
@@ -634,7 +635,7 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
             }}
             className="py-1.5 hover:bg-white/10 cursor-pointer"
           >
-            F1 Ayuda
+            {t('fileManager.fnHelp')}
           </button>
           <button
             onClick={() => {
@@ -643,7 +644,7 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
             }}
             className="py-1.5 hover:bg-white/10 cursor-pointer"
           >
-            F2 Nuevo
+            {t('fileManager.fnNew')}
           </button>
           <button
             onClick={() => {
@@ -652,7 +653,7 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
             }}
             className="py-1.5 hover:bg-white/10 cursor-pointer"
           >
-            F3 Ver
+            {t('fileManager.fnView')}
           </button>
           <button
             onClick={() => {
@@ -661,7 +662,7 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
             }}
             className="py-1.5 hover:bg-white/10 cursor-pointer"
           >
-            F4 Editar
+            {t('fileManager.fnEdit')}
           </button>
           <button
             onClick={() => {
@@ -673,13 +674,13 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
             }}
             className="py-1.5 hover:bg-white/10 cursor-pointer"
           >
-            F5 Copiar
+            {t('fileManager.fnCopy')}
           </button>
           <button
             onClick={() => {
               const cur = filesInCurrentDir[selectedIndex];
               if (cur) {
-                const newName = prompt('Nuevo nombre:', cur.name);
+                const newName = prompt(t('fileManager.renamePrompt'), cur.name);
                 if (newName && newName !== cur.name) {
                   onCreateFile(currentPath, newName, cur.content || '');
                   onDeleteFile(currentPath, cur.name);
@@ -688,7 +689,7 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
             }}
             className="py-1.5 hover:bg-white/10 cursor-pointer"
           >
-            F6 Renombrar
+            {t('fileManager.fnRename')}
           </button>
           <button
             onClick={() => {
@@ -697,7 +698,7 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
             }}
             className="py-1.5 hover:bg-white/10 cursor-pointer"
           >
-            F7 Mkdir
+            {t('fileManager.fnMkdir')}
           </button>
           <button
             onClick={() => {
@@ -706,7 +707,7 @@ export const FileManagerHUD: React.FC<FileManagerHUDProps> = ({
             }}
             className="py-1.5 hover:bg-white/10 text-red-400 cursor-pointer"
           >
-            F8 Borrar
+            {t('fileManager.fnDelete')}
           </button>
         </div>
       </div>

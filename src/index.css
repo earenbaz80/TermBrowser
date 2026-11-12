@@ -50,15 +50,8 @@
   }
 }
 
-/* Custom frameless window chrome. The titlebar drags the native window;
-   the buttons are explicitly excluded from the draggable region. */
-.tb-window-bar {
-  -webkit-app-region: drag;
-  app-region: drag;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
+/* Custom frameless window chrome. The brand area of the header drags the native
+   window; the window buttons are explicitly excluded from the draggable region. */
 .tb-window-drag {
   -webkit-app-region: drag;
   app-region: drag;
@@ -107,7 +100,7 @@
 /* CRT glass over the whole app (toggleable) */
 .crt-effect {
   position: relative;
-  border-radius: 0;
+  overflow: hidden;
 }
 
 /* Aperture grille: scanlines plus the faint RGB stripes of a colour tube */
@@ -119,15 +112,15 @@
   border-radius: inherit;
   pointer-events: none;
   background:
-    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.3) 0 1px, rgba(0, 0, 0, 0) 1px 3px),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.12) 0 1px, rgba(0, 0, 0, 0) 1px 4px),
     repeating-linear-gradient(
       90deg,
-      rgba(255, 60, 60, 0.04) 0 1px,
-      rgba(60, 255, 120, 0.015) 1px 2px,
-      rgba(60, 120, 255, 0.04) 2px 3px
+      rgba(255, 60, 60, 0.022) 0 1px,
+      rgba(60, 255, 120, 0.01) 1px 2px,
+      rgba(60, 120, 255, 0.022) 2px 3px
     );
-  background-size: 100% 3px, 3px 100%;
-  opacity: 0.8;
+  background-size: 100% 4px, 3px 100%;
+  opacity: 1;
 }
 
 /* CRT glass: phosphor bloom, rim shading and a soft reflection */
@@ -139,44 +132,38 @@
   border-radius: inherit;
   pointer-events: none;
   background:
+    radial-gradient(ellipse 82% 40% at 50% -8%, rgba(232, 255, 246, 0.2), transparent 66%),
+    radial-gradient(ellipse 36% 22% at 18% 3%, rgba(205, 255, 238, 0.08), transparent 72%),
+    radial-gradient(ellipse 34% 20% at 78% 2%, rgba(255, 255, 255, 0.1), transparent 72%),
     linear-gradient(
-      118deg,
-      rgba(225, 255, 242, 0.08) 0%,
-      rgba(225, 255, 242, 0.015) 18%,
-      transparent 36%,
-      transparent 70%,
-      rgba(0, 0, 0, 0.16) 100%
+      116deg,
+      rgba(225, 255, 242, 0.2) 0%,
+      rgba(225, 255, 242, 0.04) 14%,
+      transparent 32%,
+      transparent 68%,
+      rgba(0, 0, 0, 0.36) 100%
     ),
-    radial-gradient(ellipse 72% 42% at 26% -6%, rgba(205, 255, 232, 0.18), transparent 64%),
-    radial-gradient(ellipse 42% 26% at 78% 4%, rgba(255, 255, 255, 0.05), transparent 70%),
-    radial-gradient(ellipse 58% 40% at 50% 45%, rgba(255, 255, 255, 0.035), transparent 74%),
     radial-gradient(
-      ellipse 88% 84% at 50% 48%,
-      transparent 50%,
-      rgba(0, 0, 0, 0.14) 72%,
-      rgba(0, 0, 0, 0.55) 100%
+      ellipse 92% 84% at 50% 46%,
+      transparent 38%,
+      rgba(0, 0, 0, 0.2) 66%,
+      rgba(0, 0, 0, 0.64) 100%
     ),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.34), transparent 10%, transparent 90%, rgba(0, 0, 0, 0.34)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 9%, transparent 86%, rgba(0, 0, 0, 0.32)),
-    radial-gradient(70% 70% at 0% 0%, rgba(0, 0, 0, 0.4), transparent 72%),
-    radial-gradient(70% 70% at 100% 0%, rgba(0, 0, 0, 0.44), transparent 72%),
-    radial-gradient(70% 70% at 0% 100%, rgba(0, 0, 0, 0.46), transparent 72%),
-    radial-gradient(70% 70% at 100% 100%, rgba(0, 0, 0, 0.46), transparent 72%);
+    linear-gradient(90deg, rgba(0, 0, 0, 0.5), transparent 8%, transparent 92%, rgba(0, 0, 0, 0.5)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 9%, transparent 83%, rgba(0, 0, 0, 0.4) 100%);
   box-shadow:
-    inset 0 1px 0 rgba(225, 255, 240, 0.16),
-    inset 0 0 0 1px rgba(190, 255, 220, 0.24),
-    inset 0 0 0 10px rgba(2, 6, 5, 0.66),
-    inset 0 0 30px 14px rgba(0, 0, 0, 0.55),
-    inset 0 0 140px 42px rgba(0, 0, 0, 0.32),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.8);
-  animation: crt-flicker 9s ease-in-out infinite;
+    inset 0 0 34px 12px rgba(0, 0, 0, 0.38),
+    inset 0 0 110px 38px rgba(0, 0, 0, 0.26),
+    inset 7px 8px 24px -16px rgba(225, 255, 242, 0.34),
+    inset -8px -10px 30px -18px rgba(0, 0, 0, 0.82);
+  animation: crt-flicker 10s ease-in-out infinite;
 }
 
 @keyframes crt-flicker {
-  0%, 100% { opacity: 1; }
-  45% { opacity: 0.94; }
-  50% { opacity: 0.99; }
-  62% { opacity: 0.96; }
+  0%, 100% { opacity: 0.995; }
+  46% { opacity: 0.985; }
+  50% { opacity: 0.995; }
+  63% { opacity: 0.99; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -205,17 +192,166 @@
   margin: 0;
 }
 
-.ascii-glow {
-  text-shadow: 0 0 2px var(--ascii-glow-color, currentColor), 0 0 10px var(--ascii-glow-color, currentColor);
-  transition: text-shadow 350ms ease;
-}
-
 .ascii-sign {
+  position: relative;
   font-size: min(10px, calc((100vw - 2rem) / 70));
   line-height: 1.05;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow: hidden;
   white-space: pre;
+  animation:
+    ascii-glitch-shift 4.2s steps(1, end) infinite,
+    ascii-glitch-flicker 4.2s steps(1, end) infinite,
+    ascii-glitch-chroma 4.2s steps(1, end) infinite;
+  will-change: transform, opacity;
+}
+
+/* Corruption burst: the readable sign stays in place while two ghost copies,
+   sliced into horizontal scan bands, tear out of register in colour. */
+.ascii-sign::before,
+.ascii-sign::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  white-space: pre;
+  pointer-events: none;
+  opacity: 0;
+  text-shadow: none;
+  mix-blend-mode: screen;
+  background-repeat: no-repeat;
+}
+
+.ascii-sign::before {
+  color: #ff4d6d;
+  -webkit-mask-image: repeating-linear-gradient(180deg, #000 0 6px, transparent 6px 14px);
+  mask-image: repeating-linear-gradient(180deg, #000 0 6px, transparent 6px 14px);
+  animation: ascii-glitch-tear-a 4.2s steps(1, end) infinite;
+}
+
+.ascii-sign::after {
+  color: #3ee8ff;
+  -webkit-mask-image: repeating-linear-gradient(180deg, transparent 0 5px, #000 5px 12px);
+  mask-image: repeating-linear-gradient(180deg, transparent 0 5px, #000 5px 12px);
+  animation: ascii-glitch-tear-b 4.2s steps(1, end) infinite;
+}
+
+@keyframes ascii-glitch-shift {
+  0%, 7%, 9%, 27%, 36%, 48%, 50%, 73%, 80%, 100% { transform: translate(0, 0) skewX(0); }
+  8% { transform: translate(1px, 0) skewX(0); }
+  28% { transform: translate(-2px, 0) skewX(-0.6deg); }
+  29% { transform: translate(-8px, 0) skewX(-2deg); }
+  30% { transform: translate(11px, -2px) skewX(2.4deg); }
+  31% { transform: translate(-13px, 1px) skewX(-3deg); }
+  32% { transform: translate(7px, 2px) skewX(1.4deg); }
+  33% { transform: translate(-4px, -1px) skewX(-1deg); }
+  34%, 35% { transform: translate(2px, 0) skewX(0); }
+  49% { transform: translate(-2px, 0) skewX(-0.5deg); }
+  74% { transform: translate(2px, 0) skewX(0.6deg); }
+  75% { transform: translate(12px, -1px) skewX(3deg); }
+  76% { transform: translate(-12px, 2px) skewX(-3deg); }
+  77% { transform: translate(6px, -2px) skewX(1.2deg); }
+  78% { transform: translate(-3px, 1px) skewX(-0.8deg); }
+  79% { transform: translate(1px, 0) skewX(0.3deg); }
+}
+
+@keyframes ascii-glitch-flicker {
+  0%, 27%, 36%, 73%, 80%, 100% { opacity: 1; }
+  28% { opacity: .5; }
+  29% { opacity: .95; }
+  30% { opacity: .32; }
+  31% { opacity: .9; }
+  32% { opacity: .55; }
+  33% { opacity: 1; }
+  74% { opacity: .45; }
+  75% { opacity: 1; }
+  76% { opacity: .28; }
+  77% { opacity: .88; }
+  78% { opacity: .6; }
+  79% { opacity: 1; }
+}
+
+@keyframes ascii-glitch-chroma {
+  0%, 27%, 36%, 73%, 80%, 100% { text-shadow: none; }
+  28% { text-shadow: -3px 0 rgba(255, 77, 109, 0.9), 3px 0 rgba(62, 232, 255, 0.9); }
+  29% { text-shadow: 7px 0 rgba(255, 77, 109, 0.85), -7px 0 rgba(62, 232, 255, 0.85); }
+  30% { text-shadow: -9px 1px rgba(255, 77, 109, 0.9), 9px -1px rgba(62, 232, 255, 0.9); }
+  31% { text-shadow: 8px -1px rgba(255, 77, 109, 0.8), -8px 1px rgba(62, 232, 255, 0.8); }
+  32% { text-shadow: -5px 0 rgba(255, 77, 109, 0.7), 5px 0 rgba(62, 232, 255, 0.7); }
+  33% { text-shadow: 4px 0 rgba(255, 77, 109, 0.55), -4px 0 rgba(62, 232, 255, 0.55); }
+  74% { text-shadow: 4px 0 rgba(255, 77, 109, 0.85), -4px 0 rgba(62, 232, 255, 0.85); }
+  75% { text-shadow: -8px 1px rgba(255, 77, 109, 0.9), 8px -1px rgba(62, 232, 255, 0.9); }
+  76% { text-shadow: 10px -1px rgba(255, 77, 109, 0.9), -10px 1px rgba(62, 232, 255, 0.9); }
+  77% { text-shadow: -6px 0 rgba(255, 77, 109, 0.75), 6px 0 rgba(62, 232, 255, 0.75); }
+  78% { text-shadow: 3px 0 rgba(255, 77, 109, 0.6), -3px 0 rgba(62, 232, 255, 0.6); }
+  79% { text-shadow: none; }
+}
+
+/* Ghost copies: whole scan bands of the sign jump sideways, so horizontal strips
+   of the artwork appear displaced while the base text stays put. */
+@keyframes ascii-glitch-tear-a {
+  0%, 27%, 36%, 73%, 80%, 100% { opacity: 0; transform: translate(0, 0); }
+  28% { opacity: .85; transform: translate(-6px, 1px); }
+  29% { opacity: .7; transform: translate(9px, -2px); }
+  30% { opacity: .9; transform: translate(-14px, 2px); }
+  31% { opacity: .6; transform: translate(12px, -1px); }
+  32% { opacity: .8; transform: translate(-7px, 1px); }
+  33% { opacity: .45; transform: translate(5px, 0); }
+  34%, 35% { opacity: 0; transform: translate(0, 0); }
+  74% { opacity: .8; transform: translate(8px, -1px); }
+  75% { opacity: .65; transform: translate(-12px, 2px); }
+  76% { opacity: .9; transform: translate(14px, 0); }
+  77% { opacity: .55; transform: translate(-9px, -2px); }
+  78% { opacity: .7; transform: translate(4px, 1px); }
+  79% { opacity: 0; transform: translate(0, 0); }
+}
+
+@keyframes ascii-glitch-tear-b {
+  0%, 27%, 36%, 73%, 80%, 100% { opacity: 0; transform: translate(0, 0); }
+  28% { opacity: .5; transform: translate(5px, -1px); }
+  29% { opacity: .75; transform: translate(-8px, 2px); }
+  30% { opacity: .55; transform: translate(12px, -2px); }
+  31% { opacity: .8; transform: translate(-13px, 1px); }
+  32% { opacity: .6; transform: translate(6px, -1px); }
+  33% { opacity: .4; transform: translate(-4px, 0); }
+  34%, 35% { opacity: 0; transform: translate(0, 0); }
+  74% { opacity: .7; transform: translate(-7px, 1px); }
+  75% { opacity: .8; transform: translate(11px, -2px); }
+  76% { opacity: .6; transform: translate(-14px, 1px); }
+  77% { opacity: .85; transform: translate(8px, 2px); }
+  78% { opacity: .5; transform: translate(-5px, 0); }
+  79% { opacity: 0; transform: translate(0, 0); }
+}
+
+/* Reduced motion keeps the corruption readable without moving the sign: the
+   torn bands stay at a fixed offset and only their brightness pulses. */
+@media (prefers-reduced-motion: reduce) {
+  .ascii-sign {
+    animation: ascii-glitch-chroma-soft 4.2s steps(1, end) infinite;
+  }
+
+  .ascii-sign::before {
+    transform: translate(-6px, 1px);
+    animation: ascii-glitch-blink 4.2s steps(1, end) infinite;
+  }
+
+  .ascii-sign::after {
+    transform: translate(7px, -1px);
+    animation: ascii-glitch-blink 4.2s steps(1, end) infinite;
+  }
+}
+
+@keyframes ascii-glitch-chroma-soft {
+  0%, 27%, 36%, 73%, 80%, 100% { text-shadow: none; }
+  28%, 33% { text-shadow: -2px 0 rgba(255, 77, 109, 0.6), 2px 0 rgba(62, 232, 255, 0.6); }
+  74%, 79% { text-shadow: 2px 0 rgba(255, 77, 109, 0.6), -2px 0 rgba(62, 232, 255, 0.6); }
+}
+
+@keyframes ascii-glitch-blink {
+  0%, 27%, 36%, 73%, 80%, 100% { opacity: 0; }
+  28%, 30%, 32% { opacity: 0.55; }
+  74%, 76%, 78% { opacity: 0.45; }
 }
 
 .ascii-sign-wide {
@@ -264,8 +400,7 @@
   flex: 0 0 auto;
   border-radius: 999px;
   background: var(--ascii-glow-color, currentColor);
-  box-shadow: 0 0 6px var(--ascii-glow-color, currentColor);
-  transition: background-color 350ms ease, box-shadow 350ms ease;
+  transition: background-color 350ms ease;
 }
 
 /* The web address bar keeps a DOS-style caret blinking even when the field is idle. */
@@ -302,9 +437,11 @@
   height: 78vh;
   min-height: 420px;
   margin: 0.35em 0;
-  border: 1px solid;
+  border: 0;
+  border-radius: 0;
   background: #000;
   overflow: hidden;
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.42);
 }
 .tb-web-frame {
   display: block;
@@ -318,30 +455,45 @@
 .tb-crt-dim {
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   pointer-events: none;
-  background: var(--tb-crt-dim, rgba(0, 0, 0, 0.56));
+  background: var(--tb-crt-dim, rgba(0, 0, 0, 0.12));
 }
 .tb-crt-tint-layer {
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   pointer-events: none;
   /* Plain alpha tint: blending modes over a cross-origin iframe force very expensive compositing */
   background: var(--tb-crt-tint, #22c55e);
-  opacity: var(--tb-crt-tint-opacity, 0.34);
+  opacity: var(--tb-crt-tint-opacity, 0.14);
 }
 .tb-crt-overlay {
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   pointer-events: none;
   background:
-    radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 52%, var(--tb-crt-vignette, rgba(0, 0, 0, 0.6)) 100%),
+    linear-gradient(
+      118deg,
+      rgba(255, 255, 255, 0.07) 0%,
+      transparent 18%,
+      transparent 82%,
+      rgba(0, 0, 0, 0.12) 100%
+    ),
+    radial-gradient(ellipse 46% 30% at 26% -7%, rgba(255, 255, 255, 0.09), transparent 66%),
+    radial-gradient(ellipse 66% 52% at 50% 40%, rgba(255, 255, 255, 0.025), transparent 72%),
+    radial-gradient(ellipse 102% 90% at 50% 46%, transparent 58%, var(--tb-crt-vignette, rgba(0, 0, 0, 0.3)) 100%),
     repeating-linear-gradient(
       0deg,
-      rgba(0, 0, 0, 0.52) 0px,
-      rgba(0, 0, 0, 0.52) 1px,
+      rgba(0, 0, 0, 0.16) 0px,
+      rgba(0, 0, 0, 0.16) 1px,
       rgba(0, 0, 0, 0) 1px,
-      rgba(0, 0, 0, 0) 3px
+      rgba(0, 0, 0, 0) 4px
     );
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+    inset 0 0 26px 8px rgba(0, 0, 0, 0.18);
 }
 
 /* Retro structural page view: the original page structure painted with the terminal palette */
@@ -474,5 +626,102 @@ button:not(:disabled):not([aria-disabled='true']):active {
 @media (prefers-reduced-motion: reduce) {
   button:not(:disabled):not([aria-disabled='true']) {
     transition: none;
+  }
+}
+/* Dead-channel scene: animated static, a rolling scan band and a torn title. */
+.signal-static {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  opacity: 0.14;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.6) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.4) 0 1px, transparent 1px 4px);
+  animation: signal-static-shift 0.24s steps(2, end) infinite;
+}
+
+.signal-scan {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.14) 48%, transparent 54%);
+  background-size: 100% 240%;
+  animation: signal-scan-roll 3.6s linear infinite;
+}
+
+.signal-title {
+  position: relative;
+  font-size: clamp(20px, 5vw, 44px);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  line-height: 1.1;
+  animation: signal-jitter 2.8s steps(1, end) infinite;
+}
+
+.signal-title::before,
+.signal-title::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  mix-blend-mode: screen;
+}
+
+.signal-title::before {
+  color: #ff4d6d;
+  animation: signal-tear-a 2.8s steps(1, end) infinite;
+}
+
+.signal-title::after {
+  color: #3ee8ff;
+  animation: signal-tear-b 2.8s steps(1, end) infinite;
+}
+
+@keyframes signal-static-shift {
+  0% { background-position: 0 0, 0 0; }
+  100% { background-position: 4px 9px, 7px 4px; }
+}
+
+@keyframes signal-scan-roll {
+  0% { background-position: 0 -120%; }
+  100% { background-position: 0 120%; }
+}
+
+@keyframes signal-jitter {
+  0%, 46%, 52%, 100% { transform: translate(0, 0) skewX(0); }
+  47% { transform: translate(-3px, 1px) skewX(-0.8deg); }
+  48% { transform: translate(5px, -1px) skewX(1.2deg); }
+  49% { transform: translate(-6px, 0) skewX(-2deg); }
+  50% { transform: translate(2px, 1px) skewX(0.6deg); }
+}
+
+@keyframes signal-tear-a {
+  0%, 46%, 52%, 100% { opacity: 0; transform: translate(0, 0); }
+  47% { opacity: 0.85; transform: translate(-6px, 1px); }
+  48% { opacity: 0.6; transform: translate(8px, -1px); }
+  49% { opacity: 0.75; transform: translate(-9px, 2px); }
+  50% { opacity: 0; transform: translate(0, 0); }
+}
+
+@keyframes signal-tear-b {
+  0%, 46%, 52%, 100% { opacity: 0; transform: translate(0, 0); }
+  47% { opacity: 0.55; transform: translate(5px, -1px); }
+  48% { opacity: 0.8; transform: translate(-7px, 2px); }
+  49% { opacity: 0.5; transform: translate(9px, -1px); }
+  50% { opacity: 0; transform: translate(0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signal-static,
+  .signal-scan,
+  .signal-title {
+    animation: none;
+  }
+
+  .signal-title::before,
+  .signal-title::after {
+    display: none;
   }
 }

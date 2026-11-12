@@ -56,6 +56,8 @@ contextBridge.exposeInMainWorld('terminusDesktop', {
     };
   },
   getAdblockCosmetics: (url) => ipcRenderer.invoke('terminus:adblock:cosmetics', url),
+  getAdblockState: () => ipcRenderer.invoke('terminus:adblock:state'),
+  setAdblockEnabled: (enabled) => ipcRenderer.invoke('terminus:adblock:set-enabled', enabled),
 });
 
 contextBridge.exposeInMainWorld('terminusShell', {

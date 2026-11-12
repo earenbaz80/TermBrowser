@@ -245,7 +245,8 @@ jobs:
         with:
           name: e2e-installed-logs
           path: artifacts/e2e/e2e-installed.log
-          if-no-files-found: warn
+          # El E2E instalado es opcional: sin log no hay nada que subir y no debe avisar.
+          if-no-files-found: ignore
 
       - name: Resumen de artefactos
         if: always()

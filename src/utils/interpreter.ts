@@ -2,6 +2,9 @@
  * Real-Time Python & Shell Script Interpreter for Terminus
  * Evaluates Python statements, Bash pipelines, and PowerShell/CMD commands.
  */
+import { tStandalone, translateAt } from '../i18n/standalone';
+import { LOCALES } from '../i18n/locales';
+import type { MessageKey } from '../i18n/messages';
 
 export interface ExecutionResult {
   stdout: string;
@@ -29,13 +32,13 @@ function pythonError(message: string): ExecutionResult {
  */
 export function runPythonCode(code: string): Promise<ExecutionResult> {
   if (typeof document === 'undefined' || typeof window === 'undefined') {
-    return Promise.resolve(pythonError('El intérprete Python necesita un navegador.'));
+    return Promise.resolve(pythonError(tStandalone('interpreter.noBrowser')));
   }
   if (code.length > MAX_PYTHON_CODE_LENGTH) {
-    return Promise.resolve(pythonError('El código Python supera el límite permitido.'));
+    return Promise.resolve(pythonError(tStandalone('interpreter.codeTooLong')));
   }
   if (!document.body) {
-    return Promise.resolve(pythonError('El documento aún no está listo para ejecutar Python.'));
+    return Promise.resolve(pythonError(tStandalone('interpreter.notReady')));
   }
 
   const requestId = `python-${Date.now()}-${(pythonRunSequence += 1)}`;
@@ -46,12 +49,12 @@ export function runPythonCode(code: string): Promise<ExecutionResult> {
     iframe.setAttribute('sandbox', 'allow-scripts');
     iframe.setAttribute('referrerpolicy', 'no-referrer');
     iframe.setAttribute('aria-hidden', 'true');
-    iframe.setAttribute('title', 'Intérprete Python aislado');
+    iframe.setAttribute('title', tStandalone('interpreter.frameTitle'));
     iframe.style.display = 'none';
     iframe.src = PYTHON_RUNNER_URL;
 
     const timer = window.setTimeout(() => {
-      finish(pythonError('Tiempo de ejecución agotado (10 s).'));
+      finish(pythonError(tStandalone('interpreter.timeout')));
     }, PYTHON_TIMEOUT_MS);
 
     const cleanup = () => {
@@ -86,17 +89,17 @@ export function runPythonCode(code: string): Promise<ExecutionResult> {
         typeof result.stderr !== 'string' ||
         typeof result.exitCode !== 'number'
       ) {
-        finish(pythonError('El intérprete devolvió un resultado inválido.'));
+        finish(pythonError(tStandalone('interpreter.invalidResult')));
         return;
       }
       finish({ stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode });
     };
 
-    iframe.onerror = () => finish(pythonError('No se pudo cargar el intérprete aislado.'));
+    iframe.onerror = () => finish(pythonError(tStandalone('interpreter.loadError')));
     iframe.onload = () => {
       const target = iframe.contentWindow;
       if (!target) {
-        finish(pythonError('No se pudo abrir el intérprete aislado.'));
+        finish(pythonError(tStandalone('interpreter.openError')));
         return;
       }
       target.postMessage({ type: 'terminus-python-run', id: requestId, code }, '*');
@@ -119,17 +122,60 @@ export interface VirtualFile {
   handle?: any;
 }
 
-export const INITIAL_FILESYSTEM: Record<string, VirtualFile[]> = {
+/** Sample files are written in the active language, so running them reads naturally. */
+export const SAMPLE_FILES: { path: string; name: string; key: MessageKey }[] = [
+  { path: '/home/user', name: 'benchmark.py', key: 'fsSample.benchmark' },
+  { path: '/home/user', name: 'readme.txt', key: 'fsSample.readme' },
+  { path: '/home/user/scripts', name: 'audit.sh', key: 'fsSample.audit' },
+  { path: '/home/user/scripts', name: 'scrape_news.py', key: 'fsSample.scrape' },
+];
+
+/**
+ * Re-traduce los archivos de muestra con el idioma activo. Solo sustituye el
+ * contenido que sigue siendo una de las versiones de fábrica, así que un archivo
+ * editado por el usuario conserva su texto.
+ */
+export const localizeSampleFiles = (
+  fileSystem: Record<string, VirtualFile[]>,
+  t: (key: MessageKey) => string
+): Record<string, VirtualFile[]> => {
+  let next = fileSystem;
+
+  for (const sample of SAMPLE_FILES) {
+    const files = next[sample.path];
+    const index = files?.findIndex((file) => file.name === sample.name) ?? -1;
+    if (!files || index < 0) continue;
+
+    const current = files[index];
+    if (typeof current.content !== 'string') continue;
+
+    const shipped = new Set(LOCALES.map((locale) => translateAt(locale.id, sample.key)));
+    if (!shipped.has(current.content)) continue;
+
+    const localized = t(sample.key);
+    if (localized === current.content) continue;
+
+    next = {
+      ...next,
+      [sample.path]: files.map((file, i) =>
+        i === index ? { ...file, content: localized, size: localized.length } : file
+      ),
+    };
+  }
+
+  return next;
+};
+export const buildInitialFileSystem = (): Record<string, VirtualFile[]> => ({
   '/home/user': [
     { name: 'scripts', type: 'dir', updatedAt: '2026-11-07 00:00' },
     { name: 'bookmarks.json', type: 'file', size: 1024, updatedAt: '2026-11-07 00:15', content: '[\n  {"title":"Hacker News","url":"https://news.ycombinator.com"},\n  {"title":"Wikipedia","url":"https://en.wikipedia.org"}\n]' },
     { name: 'config.sys', type: 'file', size: 512, updatedAt: '2026-11-07 00:01', content: 'DEVICE=C:\\DOS\\ANSI.SYS\nBUFFERS=30\nFILES=60\nDOS=HIGH,UMB' },
     { name: 'autoexec.bat', type: 'file', size: 384, updatedAt: '2026-11-07 00:01', content: '@ECHO OFF\nPROMPT $P$G\nPATH C:\\DOS;C:\\TERMINAL\nECHO Terminus Ready.' },
-    { name: 'benchmark.py', type: 'file', size: 420, updatedAt: '2026-11-07 00:10', content: '# Python Benchmark\ntotal = sum([x * 2 for x in range(100)])\nprint("Resultado de computo paralelo:", total)\nprint("Estado de nodos: OK")' },
-    { name: 'readme.txt', type: 'file', size: 780, updatedAt: '2026-11-07 00:00', content: '=== TERMINUS ===\nNavegador web controlado por linea de comandos con cifrado AES-256.\nEscriba "help" o "help goto" para comenzar.\nAtajos rapidos: Ctrl+T (nueva pestaña), Ctrl+W (cerrar), Ctrl+B (toggle navegador).' },
+    { name: 'benchmark.py', type: 'file', size: 420, updatedAt: '2026-11-07 00:10', content: tStandalone('fsSample.benchmark') },
+    { name: 'readme.txt', type: 'file', size: 780, updatedAt: '2026-11-07 00:00', content: tStandalone('fsSample.readme') },
   ],
   '/home/user/scripts': [
-    { name: 'audit.sh', type: 'file', size: 310, updatedAt: '2026-11-07 00:05', content: '#!/bin/bash\necho "Auditoria de seguridad iniciada..."\nwhoami\ndate\necho "Cifrado AES-256 verificado."' },
-    { name: 'scrape_news.py', type: 'file', size: 450, updatedAt: '2026-11-07 00:12', content: 'import json\nprint("Obteniendo titulares de actualidad...")\nprint("1. Quantum Computing Milestone reached")\nprint("2. WebAssembly 3.0 Standardized")' },
+    { name: 'audit.sh', type: 'file', size: 310, updatedAt: '2026-11-07 00:05', content: tStandalone('fsSample.audit') },
+    { name: 'scrape_news.py', type: 'file', size: 450, updatedAt: '2026-11-07 00:12', content: tStandalone('fsSample.scrape') },
   ],
-};
+});

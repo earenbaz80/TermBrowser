@@ -5,6 +5,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const PROJECT_ROOT = process.cwd();
 const CHILD_TIMEOUT_MS = 20000;
+const PNG_BYTES = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64'
+);
 
 type HttpResponse = {
   status: number;
@@ -98,6 +102,11 @@ describe('/api/view CSP integration', () => {
 
   beforeAll(async () => {
     finalServer = http.createServer((req, res) => {
+      if (req.url === '/foto.jpg') {
+        res.writeHead(200, { 'Content-Type': 'image/png' });
+        res.end(PNG_BYTES);
+        return;
+      }
       if (req.url !== '/final') {
         res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
         res.end('not found');
@@ -190,5 +199,27 @@ describe('/api/view CSP integration', () => {
     expect(imageSrc).toContain(encodeURIComponent(`${finalOrigin}/foto.jpg`));
     expect(imageSrc).not.toContain(`src="${finalOrigin}/foto.jpg"`);
     expect(csp).toContain(`img-src 'self' data: blob: ${terminusOrigin}`);
+  });
+
+  it('lets the sandboxed page fetch its image with the view token and no session cookie', async () => {
+    const target = encodeURIComponent(`${redirectOrigin}/redirect`);
+    const view = await request(`${terminusOrigin}/api/view?url=${target}&mode=dark`, {
+      Cookie: sessionCookie,
+    });
+
+    const imageSrc = /<img\b[^>]*id="relative-image"[^>]*src="([^"]+)"/i.exec(view.body)?.[1];
+    if (!imageSrc) throw new Error('No se encontró la imagen relativa en la vista OSCURA');
+    const imageUrl = imageSrc.replace(/&amp;/g, '&');
+    expect(imageUrl).toContain('view=');
+    expect(imageUrl).toContain('token=');
+
+    const image = await request(imageUrl, { 'Sec-Fetch-Site': 'cross-site' });
+    expect(image.status).toBe(200);
+    expect(image.headers['content-type']).toContain('image/png');
+
+    const denied = await request(imageUrl.replace(/&token=[^&]+/, '&token=invalid'), {
+      'Sec-Fetch-Site': 'cross-site',
+    });
+    expect(denied.status).toBe(401);
   });
 });

@@ -1,10 +1,12 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { BrowserTab, TabKind, ThemeConfig, ThemeId } from '../types';
-import { THEMES } from '../utils/themes';
-import { soundEffects, SoundTheme } from '../utils/soundEffects';
+import { SettingsMenu } from './SettingsMenu';
+import { soundEffects } from '../utils/soundEffects';
+import { WindowControls } from './WindowControls';
+import { APP_VERSION } from '../utils/version';
+import { useI18n } from '../i18n';
 import {
   Activity,
-  Blocks,
   Folder,
   Globe,
   HelpCircle,
@@ -12,11 +14,8 @@ import {
   Loader2,
   MoreHorizontal,
   Plus,
-  Shield,
   Terminal,
   Trash2,
-  Volume2,
-  VolumeX,
   X,
   Zap,
 } from 'lucide-react';
@@ -42,6 +41,7 @@ interface HeaderBarProps {
   onOpenFileExplorer?: () => void;
   crtEnabled: boolean;
   onToggleCrt: () => void;
+  onLockNow: () => void;
   surface: 'web' | 'terminal';
   onSelectSurface: (surface: 'web' | 'terminal') => void;
 }
@@ -67,26 +67,22 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   onOpenFileExplorer,
   crtEnabled,
   onToggleCrt,
+  onLockNow,
   surface,
   onSelectSurface,
 }) => {
-  const [soundTheme, setSoundTheme] = useState<SoundTheme>(() => soundEffects.getSoundTheme());
+  const { t } = useI18n();
   const [newTabMenuOpen, setNewTabMenuOpen] = useState(false);
   const [systemMenuOpen, setSystemMenuOpen] = useState(false);
-  const [audioOpen, setAudioOpen] = useState(false);
   const activeKind: TabKind = tabs.find((t) => t.id === activeTabId)?.kind === 'terminal' ? 'terminal' : 'web';
-  const [customWavName, setCustomWavName] = useState<string | null>(() => soundEffects.getCustomSoundName());
-  const wavInputRef = useRef<HTMLInputElement>(null);
   const quickActions = [
-    { id: 'monitor', label: 'Monitor', icon: Activity, color: '#34d399', onSelect: onOpenMonitor },
-    { id: 'scripts', label: 'Scripts', icon: Zap, color: '#fbbf24', onSelect: onOpenScripts },
+    { id: 'monitor', label: t('header.monitor'), icon: Activity, color: '#34d399', onSelect: onOpenMonitor },
+    { id: 'scripts', label: t('header.scripts'), icon: Zap, color: '#fbbf24', onSelect: onOpenScripts },
     ...(onOpenFileExplorer
-      ? [{ id: 'files', label: 'Archivos', icon: Folder, color: '#fcd34d', onSelect: onOpenFileExplorer }]
+      ? [{ id: 'files', label: t('header.files'), icon: Folder, color: '#fcd34d', onSelect: onOpenFileExplorer }]
       : []),
-    { id: 'security', label: 'Seguridad', icon: Shield, color: '#22d3ee', onSelect: onOpenSecurity },
-    { id: 'extensions', label: 'Extensiones', icon: Blocks, color: '#a78bfa', onSelect: onOpenExtensions },
-    { id: 'shortcuts', label: 'Atajos', icon: Keyboard, color: '#94a3b8', onSelect: onOpenShortcuts },
-    { id: 'help', label: 'Ayuda', icon: HelpCircle, color: '#22d3ee', onSelect: onOpenHelp },
+    { id: 'shortcuts', label: t('header.shortcuts'), icon: Keyboard, color: '#94a3b8', onSelect: onOpenShortcuts },
+    { id: 'help', label: t('header.help'), icon: HelpCircle, color: '#22d3ee', onSelect: onOpenHelp },
   ];
 
   return (
@@ -99,7 +95,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
       }}
     >
       {/* Zone 1: Brand Wordmark (Single text element) */}
-      <div className="flex items-center gap-2 whitespace-nowrap shrink-0">
+      <div className="tb-window-drag flex items-center gap-2 whitespace-nowrap shrink-0">
         <span
           className="font-bold tracking-tight text-sm flex items-center gap-2"
           style={{ color: theme.accent }}
@@ -107,7 +103,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           <Terminal className="w-4 h-4" />
           <span>Terminus</span>
         </span>
-        <span className="text-[10px] opacity-60">v0.2.2 [AES-256]</span>
+        <span className="text-[10px] opacity-60">{`v${APP_VERSION} [AES-256]`}</span>
       </div>
 
       {/* Zone 2: Browser Tabs and Quick Navigation Links (Single-line) */}
@@ -115,7 +111,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         className="order-last flex w-full min-w-[120px] items-center gap-1.5 overflow-x-auto border-t pt-1.5 pb-0.5"
         style={{ borderColor: theme.border }}
         role="tablist"
-        aria-label="Pestañas abiertas"
+        aria-label={t('header.tabs')}
       >
         {tabs.map((tab, idx) => {
           const isActive = tab.id === activeTabId;
@@ -141,9 +137,11 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                 onCloseTab(tab.id, event);
               }}
               className="group flex items-center gap-1.5 px-2.5 py-1 border rounded-xs cursor-pointer transition-colors whitespace-nowrap shrink-0 text-xs outline-hidden focus-visible:ring-1 focus-visible:ring-current"
-              title={`Pestaña ${idx + 1} (${tab.kind === 'terminal' ? 'terminal' : 'web'}): ${tab.title || 'Nueva Pestaña'}${
-                tab.kind === 'terminal' ? '' : ` — ${tab.url}`
-              } (Ctrl+${idx + 1})`}
+              title={t('header.tabTitle', {
+                n: idx + 1,
+                kind: tab.kind === 'terminal' ? 'terminal' : 'web',
+                title: `${tab.title || t('header.newTab')}${tab.kind === 'terminal' ? '' : ` — ${tab.url}`}`,
+              })}
               style={{
                 borderColor: isActive ? theme.accent : theme.border,
                 backgroundColor: isActive ? 'rgba(255,255,255,0.08)' : theme.bg,
@@ -167,15 +165,15 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                 <Globe className="w-3 h-3 shrink-0 opacity-70" />
               )}
               <span className="font-semibold max-w-[120px] truncate">
-                {idx + 1}. {tab.title || 'Nueva Pestaña'}
+                {idx + 1}. {tab.title || t('header.newTab')}
               </span>
               {tabs.length > 1 && (
                 <button
                   type="button"
                   onClick={(event) => onCloseTab(tab.id, event)}
                   className={`${isActive ? 'opacity-70' : 'opacity-0 group-hover:opacity-100'} hover:text-red-400 p-0.5 transition-opacity cursor-pointer`}
-                  title="Cerrar pestaña (Ctrl+W)"
-                  aria-label={`Cerrar pestaña ${tab.title || idx + 1}`}
+                  title={t('header.closeTab')}
+                  aria-label={`${t('header.closeTab')} ${tab.title || idx + 1}`}
                 >
                   <X className="w-2.5 h-2.5" />
                 </button>
@@ -191,7 +189,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           }}
           className="p-1 border rounded-xs hover:opacity-80 transition-opacity cursor-pointer shrink-0"
           style={{ borderColor: theme.border, backgroundColor: theme.bg, color: theme.text }}
-          title="Nueva sesión: cerrar todas las pestañas y empezar de cero"
+          title={t('header.newSession')}
         >
           <Trash2 className="w-3 h-3" />
         </button>
@@ -207,7 +205,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               onNewTab(activeKind);
             }}
             className="p-1 hover:opacity-80 transition-opacity cursor-pointer"
-            title={`Nueva pestaña ${activeKind === 'terminal' ? 'de terminal' : 'web'} (Ctrl+T)`}
+            title={activeKind === 'terminal' ? t('header.newTabTerminal') : t('header.newTabWeb')}
           >
             <Plus className="w-3 h-3" />
           </button>
@@ -218,7 +216,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             }}
             className="border-l px-0.5 py-1 cursor-pointer hover:opacity-80"
             style={{ borderColor: theme.border }}
-            title="Elegir el tipo de pestaña nueva"
+            title={t('header.newTabMenu')}
           >
             <span className="block text-[8px] leading-none">▾</span>
           </button>
@@ -227,7 +225,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             <>
               <button
                 type="button"
-                aria-label="Cerrar menú de pestaña nueva"
+                aria-label={t('header.closeNewTabMenu')}
                 onClick={() => setNewTabMenuOpen(false)}
                 className="fixed inset-0 z-40 cursor-default"
               />
@@ -247,8 +245,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                 >
                   <Globe className="mt-0.5 w-3 h-3 shrink-0" style={{ color: theme.accent }} />
                   <span>
-                    <span className="block font-bold">Pestaña web</span>
-                    <span className="block opacity-60">Barra de direcciones, página real y marcadores</span>
+                    <span className="block font-bold">{t('header.webTab')}</span>
+                    <span className="block opacity-60">{t('header.webTabHint')}</span>
                   </span>
                 </button>
                 <button
@@ -263,8 +261,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                 >
                   <Terminal className="mt-0.5 w-3 h-3 shrink-0" style={{ color: theme.accent }} />
                   <span>
-                    <span className="block font-bold">Pestaña de terminal</span>
-                    <span className="block opacity-60">Su propio flujo de comandos y su historial</span>
+                    <span className="block font-bold">{t('header.terminalTab')}</span>
+                    <span className="block opacity-60">{t('header.terminalTabHint')}</span>
                   </span>
                 </button>
               </div>
@@ -278,7 +276,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         className="hidden items-center gap-0.5 shrink-0 rounded-xs border p-0.5 lg:flex"
         style={{ borderColor: theme.border }}
         role="group"
-        aria-label="Herramientas de Terminus"
+        aria-label={t('header.tools')}
       >
         {quickActions.map((action) => {
           const Icon = action.icon;
@@ -306,17 +304,16 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           onClick={() => {
             soundEffects.playKeyClick();
             setNewTabMenuOpen(false);
-            setAudioOpen(false);
             setSystemMenuOpen((open) => !open);
           }}
           className="flex cursor-pointer items-center gap-1 rounded-xs border px-2 py-1 text-[10px] font-bold hover:opacity-80"
           style={{ borderColor: systemMenuOpen ? theme.accent : theme.border, color: theme.text }}
-          title="Herramientas de Terminus"
+          title={t('header.tools')}
           aria-haspopup="menu"
           aria-expanded={systemMenuOpen}
         >
           <MoreHorizontal className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">SISTEMA</span>
+          <span className="hidden sm:inline">{t('header.system')}</span>
         </button>
 
         {systemMenuOpen && (
@@ -331,7 +328,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               className="absolute right-0 top-full z-50 mt-1 w-56 overflow-hidden rounded-xs border font-mono text-[10px] shadow-[0_12px_32px_rgba(0,0,0,0.5)]"
               style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}
               role="menu"
-              aria-label="Herramientas de Terminus"
+              aria-label={t('header.tools')}
             >
               {quickActions.map((action) => {
                 const Icon = action.icon;
@@ -364,7 +361,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         <div
           className="flex items-center border rounded-xs overflow-hidden text-[10px] font-bold"
           style={{ borderColor: theme.border }}
-          title="MODO WEB: página real con barra de direcciones · MODO TERMINAL: comandos, archivos y monitor"
+          title={t('header.modeTitle')}
         >
           {(['web', 'terminal'] as const).map((mode) => (
             <button
@@ -379,200 +376,28 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                 backgroundColor: surface === mode ? theme.accent : 'transparent',
                 color: surface === mode ? theme.bg : theme.text,
               }}
-              title={
-                mode === 'web'
-                  ? 'Navegación web normal: barra de direcciones y página real'
-                  : 'Terminal: comandos, archivos, scripts y monitor'
-              }
+              title={mode === 'web' ? t('header.webModeTitle') : t('header.terminalModeTitle')}
             >
               {mode === 'web' ? 'WEB' : 'TERMINAL'}
             </button>
           ))}
         </div>
 
-        {/* Theme Picker Dropdown */}
-        <select
-          value={currentThemeId}
-          onChange={(e) => {
-            soundEffects.playKeyClick();
-            onSelectTheme(e.target.value as ThemeId);
-          }}
-          className="px-2 py-1 text-[11px] font-bold border rounded-xs cursor-pointer focus:outline-hidden"
-          style={{
-            backgroundColor: theme.bg,
-            borderColor: theme.border,
-            color: theme.accent,
-          }}
-          title="Seleccionar tema estético de terminal"
-        >
-          {Object.values(THEMES).map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </select>
-
-        {/* Quick Pure Black & White Visual Mode Toggle */}
-        <button
-          onClick={() => {
-            soundEffects.playKeyClick();
-            onSelectTheme(currentThemeId === 'black-and-white' ? 'cyberpunk-obsidian' : 'black-and-white');
-          }}
-          className={`px-2 py-1 border text-[11px] font-bold rounded-xs cursor-pointer transition-colors ${
-            currentThemeId === 'black-and-white'
-              ? 'bg-white text-black border-white'
-              : 'opacity-75 hover:opacity-100'
-          }`}
-          style={{
-            borderColor: currentThemeId === 'black-and-white' ? '#ffffff' : theme.border,
-          }}
-          title="Activar/Desactivar modo visual 100% Blanco y Negro (Comando: bw o theme bw)"
-        >
-          B&amp;W
-        </button>
-
-        {/* CRT Scanline Toggle */}
-        <button
-          onClick={() => {
-            soundEffects.playKeyClick();
-            onToggleCrt();
-          }}
-          className={`px-2 py-1 border text-[11px] font-bold rounded-xs cursor-pointer transition-colors ${
-            crtEnabled ? 'bg-white/15' : 'opacity-60 hover:opacity-100'
-          }`}
-          style={{ borderColor: theme.border }}
-          title="Alternar filtro CRT de fósforo"
-        >
-          CRT
-        </button>
-
-        <input
-          ref={wavInputRef}
-          type="file"
-          accept=".wav,audio/*"
-          className="hidden"
-          onChange={async (e) => {
-            const file = e.target.files?.[0];
-            if (file) {
-              const res = await soundEffects.loadCustomWavFile(file);
-              if (res.success) {
-                setCustomWavName(file.name);
-              } else {
-                alert(res.message);
-              }
-            }
-          }}
+      </div>
+      <div className="ml-auto flex shrink-0 items-stretch -my-2 -mr-3">
+        <SettingsMenu
+          theme={theme}
+          currentThemeId={currentThemeId}
+          onSelectTheme={onSelectTheme}
+          isMuted={isMuted}
+          onToggleMute={onToggleMute}
+          crtEnabled={crtEnabled}
+          onToggleCrt={onToggleCrt}
+          onLockNow={onLockNow}
+          onOpenSecurity={onOpenSecurity}
+          onOpenExtensions={onOpenExtensions}
         />
-
-        {/* Audio: synthesizer, notification WAV and mute in one compact panel */}
-        <div className="relative shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              soundEffects.playKeyClick();
-              setSystemMenuOpen(false);
-              setAudioOpen((open) => !open);
-            }}
-            className="relative flex cursor-pointer items-center gap-1 rounded-xs border px-2 py-1 text-[10px] font-bold hover:opacity-80"
-            style={{
-              borderColor: audioOpen ? theme.accent : theme.border,
-              backgroundColor: isMuted ? 'rgba(239, 68, 68, 0.15)' : theme.bg,
-              color: isMuted ? '#fca5a5' : theme.accent,
-            }}
-            title={isMuted ? 'Audio silenciado · abrir ajustes' : 'Ajustes de audio y notificaciones'}
-            aria-haspopup="dialog"
-            aria-expanded={audioOpen}
-          >
-            {isMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-            <span className="hidden sm:inline">AUDIO</span>
-            {customWavName && (
-              <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full" style={{ backgroundColor: theme.accent }} />
-            )}
-          </button>
-
-          {audioOpen && (
-            <>
-              <button
-                type="button"
-                aria-label="Cerrar ajustes de audio"
-                onClick={() => setAudioOpen(false)}
-                className="fixed inset-0 z-40 cursor-default"
-              />
-              <div
-                className="absolute bottom-full right-0 z-50 mb-1 w-64 rounded-xs border p-2 font-mono text-[10px] shadow-[0_12px_32px_rgba(0,0,0,0.5)]"
-                style={{ backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }}
-                role="dialog"
-                aria-label="Ajustes de audio"
-              >
-                <div className="mb-2 flex items-center justify-between border-b pb-1.5 text-[9px] uppercase tracking-[0.14em] opacity-60" style={{ borderColor: theme.border }}>
-                  <span>Audio / notificaciones</span>
-                  <span>{isMuted ? 'OFF' : 'ON'}</span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={onToggleMute}
-                  className="mb-2 flex w-full items-center justify-between border px-2 py-1.5 cursor-pointer hover:bg-white/5"
-                  style={{ borderColor: theme.border }}
-                >
-                  <span>{isMuted ? 'Activar sonido' : 'Silenciar sonido'}</span>
-                  {isMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-                </button>
-
-                <label className="mb-1 block text-[9px] uppercase tracking-wide opacity-50" htmlFor="terminus-sound-theme">
-                  Sintetizador
-                </label>
-                <select
-                  id="terminus-sound-theme"
-                  value={soundTheme}
-                  onChange={(e) => {
-                    const val = e.target.value as SoundTheme;
-                    soundEffects.setSoundTheme(val);
-                    setSoundTheme(val);
-                  }}
-                  className="mb-2 w-full border px-2 py-1 text-[11px] cursor-pointer focus:outline-hidden"
-                  style={{ backgroundColor: theme.bg, borderColor: theme.border, color: theme.accent }}
-                >
-                  <option value="ibm-pc">IBM PC Speaker</option>
-                  <option value="c64-synth">Commodore 64 Synth</option>
-                  <option value="modern-ui">Modern UI</option>
-                </select>
-
-                <div className="mb-1 text-[9px] uppercase tracking-wide opacity-50">Notificación WAV</div>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      soundEffects.playKeyClick();
-                      wavInputRef.current?.click();
-                    }}
-                    className="min-w-0 flex-1 cursor-pointer truncate border px-2 py-1 text-left hover:bg-white/5"
-                    style={{ borderColor: customWavName ? theme.accent : theme.border, color: theme.text }}
-                    title={customWavName ? `WAV activo: ${customWavName}` : 'Cargar un WAV corto'}
-                  >
-                    {customWavName ? `WAV: ${customWavName}` : 'Cargar WAV…'}
-                  </button>
-                  {customWavName && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        soundEffects.playKeyClick();
-                        soundEffects.clearCustomSound();
-                        setCustomWavName(null);
-                      }}
-                      className="shrink-0 cursor-pointer border px-1.5 py-1 text-red-400 hover:text-red-300"
-                      style={{ borderColor: theme.border }}
-                      title="Quitar WAV personalizado"
-                      aria-label="Quitar WAV personalizado"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+        <WindowControls theme={theme} />
       </div>
     </header>
   );

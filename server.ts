@@ -17,11 +17,12 @@ import {
   safeDownloadFilename,
   sanitizeProxiedHtml,
 } from './src/utils/serverSecurity';
-import { proxiedPage, rewriteProxiedImageSources, textOnlyPage } from './src/utils/proxiedPage';
+import { proxiedPage, rewriteProxiedImageSources, textOnlyPage, viewErrorPage } from './src/utils/proxiedPage';
 import { buildProxiedCsp } from './src/utils/proxiedCsp';
 import { decodeHtmlEntities } from './src/utils/htmlEntities';
 import { htmlToRetroMarkup } from './src/utils/retroHtml';
 import { pythonRunnerPage, PYTHON_RUNNER_CSP } from './src/utils/pythonRunnerPage';
+import { APP_VERSION } from './src/utils/version';
 
 /**
  * Converts any HTML document into readable plain text, without relying on <p>/<h*> markup.
@@ -229,6 +230,34 @@ async function startServer() {
   const API_TOKEN = crypto.randomBytes(32).toString('hex');
   const SESSION_ID = crypto.randomBytes(32).toString('hex');
 
+  // The proxied document is sandboxed without allow-same-origin. Its image
+  // requests are cross-site and do not carry our SameSite=Strict cookie, so
+  // each view gets a short-lived capability for /api/image only.
+  const IMAGE_TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
+  const IMAGE_TOKEN_SECRET = crypto.randomBytes(32);
+  const issueImageToken = (view: string): string => {
+    const expires = Date.now() + IMAGE_TOKEN_TTL_MS;
+    const signature = crypto
+      .createHmac('sha256', IMAGE_TOKEN_SECRET)
+      .update(`image:${view}:${expires}`)
+      .digest('base64url');
+    return `${expires}.${signature}`;
+  };
+  const isValidImageToken = (view: string | undefined, token: string | undefined): boolean => {
+    if (!view || !token) return false;
+    const separator = token.indexOf('.');
+    if (separator <= 0) return false;
+    const expires = Number(token.slice(0, separator));
+    if (!Number.isSafeInteger(expires) || expires < Date.now()) return false;
+    const expected = crypto
+      .createHmac('sha256', IMAGE_TOKEN_SECRET)
+      .update(`image:${view}:${expires}`)
+      .digest('base64url');
+    const actualBuffer = Buffer.from(token.slice(separator + 1));
+    const expectedBuffer = Buffer.from(expected);
+    return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+  };
+
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -268,10 +297,19 @@ async function startServer() {
   // Local APIs are same-origin only. The token is required for filesystem and
   // vault operations; resource routes can use the HttpOnly session cookie alone.
   app.use('/api', (req, res, next) => {
-    if (!hasApiSessionCookie(req.headers.cookie)) {
+    const imageAuth =
+      req.path === '/image' &&
+      isValidImageToken(
+        typeof req.query.view === 'string' ? req.query.view : undefined,
+        typeof req.query.token === 'string' ? req.query.token : undefined
+      );
+    if (!imageAuth && !hasApiSessionCookie(req.headers.cookie)) {
       return res.status(401).json({ error: 'Sesión local no inicializada. Recarga la aplicación.' });
     }
-    if (!isSameOriginRequest(req.get('origin'), req.get('host'), req.get('sec-fetch-site'))) {
+    if (
+      !imageAuth &&
+      !isSameOriginRequest(req.get('origin'), req.get('host'), req.get('sec-fetch-site'))
+    ) {
       return res.status(403).json({ error: 'Origen no autorizado.' });
     }
     if (/^\/(?:local-fs|vault)(?:\/|$)/.test(req.path) && req.get(API_TOKEN_HEADER) !== API_TOKEN) {
@@ -302,7 +340,7 @@ async function startServer() {
       const startTime = Date.now();
       const response = await fetchRemote(targetUrl, {
         headers: {
-          'User-Agent': 'Terminus/0.2.2 (CLI Web Navigator; local browser)',
+          'User-Agent': `Terminus/${APP_VERSION} (CLI Web Navigator; local browser)`,
           'Accept': 'text/html,application/xhtml+xml,application/xml,text/plain,application/json;q=0.9,*/*;q=0.8',
         },
         signal: AbortSignal.timeout(REMOTE_FETCH_TIMEOUT_MS),
@@ -445,7 +483,7 @@ async function startServer() {
     try {
       const upstream = await fetchRemote(target, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; Terminus/0.2.2)',
+          'User-Agent': `Mozilla/5.0 (compatible; Terminus/${APP_VERSION})`,
           'Accept': 'image/avif,image/webp,image/*,*/*;q=0.8',
           ...(referer ? { Referer: referer } : {}),
         },
@@ -491,7 +529,7 @@ async function startServer() {
     try {
       const upstream = await fetchRemote(target, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; Terminus/0.2.2)',
+          'User-Agent': `Mozilla/5.0 (compatible; Terminus/${APP_VERSION})`,
           Accept: 'text/html,application/xhtml+xml,application/octet-stream,*/*;q=0.8',
         },
         signal: AbortSignal.timeout(REMOTE_FETCH_TIMEOUT_MS),
@@ -530,22 +568,42 @@ async function startServer() {
   // returns the readable text of the page (no site markup at all).
   app.get('/api/view', async (req, res) => {
     const targetUrl = String(req.query.url || '');
+    const requestOrigin = (() => {
+      try {
+        return new URL(`${req.protocol}://${req.get('host')}`).origin;
+      } catch {
+        return undefined;
+      }
+    })();
+
+    // The framed document cannot read its own HTTP status. A failed view answers with a
+    // tiny nonce-bound page that reports the status to the parent, which then shows the
+    // error scene instead of raw proxy text inside the frame.
+    const sendViewError = (status: number) => {
+      const nonce = crypto.randomBytes(16).toString('base64');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+      res.setHeader('Content-Security-Policy', buildProxiedCsp(nonce, undefined, requestOrigin));
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(status).send(viewErrorPage(status, nonce));
+    };
+
     if (!/^https?:\/\//i.test(targetUrl)) {
-      return res.status(400).send('Invalid url parameter');
+      return sendViewError(400);
     }
 
     try {
       const parsed = new URL(targetUrl);
       if (!['http:', 'https:'].includes(parsed.protocol)) {
-        return res.status(400).send('Invalid protocol. Only http and https supported.');
+        return sendViewError(400);
       }
       if (isForbiddenMetadataHost(parsed)) {
-        return res.status(403).send('Cloud metadata endpoints are blocked.');
+        return sendViewError(403);
       }
 
       const response = await fetchRemote(targetUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Terminus/0.2.2',
+          'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) Terminus/${APP_VERSION}`,
           Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
         },
         signal: AbortSignal.timeout(REMOTE_FETCH_TIMEOUT_MS),
@@ -558,17 +616,10 @@ async function startServer() {
 
       const declaredSize = Number(response.headers.get('content-length') || 0);
       if (Number.isFinite(declaredSize) && declaredSize > MAX_REMOTE_TEXT_BYTES) {
-        return res.status(413).send('La página supera el límite de 4 MB.');
+        return sendViewError(413);
       }
 
       const mode = String(req.query.mode || 'real').toLowerCase();
-      const requestOrigin = (() => {
-        try {
-          return new URL(`${req.protocol}://${req.get('host')}`).origin;
-        } catch {
-          return undefined;
-        }
-      })();
       const { text: htmlSource, truncated } = await readTextWithLimit(response);
       let html = htmlSource;
       const nonce = crypto.randomBytes(16).toString('base64');
@@ -596,7 +647,10 @@ async function startServer() {
       // The proxied CSP no longer allows arbitrary image origins. Public images
       // still load through the guarded /api/image endpoint, whose fetchRemote()
       // applies the same private-network policy and DNS pinning as the page.
-      html = rewriteProxiedImageSources(html, response.url, requestOrigin);
+      html = rewriteProxiedImageSources(html, response.url, requestOrigin, {
+        view: nonce,
+        token: issueImageToken(nonce),
+      });
       html = proxiedPage(html, response.url, nonce, mode === 'dark');
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -605,8 +659,8 @@ async function startServer() {
       res.setHeader('Cache-Control', 'no-store');
       if (truncated) res.setHeader('X-Terminus-Truncated', '1');
       return res.send(html);
-    } catch (err: any) {
-      return res.status(502).send(`No se pudo cargar la página original: ${err?.message || 'error de red'}`);
+    } catch {
+      return sendViewError(502);
     }
   });
 
@@ -623,7 +677,7 @@ async function startServer() {
       // 1. Query DuckDuckGo Instant Answer API
       try {
         const ddgRes = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Terminus/0.2.2' },
+          headers: { 'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) Terminus/${APP_VERSION}` },
           signal: AbortSignal.timeout(SEARCH_FETCH_TIMEOUT_MS),
         });
         if (ddgRes.ok) {
@@ -687,7 +741,7 @@ async function startServer() {
       if (results.length < 3) {
         try {
           const htmlRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Terminus/0.2.2' },
+            headers: { 'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) Terminus/${APP_VERSION}` },
             signal: AbortSignal.timeout(SEARCH_FETCH_TIMEOUT_MS),
           });
           if (htmlRes.ok) {

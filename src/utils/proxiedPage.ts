@@ -27,6 +27,18 @@ export const escapeHtmlAttribute = (value: string): string =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
+export interface ImageProxyAuth {
+  /** Random per-document view id, also used as the page's script nonce. */
+  view: string;
+  /** Short-lived HMAC proving the image belongs to that proxied document. */
+  token: string;
+}
+
+const imageAuthQuery = (auth?: ImageProxyAuth): string =>
+  auth
+    ? `&view=${encodeURIComponent(auth.view)}&token=${encodeURIComponent(auth.token)}`
+    : '';
+
 /** Forwards Ctrl/Cmd+F from inside a proxied document to the browser chrome. */
 export const findShortcutShim = (nonce: string): string => `<script nonce="${nonce}">
   (function(){
@@ -75,7 +87,7 @@ const cosmeticsShim = (nonce: string): string => `<script nonce="${nonce}">
   })();
 </script>`;
 
-function proxiedImageUrl(rawUrl: string, baseUrl: string, appOrigin?: string): string | null {
+function proxiedImageUrl(rawUrl: string, baseUrl: string, appOrigin?: string, auth?: ImageProxyAuth): string | null {
   const value = rawUrl.trim();
   if (!value || /^(?:data|blob|javascript|vbscript):/i.test(value)) return null;
 
@@ -91,10 +103,10 @@ function proxiedImageUrl(rawUrl: string, baseUrl: string, appOrigin?: string): s
   // therefore resolve against the remote site, not against Terminus. Use the
   // explicit app origin so the request stays on the local guarded endpoint.
   const endpoint = appOrigin ? `${appOrigin.replace(/\/$/, '')}/api/image` : '/api/image';
-  return `${endpoint}?url=${encodeURIComponent(absolute.href)}&ref=${encodeURIComponent(baseUrl)}`;
+  return `${endpoint}?url=${encodeURIComponent(absolute.href)}&ref=${encodeURIComponent(baseUrl)}${imageAuthQuery(auth)}`;
 }
 
-function rewriteSrcset(value: string, baseUrl: string, appOrigin?: string): string | null {
+function rewriteSrcset(value: string, baseUrl: string, appOrigin?: string, auth?: ImageProxyAuth): string | null {
   // A data: srcset can contain commas that are not candidate separators.
   if (/^\s*data:/i.test(value)) return null;
 
@@ -104,7 +116,7 @@ function rewriteSrcset(value: string, baseUrl: string, appOrigin?: string): stri
     if (!candidate) return part;
     const match = candidate.match(/^(\S+)([\s\S]*)$/);
     if (!match) return part;
-    const proxied = proxiedImageUrl(match[1], baseUrl, appOrigin);
+    const proxied = proxiedImageUrl(match[1], baseUrl, appOrigin, auth);
     if (!proxied) return part;
     changed = true;
     return `${proxied}${match[2]}`;
@@ -120,7 +132,12 @@ function rewriteSrcset(value: string, baseUrl: string, appOrigin?: string): stri
  * dependent on the browser's URL parsing. Rewriting keeps public images
  * working and makes every image request pass through fetchRemote().
  */
-export function rewriteProxiedImageSources(html: string, baseUrl: string, appOrigin?: string): string {
+export function rewriteProxiedImageSources(
+  html: string,
+  baseUrl: string,
+  appOrigin?: string,
+  auth?: ImageProxyAuth
+): string {
   return html.replace(/<img\b[^>]*>/gi, (tag) =>
     tag
       .replace(
@@ -128,7 +145,7 @@ export function rewriteProxiedImageSources(html: string, baseUrl: string, appOri
         (match, prefix, doubleQuoted, singleQuoted, unquoted) => {
           const value = doubleQuoted ?? singleQuoted ?? unquoted ?? '';
           const quote = doubleQuoted !== undefined ? '"' : singleQuoted !== undefined ? "'" : '';
-          const proxied = proxiedImageUrl(value, baseUrl, appOrigin);
+          const proxied = proxiedImageUrl(value, baseUrl, appOrigin, auth);
           return proxied ? `${prefix}${quote}${escapeHtmlAttribute(proxied)}${quote}` : match;
         }
       )
@@ -137,7 +154,7 @@ export function rewriteProxiedImageSources(html: string, baseUrl: string, appOri
         (match, prefix, doubleQuoted, singleQuoted, unquoted) => {
           const value = doubleQuoted ?? singleQuoted ?? unquoted ?? '';
           const quote = doubleQuoted !== undefined ? '"' : singleQuoted !== undefined ? "'" : '';
-          const proxied = rewriteSrcset(value, baseUrl, appOrigin);
+          const proxied = rewriteSrcset(value, baseUrl, appOrigin, auth);
           return proxied ? `${prefix}${quote}${escapeHtmlAttribute(proxied)}${quote}` : match;
         }
       )
@@ -158,6 +175,19 @@ export function proxiedPage(html: string, url: string, nonce: string, dark: bool
     return html.replace(/<head[^>]*>/i, (match) => `${match}${injected}`);
   }
   return injected + html;
+}
+
+/**
+ * Served by /api/view when the proxy itself fails. The framed document cannot read its own
+ * HTTP status, so it reports it to the parent, which swaps the frame for the error scene.
+ */
+export function viewErrorPage(status: number, nonce: string): string {
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terminus · error ${status}</title></head>
+<body><p>[TERMINUS] HTTP ${status} · la página no se pudo cargar a través del proxy.</p>
+<script nonce="${escapeHtmlAttribute(nonce)}">parent.postMessage({ source: 'termbrowser-view-error', status: ${status} }, '*');</script>
+</body></html>`;
 }
 
 /** Standalone text reading page used by /api/view?mode=text: no site markup, no page scripts. */
