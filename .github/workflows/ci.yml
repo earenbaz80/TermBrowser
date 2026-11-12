@@ -187,6 +187,12 @@ jobs:
           $certificatePath = Join-Path $env:RUNNER_TEMP 'terminus-signing.pfx'
           Remove-Item -LiteralPath $certificatePath -Force -ErrorAction SilentlyContinue
 
+      # El artefacto lleva el instalador suelto, no un ZIP propio: Actions envuelve el
+      # fichero en su propio zip al descargarlo, y por eso el tamaño descargado no
+      # coincide con el del .exe. El ZIP de release se arma a mano con Compress-Archive
+      # desde ese mismo .exe y no se reproduce byte a byte en CI (cada empaquetado deja
+      # marcas de tiempo y orden distintos). Lo que sí es idéntico es el .exe, y eso es
+      # lo que verifican los hashes de SHA256SUMS.txt.
       - name: Publicar instalador
         id: upload-installer
         uses: actions/upload-artifact@v7
