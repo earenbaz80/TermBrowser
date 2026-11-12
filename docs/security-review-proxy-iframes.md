@@ -7,6 +7,8 @@
 
 Esta revisión no es una auditoría independiente ni una prueba de penetración. La prueba E2E valida el bloqueo de red, los popups y los cosméticos sobre la app empaquetada; el resto de hallazgos sigue basándose en el código, las pruebas existentes y pruebas puntuales de las funciones puras.
 
+> Las cifras de pruebas citadas corresponden a la revisión de 0.2.1 (28 archivos, 130 pruebas). Tras la internacionalización y el merge del PR #11 la suite está en 38 archivos y 160 pruebas; ninguno de los controles de proxy, iframes, sanitización o Electron revisados aquí cambió con esa tanda.
+
 ## Resumen ejecutivo
 
 El diseño tiene una separación razonable entre el **modo proxy** y el **modo REAL**:

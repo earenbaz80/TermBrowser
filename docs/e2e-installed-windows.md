@@ -3,12 +3,12 @@
 Esta guía prepara la ejecución de `npm run test:e2e:installed` en un runner de GitHub Actions con una sesión de escritorio Windows real. El E2E valida la app Electron instalada, no `electron .`:
 
 - arranca el ejecutable instalado con un perfil temporal;
-- sirve un fixture HTTP local en otro puerto, por lo que el iframe REAL es cross-origin;
+- carga `https://example.com/` para el iframe REAL cross-origin y sirve un fixture HTTP local en otro puerto para las vistas `OSCURO` y `TEXTO`;
 - obtiene el control del renderer mediante CDP;
 - envía `Ctrl+F` con `SendKeys` nativo de Windows;
 - comprueba que el buscador encuentra texto real en las vistas `OSCURO` y `TEXTO`.
 
-No usa Internet ni `example.com`.
+La única salida a Internet es `https://example.com/`; el resto se sirve en loopback.
 
 ## Requisitos del runner
 
@@ -111,16 +111,18 @@ El job `windows` ejecuta, en orden:
 
 1. Checkout, Node.js 22 y, si corresponde, el preflight interactivo.
 2. `npm ci`.
-3. `npm audit --audit-level=moderate` (incluye dependencias de desarrollo).
-4. `npm run lint`.
-5. `npm run test:coverage`.
-6. `npm run desktop:build`.
-7. Publica el instalador NSIS como artefacto.
-8. Instala el instalador más reciente con `/S`.
-9. Detiene cualquier instancia de Terminus que el instalador haya abierto.
-10. Define `TERMINUS_INSTALLED_EXE` apuntando a `%LOCALAPPDATA%\Programs\Terminus\Terminus.exe`.
-11. Ejecuta `npm run test:e2e:installed`, guardando la salida en `artifacts/e2e/e2e-installed.log`.
-12. Publica el log del E2E y un resumen del job.
+3. `npx playwright install chromium`.
+4. `npm audit --audit-level=moderate` (incluye dependencias de desarrollo).
+5. `npm run lint`.
+6. `npm run test:coverage`, que publica el artefacto `coverage-lcov`.
+7. `npm run test:e2e:python-sandbox`.
+8. `npm run desktop:build`.
+9. Publica el instalador NSIS como artefacto.
+10. Instala el instalador más reciente con `/S`.
+11. Detiene cualquier instancia de Terminus que el instalador haya abierto.
+12. Define `TERMINUS_INSTALLED_EXE` apuntando a `%LOCALAPPDATA%\Programs\Terminus\Terminus.exe`.
+13. Ejecuta `npm run test:e2e:installed`, guardando la salida en `artifacts/e2e/e2e-installed.log`.
+14. Publica el log del E2E y un resumen del job.
 
 El E2E solo se ejecuta si se cumple una de estas condiciones:
 
