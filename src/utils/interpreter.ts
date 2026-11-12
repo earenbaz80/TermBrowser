@@ -120,17 +120,18 @@ export interface VirtualFile {
   handle?: any;
 }
 
-export const INITIAL_FILESYSTEM: Record<string, VirtualFile[]> = {
+/** Sample files are written in the active language, so running them reads naturally. */
+export const buildInitialFileSystem = (): Record<string, VirtualFile[]> => ({
   '/home/user': [
     { name: 'scripts', type: 'dir', updatedAt: '2026-11-07 00:00' },
     { name: 'bookmarks.json', type: 'file', size: 1024, updatedAt: '2026-11-07 00:15', content: '[\n  {"title":"Hacker News","url":"https://news.ycombinator.com"},\n  {"title":"Wikipedia","url":"https://en.wikipedia.org"}\n]' },
     { name: 'config.sys', type: 'file', size: 512, updatedAt: '2026-11-07 00:01', content: 'DEVICE=C:\\DOS\\ANSI.SYS\nBUFFERS=30\nFILES=60\nDOS=HIGH,UMB' },
     { name: 'autoexec.bat', type: 'file', size: 384, updatedAt: '2026-11-07 00:01', content: '@ECHO OFF\nPROMPT $P$G\nPATH C:\\DOS;C:\\TERMINAL\nECHO Terminus Ready.' },
-    { name: 'benchmark.py', type: 'file', size: 420, updatedAt: '2026-11-07 00:10', content: '# Python Benchmark\ntotal = sum([x * 2 for x in range(100)])\nprint("Resultado de computo paralelo:", total)\nprint("Estado de nodos: OK")' },
-    { name: 'readme.txt', type: 'file', size: 780, updatedAt: '2026-11-07 00:00', content: '=== TERMINUS ===\nNavegador web controlado por linea de comandos con cifrado AES-256.\nEscriba "help" o "help goto" para comenzar.\nAtajos rapidos: Ctrl+T (nueva pestaña), Ctrl+W (cerrar), Ctrl+B (toggle navegador).' },
+    { name: 'benchmark.py', type: 'file', size: 420, updatedAt: '2026-11-07 00:10', content: tStandalone('fsSample.benchmark') },
+    { name: 'readme.txt', type: 'file', size: 780, updatedAt: '2026-11-07 00:00', content: tStandalone('fsSample.readme') },
   ],
   '/home/user/scripts': [
-    { name: 'audit.sh', type: 'file', size: 310, updatedAt: '2026-11-07 00:05', content: '#!/bin/bash\necho "Auditoria de seguridad iniciada..."\nwhoami\ndate\necho "Cifrado AES-256 verificado."' },
-    { name: 'scrape_news.py', type: 'file', size: 450, updatedAt: '2026-11-07 00:12', content: 'import json\nprint("Obteniendo titulares de actualidad...")\nprint("1. Quantum Computing Milestone reached")\nprint("2. WebAssembly 3.0 Standardized")' },
+    { name: 'audit.sh', type: 'file', size: 310, updatedAt: '2026-11-07 00:05', content: tStandalone('fsSample.audit') },
+    { name: 'scrape_news.py', type: 'file', size: 450, updatedAt: '2026-11-07 00:12', content: tStandalone('fsSample.scrape') },
   ],
-};
+});

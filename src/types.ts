@@ -181,6 +181,8 @@ export interface UserScript {
   createdAt: string;
   lastRun?: string;
   runCount: number;
+  /** Set once the user edits a shipped example; it then stops following the UI language. */
+  custom?: boolean;
 }
 
 export interface KeyBinding {

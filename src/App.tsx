@@ -57,7 +57,7 @@ import {
 import { apiFetch } from './utils/apiClient';
 import { processCommand } from './utils/commandProcessor';
 import { computeSHA256, encryptAES256, decryptAES256, generateMfaSecret } from './utils/crypto';
-import { INITIAL_FILESYSTEM, VirtualFile } from './utils/interpreter';
+import { buildInitialFileSystem, VirtualFile } from './utils/interpreter';
 import { notificationManager } from './utils/notificationManager';
 import { appendCommandToHistory } from './utils/commandHistoryStorage';
 import { APP_VERSION } from './utils/version';
@@ -99,13 +99,7 @@ const buildInitialScripts = (t: (key: MessageKey) => string): UserScript[] => [
     id: 'script_audit',
     name: t('exampleScripts.auditName'),
     description: t('exampleScripts.auditDescription'),
-    steps: [
-      'echo "=== INICIANDO AUDITORÍA CRIPTOGRÁFICA ==="',
-      'whoami',
-      'date',
-      'vault status',
-      'echo "Bóveda cifrada y verificada."',
-    ],
+    steps: buildExampleSteps('script_audit', t),
     createdAt: '2026-11-07',
     runCount: 2,
   },
@@ -113,12 +107,7 @@ const buildInitialScripts = (t: (key: MessageKey) => string): UserScript[] => [
     id: 'script_morning_news',
     name: t('exampleScripts.newsName'),
     description: t('exampleScripts.newsDescription'),
-    steps: [
-      'echo "Obteniendo titulares de Hacker News..."',
-      'goto https://news.ycombinator.com',
-      'reader',
-      'echo "Listo para lectura libre de publicidad."',
-    ],
+    steps: buildExampleSteps('script_morning_news', t),
     createdAt: '2026-11-07',
     runCount: 5,
   },
@@ -126,16 +115,50 @@ const buildInitialScripts = (t: (key: MessageKey) => string): UserScript[] => [
     id: 'script_benchmark',
     name: t('exampleScripts.benchName'),
     description: t('exampleScripts.benchDescription'),
-    steps: [
-      'echo "Ejecutando algoritmo en Python 3.12..."',
-      'python -c "print(\'Calculo factorial:\', sum([x**2 for x in range(100)]))"',
-      'speedtest',
-      'top',
-    ],
+    steps: buildExampleSteps('script_benchmark', t),
     createdAt: '2026-11-07',
     runCount: 1,
   },
 ];
+
+/** Steps mix fixed commands with echo text, so each example rebuilds them per language. */
+const buildExampleSteps = (id: string, t: (key: MessageKey) => string): string[] => {
+  switch (id) {
+    case 'script_audit':
+      return [
+        `echo "${t('exampleScripts.auditStart')}"`,
+        'whoami',
+        'date',
+        'vault status',
+        `echo "${t('exampleScripts.auditVaultOk')}"`,
+      ];
+    case 'script_morning_news':
+      return [
+        `echo "${t('exampleScripts.newsFetching')}"`,
+        'goto https://news.ycombinator.com',
+        'reader',
+        `echo "${t('exampleScripts.newsReady')}"`,
+      ];
+    case 'script_benchmark':
+      return [
+        `echo "${t('exampleScripts.benchRunning')}"`,
+        `python -c "print('${t('exampleScripts.benchPrintLabel')}', sum([x**2 for x in range(100)]))"`,
+        'speedtest',
+        'top',
+      ];
+    default:
+      return [];
+  }
+};
+
+const EXAMPLE_SCRIPT_KEYS: Record<string, { name: MessageKey; description: MessageKey }> = {
+  script_audit: { name: 'exampleScripts.auditName', description: 'exampleScripts.auditDescription' },
+  script_morning_news: {
+    name: 'exampleScripts.newsName',
+    description: 'exampleScripts.newsDescription',
+  },
+  script_benchmark: { name: 'exampleScripts.benchName', description: 'exampleScripts.benchDescription' },
+};
 
 export default function App() {
   const { t, tc, locale } = useI18n();
@@ -270,6 +293,24 @@ export default function App() {
   const [browserHistory, setBrowserHistory] = useState(() => loadBrowserHistory());
   const lastHistorySignatureRef = useRef('');
   const [scripts, setScripts] = useState<UserScript[]>(() => buildInitialScripts(t));
+
+  // Shipped examples follow the live language; user-edited ones keep their own text.
+  useEffect(() => {
+    setScripts((prev) =>
+      prev.map((script) => {
+        const keys = EXAMPLE_SCRIPT_KEYS[script.id];
+        if (!keys || script.custom) return script;
+        const name = t(keys.name);
+        const description = t(keys.description);
+        const steps = buildExampleSteps(script.id, t);
+        const stepsChanged =
+          steps.length !== script.steps.length || steps.some((step, i) => step !== script.steps[i]);
+        return name === script.name && description === script.description && !stepsChanged
+          ? script
+          : { ...script, name, description, steps };
+      })
+    );
+  }, [t]);
   const [extensions, setExtensions] = useState<ExtensionManifest[]>(BUILT_IN_EXTENSIONS);
   const [keybindings, setKeybindings] = useState<KeyBinding[]>(DEFAULT_KEYBINDINGS);
 
@@ -349,7 +390,7 @@ export default function App() {
     (path: string) => setPathsByTab((prev) => ({ ...prev, [activeTabId]: path })),
     [activeTabId]
   );
-  const [fileSystem, setFileSystem] = useState<Record<string, VirtualFile[]>>(INITIAL_FILESYSTEM);
+  const [fileSystem, setFileSystem] = useState<Record<string, VirtualFile[]>>(buildInitialFileSystem);
 
   // Remember the last native directory so a reload can restore it. The handle
   // lives in IndexedDB; a browser that still grants read/write access is mounted
@@ -682,7 +723,7 @@ export default function App() {
         id: `scr_${Date.now()}`,
         timestamp: new Date().toLocaleTimeString(),
         type: 'system',
-        output: `[MACRO START] Ejecutando: "${script.name}" (${script.steps.length} pasos)`,
+        output: tc('out.macroStart', { name: script.name, steps: script.steps.length }),
       },
     ]);
 
@@ -693,12 +734,12 @@ export default function App() {
     }
 
     const notif = notificationManager.dispatch({
-      title: 'Script Automatizado Finalizado',
-      body: `El script "${script.name}" finalizó sus ${script.steps.length} pasos exitosamente.`,
+      title: tc('out.scriptTitle'),
+      body: tc('out.macroNotifyBody', { name: script.name, steps: script.steps.length }),
       category: 'script',
       severity: 'info',
       actionCommand: `script list`,
-      actionText: 'Ver Scripts',
+      actionText: t('notify.viewScripts'),
     });
 
     setLogs((prev) => [
@@ -708,7 +749,7 @@ export default function App() {
         timestamp: new Date().toLocaleTimeString(),
         type: 'notification',
         notification: notif,
-        output: `[NOTIFICACIÓN] Script "${script.name}" finalizado con éxito (${script.steps.length} pasos).`,
+        output: tc('out.macroNotifyDone', { name: script.name, steps: script.steps.length }),
       },
     ]);
   };

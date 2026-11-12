@@ -232,7 +232,7 @@ export const ExtensionsModal: React.FC<ExtensionsModalProps> = ({
             className="px-4 py-1 border text-xs font-bold cursor-pointer"
             style={{ borderColor: theme.border }}
           >
-            Listo
+            {t('common.done')}
           </button>
         </div>
       </div>

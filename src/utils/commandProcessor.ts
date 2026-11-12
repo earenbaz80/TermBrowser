@@ -17,22 +17,13 @@ import {
 } from '../types';
 import { THEMES } from './themes';
 
-const THEME_NAME_KEYS: Record<ThemeId, MessageKey> = {
-  'monochrome-green': 'themeName.monochromeGreen',
-  'amber-crt': 'themeName.amberCrt',
-  'cyberpunk-obsidian': 'themeName.cyberpunk',
-  'retro-futurista': 'themeName.retro',
-  'ms-dos': 'themeName.msdos',
-  'matrix-dark': 'themeName.matrix',
-  'black-and-white': 'themeName.bw',
-};
+
 import { formatAsciiBox } from './asciiBox';
 import { runPythonCode, VirtualFile } from './interpreter';
 import { computeSHA256 } from './crypto';
 import { COMMAND_DOCS } from '../components/HelpModal';
 import { localizeCommandDocs } from '../i18n/commandDocs';
-import { translate } from '../i18n';
-import type { MessageKey } from '../i18n/messages';
+import { themeName } from '../i18n/themes';
 import type { Locale } from '../i18n/locales';
 import { APP_VERSION } from './version';
 import {
@@ -1362,7 +1353,7 @@ Comandos de voz recomendados:
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'stdout',
-        output: `Python 3.12.2 (Terminus Embedded Sandboxed Engine)\n[GCC 13.2.0 WebAssembly Target]\nEscriba: python <archivo.py> o python -c "<code>"  (ej. python -c "print(2**16)")`,
+        output: ctx.tc('out.pythonBanner'),
       };
     }
 
@@ -2109,7 +2100,7 @@ Tiempos aproximados de ida y vuelta en milisegundos:
         timestamp,
         type: 'system',
         output: ctx.tc('out.themeChanged', {
-          name: translate(ctx.locale, THEME_NAME_KEYS[map[tName]]),
+          name: themeName(ctx.locale, map[tName]),
           id: map[tName],
         }),
       };

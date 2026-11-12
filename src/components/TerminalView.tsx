@@ -1360,7 +1360,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                     onClick={() => {
                       soundEffects.playKeyClick();
                       setIsQuickMenuOpen(false);
-                      onExecuteCommand('python -c "print(\'Cálculo factorial:\', sum([x**2 for x in range(30)]))"');
+                      onExecuteCommand(
+                        `python -c "print('${t('terminal.quickPythonLabel')}', sum([x**2 for x in range(30)]))"`
+                      );
                     }}
                     className="w-full flex items-center gap-2 px-2 py-1 rounded-xs hover:bg-white/10 cursor-pointer text-left text-slate-200 hover:text-white"
                   >

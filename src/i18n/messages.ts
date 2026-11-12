@@ -136,6 +136,21 @@ const es = {
     'Mide la latencia de red, jitter y rendimiento de paquetes hacia servidores globales.',
   'ext.speedtest.command': 'Ejecuta una prueba de latencia y velocidad.',
   'ext.speedtest.usage': 'speedtest [--host=<url>]',
+  'exampleScripts.auditStart': '=== INICIANDO AUDITORÍA CRIPTOGRÁFICA ===',
+  'exampleScripts.auditVaultOk': 'Bóveda cifrada y verificada.',
+  'exampleScripts.newsFetching': 'Obteniendo titulares de Hacker News...',
+  'exampleScripts.newsReady': 'Listo para lectura libre de publicidad.',
+  'exampleScripts.benchRunning': 'Ejecutando algoritmo en Python 3.12...',
+  'exampleScripts.benchPrintLabel': 'Calculo factorial:',
+  'terminal.quickPythonLabel': 'Cálculo factorial:',
+  'fsSample.readme':
+    '=== TERMINUS ===\nNavegador web controlado por linea de comandos con cifrado AES-256.\nEscriba "help" o "help goto" para comenzar.\nAtajos rapidos: Ctrl+T (nueva pestaña), Ctrl+W (cerrar), Ctrl+B (toggle navegador).',
+  'fsSample.benchmark':
+    '# Python Benchmark\ntotal = sum([x * 2 for x in range(100)])\nprint("Resultado de computo paralelo:", total)\nprint("Estado de nodos: OK")',
+  'fsSample.audit':
+    '#!/bin/bash\necho "Auditoria de seguridad iniciada..."\nwhoami\ndate\necho "Cifrado AES-256 verificado."',
+  'fsSample.scrape':
+    'import json\nprint("Obteniendo titulares de actualidad...")\nprint("1. Quantum Computing Milestone reached")\nprint("2. WebAssembly 3.0 Standardized")',
   'exampleScripts.auditName': 'Auditoría de Seguridad y Cifrado AES-256',
   'exampleScripts.auditDescription':
     'Verifica la integridad de la sesión, estado del cifrado y certificados.',
@@ -859,6 +874,21 @@ const de: Record<MessageKey, string> = {
     'Misst Netzwerklatenz, Jitter und Paketdurchsatz zu globalen Servern.',
   'ext.speedtest.command': 'Führt einen Latenz- und Geschwindigkeitstest aus.',
   'ext.speedtest.usage': 'speedtest [--host=<url>]',
+  'exampleScripts.auditStart': '=== KRYPTOGRAFISCHES AUDIT STARTET ===',
+  'exampleScripts.auditVaultOk': 'Tresor verschlüsselt und verifiziert.',
+  'exampleScripts.newsFetching': 'Schlagzeilen von Hacker News werden geholt...',
+  'exampleScripts.newsReady': 'Bereit für werbefreies Lesen.',
+  'exampleScripts.benchRunning': 'Python-3.12-Algorithmus wird ausgeführt...',
+  'exampleScripts.benchPrintLabel': 'Fakultät:',
+  'terminal.quickPythonLabel': 'Fakultät:',
+  'fsSample.readme':
+    '=== TERMINUS ===\nKommandozeilen-Browser mit AES-256-Verschlüsselung.\nTippe "help" oder "help goto" zum Starten.\nSchnelltasten: Strg+T (neuer Tab), Strg+W (schließen), Strg+B (Browser umschalten).',
+  'fsSample.benchmark':
+    '# Python Benchmark\ntotal = sum([x * 2 for x in range(100)])\nprint("Ergebnis der parallelen Berechnung:", total)\nprint("Knotenstatus: OK")',
+  'fsSample.audit':
+    '#!/bin/bash\necho "Sicherheitsaudit gestartet..."\nwhoami\ndate\necho "AES-256-Verschlüsselung verifiziert."',
+  'fsSample.scrape':
+    'import json\nprint("Aktuelle Schlagzeilen werden geholt...")\nprint("1. Quantum Computing Milestone reached")\nprint("2. WebAssembly 3.0 Standardized")',
   'exampleScripts.auditName': 'Sicherheits- und AES-256-Verschlüsselungsaudit',
   'exampleScripts.auditDescription':
     'Prüft Sitzungsintegrität, Verschlüsselungsstatus und Zertifikate.',
@@ -1579,6 +1609,21 @@ const fr: Record<MessageKey, string> = {
     'Mesure la latence réseau, la gigue et le débit vers des serveurs mondiaux.',
   'ext.speedtest.command': 'Lance un test de latence et de débit.',
   'ext.speedtest.usage': 'speedtest [--host=<url>]',
+  'exampleScripts.auditStart': '=== DÉMARRAGE DE L’AUDIT CRYPTOGRAPHIQUE ===',
+  'exampleScripts.auditVaultOk': 'Coffre chiffré et vérifié.',
+  'exampleScripts.newsFetching': 'Récupération des titres de Hacker News...',
+  'exampleScripts.newsReady': 'Prêt pour une lecture sans publicité.',
+  'exampleScripts.benchRunning': 'Exécution de l’algorithme en Python 3.12...',
+  'exampleScripts.benchPrintLabel': 'Factorielle :',
+  'terminal.quickPythonLabel': 'Calcul factoriel :',
+  'fsSample.readme':
+    '=== TERMINUS ===\nNavigateur web piloté en ligne de commande avec chiffrement AES-256.\nTapez « help » ou « help goto » pour commencer.\nRaccourcis : Ctrl+T (onglet), Ctrl+W (fermer), Ctrl+B (basculer le navigateur).',
+  'fsSample.benchmark':
+    '# Python Benchmark\ntotal = sum([x * 2 for x in range(100)])\nprint("Résultat du calcul parallèle :", total)\nprint("État des nœuds : OK")',
+  'fsSample.audit':
+    '#!/bin/bash\necho "Audit de sécurité démarré..."\nwhoami\ndate\necho "Chiffrement AES-256 vérifié."',
+  'fsSample.scrape':
+    'import json\nprint("Récupération des titres d’actualité...")\nprint("1. Quantum Computing Milestone reached")\nprint("2. WebAssembly 3.0 Standardized")',
   'exampleScripts.auditName': 'Audit de sécurité et de chiffrement AES-256',
   'exampleScripts.auditDescription':
     'Vérifie l’intégrité de la session, l’état du chiffrement et les certificats.',
@@ -2298,6 +2343,21 @@ const it: Record<MessageKey, string> = {
     'Misura latenza di rete, jitter e throughput verso server globali.',
   'ext.speedtest.command': 'Esegue un test di latenza e velocità.',
   'ext.speedtest.usage': 'speedtest [--host=<url>]',
+  'exampleScripts.auditStart': '=== AVVIO AUDIT CRITTOGRAFICO ===',
+  'exampleScripts.auditVaultOk': 'Cassaforte cifrata e verificata.',
+  'exampleScripts.newsFetching': 'Recupero dei titoli da Hacker News...',
+  'exampleScripts.newsReady': 'Pronto per la lettura senza pubblicità.',
+  'exampleScripts.benchRunning': 'Esecuzione algoritmo in Python 3.12...',
+  'exampleScripts.benchPrintLabel': 'Fattoriale:',
+  'terminal.quickPythonLabel': 'Calcolo fattoriale:',
+  'fsSample.readme':
+    '=== TERMINUS ===\nBrowser web controllato da riga di comando con cifratura AES-256.\nScrivi "help" o "help goto" per iniziare.\nScorciatoie: Ctrl+T (nuova scheda), Ctrl+W (chiudi), Ctrl+B (alterna browser).',
+  'fsSample.benchmark':
+    '# Python Benchmark\ntotal = sum([x * 2 for x in range(100)])\nprint("Risultato del calcolo parallelo:", total)\nprint("Stato dei nodi: OK")',
+  'fsSample.audit':
+    '#!/bin/bash\necho "Audit di sicurezza avviato..."\nwhoami\ndate\necho "Cifratura AES-256 verificata."',
+  'fsSample.scrape':
+    'import json\nprint("Recupero dei titoli di attualità...")\nprint("1. Quantum Computing Milestone reached")\nprint("2. WebAssembly 3.0 Standardized")',
   'exampleScripts.auditName': 'Audit di sicurezza e cifratura AES-256',
   'exampleScripts.auditDescription':
     'Verifica l’integrità della sessione, lo stato della cifratura e i certificati.',
@@ -3018,6 +3078,21 @@ const en: Record<MessageKey, string> = {
     'Measures network latency, jitter and packet throughput to global servers.',
   'ext.speedtest.command': 'Runs a latency and speed test.',
   'ext.speedtest.usage': 'speedtest [--host=<url>]',
+  'exampleScripts.auditStart': '=== STARTING CRYPTOGRAPHIC AUDIT ===',
+  'exampleScripts.auditVaultOk': 'Vault encrypted and verified.',
+  'exampleScripts.newsFetching': 'Fetching Hacker News headlines...',
+  'exampleScripts.newsReady': 'Ready for ad-free reading.',
+  'exampleScripts.benchRunning': 'Running Python 3.12 algorithm...',
+  'exampleScripts.benchPrintLabel': 'Factorial result:',
+  'terminal.quickPythonLabel': 'Factorial result:',
+  'fsSample.readme':
+    '=== TERMINUS ===\nCommand-line controlled web browser with AES-256 encryption.\nType "help" or "help goto" to start.\nShortcuts: Ctrl+T (new tab), Ctrl+W (close), Ctrl+B (toggle browser).',
+  'fsSample.benchmark':
+    '# Python Benchmark\ntotal = sum([x * 2 for x in range(100)])\nprint("Parallel compute result:", total)\nprint("Node status: OK")',
+  'fsSample.audit':
+    '#!/bin/bash\necho "Security audit started..."\nwhoami\ndate\necho "AES-256 encryption verified."',
+  'fsSample.scrape':
+    'import json\nprint("Fetching current headlines...")\nprint("1. Quantum Computing Milestone reached")\nprint("2. WebAssembly 3.0 Standardized")',
   'exampleScripts.auditName': 'Security and AES-256 Encryption Audit',
   'exampleScripts.auditDescription':
     'Checks session integrity, encryption status and certificates.',

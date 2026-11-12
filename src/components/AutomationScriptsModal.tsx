@@ -66,6 +66,8 @@ export const AutomationScriptsModal: React.FC<AutomationScriptsModalProps> = ({
       steps,
       createdAt: selectedScript ? selectedScript.createdAt : new Date().toISOString().split('T')[0],
       runCount: selectedScript ? selectedScript.runCount : 0,
+      // An edited example is the user's copy: its text must stop following the UI language.
+      ...(selectedScript ? { custom: true } : {}),
     };
 
     onSaveScript(newScript);

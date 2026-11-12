@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Blocks, Languages, Menu, ShieldCheck, Volume2, VolumeX, X } from 'lucide-react';
 import { ThemeConfig, ThemeId } from '../types';
 import { THEMES } from '../utils/themes';
+import { themeName } from '../i18n/themes';
 import { soundEffects, SoundTheme } from '../utils/soundEffects';
 import { LOCALES } from '../i18n/locales';
 import { useI18n } from '../i18n';
@@ -234,7 +235,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({
               >
                 {Object.values(THEMES).map((option) => (
                   <option key={option.id} value={option.id}>
-                    {option.name}
+                    {themeName(locale, option.id)}
                   </option>
                 ))}
               </select>
