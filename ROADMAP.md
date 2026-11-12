@@ -3,7 +3,7 @@
 Este documento es la fuente de verdad de lo que falta. El repositorio no usa issues ni milestones en GitHub, así que el estado se mantiene aquí y se actualiza al cerrar cada hito.
 
 - Última release publicada: `0.3.0` (tag `v0.3.0`, 12 de noviembre de 2026), con instalador, `.blockmap`, ZIP y `SHA256SUMS.txt`.
-- Rama `main` en `9175b49`: rediseño de interfaz (`4ca78bf`), internacionalización (PR #11) y notas de release alineadas con los artefactos publicados.
+- Rama `main` en `cfd68d5`: rediseño de interfaz (`4ca78bf`), internacionalización (PR #11), notas de release alineadas con los artefactos publicados y este mismo ROADMAP.
 - Verificación actual: `npm run lint` correcto (tsc y eslint), `npm test` con 38 archivos y 160 pruebas, cliente y servidor compilados, instalador `0.3.0` generado y `NotSigned`.
 - No hay fechas comprometidas. Los hitos se ordenan por prioridad, no por calendario.
 
@@ -33,14 +33,16 @@ Trabajo ya hecho y commiteado (rediseño en `4ca78bf`, internacionalización mer
 
 Estado:
 
-- [x] Revisión manual de la UI sobre la `0.3.0` instalada: cabecera única, menú de configuración con persistencia del tema, buscador desde la pantalla de inicio, glitch con movimiento normal y reducido, y Ctrl+F en REAL, OSCURO y TEXTO.
+- [x] E2E sobre la app instalada, contra la `0.3.0` instalada el 12 de noviembre de 2026: los tres `PASS` (Ctrl+F en REAL desde un iframe cross-origin, búsqueda en OSCURO y en TEXTO) con `EXIT=0`.
+- [x] Comprobación asistida por CDP de la `0.3.0` instalada: cabecera única sin barra duplicada, menú de configuración con persistencia del tema tras recargar, buscador de inicio (12 resultados en 235 ms) y glitch con movimiento normal y reducido.
+- [ ] Revisión manual a ojo, por una persona y en el escritorio real, de la cabecera, el menú de configuración y el glitch en sus dos variantes: pendiente de confirmación humana; lo anterior se verificó con herramientas y capturas, no mirando la app en uso.
 - [x] Commit del rediseño y `package.json` a `0.3.0`, con la versión centralizada en `src/utils/version.ts` (versión visible y User-Agent incluidos).
 - [x] `docs/release-notes-v0.3.0.md` con cambios, verificación y SHA-256 del instalador.
 - [x] `main` con el PR #11 mergeado en `a83f00c` y el CI en verde sobre ese commit (lint, pruebas, cobertura y E2E opcional), sin anotaciones.
 - [x] Release `0.3.0` publicada el 12 de noviembre de 2026 y marcada como última release, con instalador, `.blockmap`, ZIP y `SHA256SUMS.txt` (los tres hashes).
 - [x] README actualizado: arquitectura (`SettingsMenu`, `WindowControls`, `src/i18n`), flujo de búsqueda desde el inicio, idiomas y recuento de pruebas.
 
-Cierre: lint, pruebas y builds en verde; instalador generado, revisado a mano e instalado; release `0.3.0` publicada con hashes; la búsqueda funciona desde la pantalla de inicio sin pasar por otra vista. Hito cerrado el 12 de noviembre de 2026.
+Cierre: lint, pruebas y builds en verde; instalador generado e instalado; release `0.3.0` publicada con hashes; la búsqueda funciona desde la pantalla de inicio sin pasar por otra vista. Queda abierta la revisión visual humana de la cabecera, el menú y el glitch.
 
 ### 2. E2E sobre la app instalada en CI — bloqueado por infraestructura
 
