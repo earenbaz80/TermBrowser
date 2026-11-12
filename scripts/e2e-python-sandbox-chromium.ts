@@ -15,6 +15,9 @@ import { pythonRunnerPage, PYTHON_RUNNER_CSP } from '../src/utils/pythonRunnerPa
 const LOG = '[e2e-python-sandbox-chromium]';
 const CONTROL_ID = 'chromium-control';
 const CSP_ID = 'chromium-csp';
+const COMPREHENSION_ID = 'chromium-comprehension';
+// Same shape as the benchmark step: a list comprehension inside a call.
+const BENCHMARK_SNIPPET = "print('Factorial result:', sum([x**2 for x in range(100)]))";
 
 interface RunnerMessage {
   id?: unknown;
@@ -102,6 +105,13 @@ async function main(): Promise<void> {
         writeHtml(response, parentHtml('/python-runner-no-csp.html', CONTROL_ID, controlCode));
         return;
       }
+      if (pathname === '/parent-comprehension.html') {
+        writeHtml(
+          response,
+          parentHtml('/python-runner.html', COMPREHENSION_ID, BENCHMARK_SNIPPET)
+        );
+        return;
+      }
       if (pathname === '/leak') {
         leakRequests += 1;
         response.writeHead(200, { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'text/plain' });
@@ -156,9 +166,22 @@ async function main(): Promise<void> {
     assert.equal(leakRequests, 0, `La CSP permitió ${leakRequests} petición(es) a /leak.`);
     assert.match(blocked.error, /NetworkError|SecurityError|Failed|blocked|CSP/i);
 
+    const comprehension = await probe('/parent-comprehension.html', COMPREHENSION_ID);
+    assert.ok(comprehension, 'La comprensión de listas no devolvió resultado.');
+    assert.equal(comprehension.error, undefined, `La comprensión falló: ${comprehension.error}`);
+    assert.equal(comprehension.result?.exitCode, 0);
+    assert.match(
+      comprehension.result?.stdout ?? '',
+      /Factorial result: 328350/,
+      `Salida inesperada de la comprensión: ${JSON.stringify(comprehension.result)}`
+    );
+
     console.log(`${LOG} Chromium: ${browser!.version()}`);
     console.log(`${LOG} PASS: control sin CSP llegó a /leak-control.`);
     console.log(`${LOG} PASS: CSP bloqueó la petición a /leak (${blocked.error}).`);
+    console.log(
+      `${LOG} PASS: comprensión de listas en Chromium → ${comprehension.result?.stdout}`
+    );
   } catch (error) {
     console.error(`${LOG} FAIL: ${error instanceof Error ? error.message : String(error)}`);
     process.exitCode = 1;

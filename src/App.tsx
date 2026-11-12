@@ -778,6 +778,27 @@ export default function App() {
     }
   };
 
+  // Tab operations
+  const handleNewTab = useCallback(
+    (kind: 'web' | 'terminal' = 'web') => {
+      const newId = `tab_${Date.now()}`;
+      const newTab: BrowserTab = {
+        id: newId,
+        kind,
+        title: kind === 'terminal' ? 'Terminal' : t('tabs.new'),
+        url: 'about:blank',
+        displayUrl: 'about:blank',
+        isLoading: false,
+        content: '',
+        history: ['about:blank'],
+        historyIndex: 0,
+      };
+      setTabs((prev) => [...prev, newTab]);
+      setActiveTabId(newId);
+    },
+    [t]
+  );
+
   // Global Keyboard Shortcuts handler
   useEffect(() => {
     const handleGlobalKey = (e: KeyboardEvent) => {
@@ -869,7 +890,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleGlobalKey);
     return () => window.removeEventListener('keydown', handleGlobalKey);
-  }, [keybindings, tabs, activeTabId, activeTab?.kind, setLogs, handleExecuteCommand]);
+  }, [keybindings, tabs, activeTabId, activeTab?.kind, setLogs, handleExecuteCommand, handleNewTab]);
 
   // The surface follows the active tab's kind, so a terminal tab and a page tab never disagree
   const surface: 'web' | 'terminal' = activeTab?.kind === 'terminal' ? 'terminal' : 'web';
@@ -902,24 +923,6 @@ export default function App() {
         };
       })
     );
-  };
-
-  // Tab operations
-  const handleNewTab = (kind: 'web' | 'terminal' = 'web') => {
-    const newId = `tab_${Date.now()}`;
-    const newTab: BrowserTab = {
-      id: newId,
-      kind,
-      title: kind === 'terminal' ? 'Terminal' : t('tabs.new'),
-      url: 'about:blank',
-      displayUrl: 'about:blank',
-      isLoading: false,
-      content: '',
-      history: ['about:blank'],
-      historyIndex: 0,
-    };
-    setTabs((prev) => [...prev, newTab]);
-    setActiveTabId(newId);
   };
 
   const performNewSession = () => {
