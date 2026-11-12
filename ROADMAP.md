@@ -44,15 +44,18 @@ Estado:
 
 Cierre: lint, pruebas y builds en verde; instalador generado, revisado e instalado; release `0.3.0` publicada con hashes; la búsqueda funciona desde la pantalla de inicio sin pasar por otra vista. Hito cerrado el 12 de noviembre de 2026.
 
-### 2. E2E sobre la app instalada en CI — bloqueado por infraestructura
+### 2. E2E sobre la app instalada en CI — nunca se disparó; falta el runner interactivo
 
-El script y el job existen (`npm run test:e2e:installed`, `.github/workflows/ci.yml`), pero nunca se ejecutaron en CI porque falta el runner.
+El script y los pasos existen (`npm run test:e2e:installed`, `.github/workflows/ci.yml`), pero en CI no se han ejecutado nunca: el repositorio tiene **0 ejecuciones `workflow_dispatch`** y **0 variables de Actions**, que son los dos únicos disparadores de los pasos (`workflow_dispatch` con `run_installed_e2e=true`, o `TERMINUS_RUN_INSTALLED_E2E=true`). Ningún run lleva el artefacto `e2e-installed-logs`; los que sí se publican son `coverage-lcov` y `terminus-installer-…`. El E2E sí pasó el 12 de noviembre de 2026, pero en local, sobre la `0.3.0` instalada (tres `PASS`, `EXIT=0`).
+
+El runner es el requisito que falta, y no el único: `runs-on` usa `vars.TERMINUS_CI_RUNNER` y cae a `windows-latest` cuando no existe, donde el E2E se omite; además el paso «Preflight de sesión interactiva» aborta si `SessionId = 0` o `[Environment]::UserInteractive` es falso, así que hace falta un runner arrancado con `run.cmd` en una sesión de escritorio, no un runner alojado ni un servicio.
 
 Pendiente:
 
 - [ ] Runner Windows con sesión interactiva (`run.cmd`, no servicio; `SessionId != 0`) y etiqueta `terminus-e2e`.
-- [ ] Variable de repositorio `TERMINUS_CI_RUNNER=terminus-e2e`.
-- [ ] Ejecución por `workflow_dispatch` con `run_installed_e2e=true`.
+- [ ] Variable de repositorio `TERMINUS_CI_RUNNER=terminus-e2e` (hoy no hay ninguna variable definida).
+- [ ] Primera ejecución por `workflow_dispatch` con `run_installed_e2e=true`; la guía desaconseja dejar `TERMINUS_RUN_INSTALLED_E2E` activo para no correrlo en cada push.
+- [ ] Comprobar que el run publica el artefacto `e2e-installed-logs` con el log del job.
 
 Cierre: el log del job contiene los tres `PASS` (Ctrl+F en REAL instalado, búsqueda en OSCURO y en TEXTO) y el artefacto `e2e-installed-logs` está disponible. Requisitos y diagnóstico en `docs/e2e-installed-windows.md`.
 
