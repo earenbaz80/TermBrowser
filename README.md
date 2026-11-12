@@ -50,6 +50,12 @@ El instalador de Windows se genera con electron-builder y el icono de `build/ico
 
 El instalador se distribuye sin firma Authenticode por decisión del proyecto: Windows SmartScreen puede mostrar una advertencia. Verifica el binario con los hashes publicados en las notas de release. El flujo de firma queda documentado como referencia en [docs/code-signing-windows.md](docs/code-signing-windows.md).
 
+### Vista WEB dentro del flujo del terminal
+
+La consola recibe `allowInlineFrames={false}` desde `src/App.tsx`: el flujo del terminal se queda en RETRO y TEXTO y no abre un iframe vivo, porque cada iframe deja un sitio entero en memoria y la página ya se pinta en la superficie del navegador. Esa es la decisión que se publica.
+
+Para probar la vista WEB dentro del propio terminal, pon `allowInlineFrames={true}` en tu copia y no lo commitees: es un ajuste local, así que `git status` mostrará `src/App.tsx` modificado de forma permanente. Revierte con `git checkout -- src/App.tsx` cuando termines.
+
 ## Scripts de verificación
 
 ```bash
