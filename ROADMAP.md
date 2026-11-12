@@ -3,7 +3,7 @@
 Este documento es la fuente de verdad de lo que falta. El repositorio no usa issues ni milestones en GitHub, así que el estado se mantiene aquí y se actualiza al cerrar cada hito.
 
 - Última release publicada: `0.3.0` (tag `v0.3.0`, 12 de noviembre de 2026), con instalador, `.blockmap`, ZIP y `SHA256SUMS.txt`.
-- Rama `main` en `cfd68d5`: rediseño de interfaz (`4ca78bf`), internacionalización (PR #11), notas de release alineadas con los artefactos publicados y este mismo ROADMAP.
+- Rama `main` en `644c2ba` al escribir esta actualización: rediseño de interfaz (`4ca78bf`), internacionalización (PR #11), notas de release alineadas con los artefactos publicados y el hito 0.3.0 con el E2E instalado pasado.
 - Verificación actual: `npm run lint` correcto (tsc y eslint), `npm test` con 38 archivos y 160 pruebas, cliente y servidor compilados, instalador `0.3.0` generado y `NotSigned`.
 - No hay fechas comprometidas. Los hitos se ordenan por prioridad, no por calendario.
 
