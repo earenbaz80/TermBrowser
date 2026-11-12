@@ -26,15 +26,17 @@ Release construida sobre el rediseño de interfaz (`4ca78bf`) desde la rama del 
 - `Terminus Setup 0.3.0.exe`
 - `Terminus Setup 0.3.0.exe.blockmap`
 - `SHA256SUMS.txt`
-- `terminus-installer-0.3.0-windows.zip` (lo empaqueta el CI)
+- `terminus-installer-0.3.0-windows.zip` (contiene el mismo `Terminus Setup 0.3.0.exe` que se publica suelto)
 
 ### SHA-256
 
 ```text
 2b0c21108416f32e13fb0e3747e8faebad9e57c1f4e5582b7b92d9fa5a041dfb  Terminus Setup 0.3.0.exe
+3fc51676a022e11e196940ee44961cf46f73d78cd527204074318cb2fc99b68f  Terminus Setup 0.3.0.exe.blockmap
+9e515f0dd4cd9df296ae499b85ef435daaa13da028292c15b2ac263f974e90dd  terminus-installer-0.3.0-windows.zip
 ```
 
-`SHA256SUMS.txt` contiene los hashes del instalador y de su `.blockmap`. El del ZIP se añade cuando el CI empaqueta ese artefacto.
+`SHA256SUMS.txt` contiene los tres hashes anteriores. El instalador que va dentro del ZIP es el mismo fichero que se publica suelto, así que extraerlo da exactamente el mismo SHA-256. Verifica el hash del fichero que descargues: el del ZIP tal cual y, si extraes el `.exe`, el del instalador.
 
 ## Instalación
 
