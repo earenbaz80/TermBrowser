@@ -1,6 +1,6 @@
 # Terminus 0.2.2 — Windows x64
 
-Release estable construida desde `main` en el commit `8d16b9d`, con el endurecimiento de red de la vista REAL y el proxy local.
+Release estable publicada con el tag `v0.2.2`, construida desde `main`, con el endurecimiento de red de la vista REAL y el proxy local.
 
 ## Cambios
 
