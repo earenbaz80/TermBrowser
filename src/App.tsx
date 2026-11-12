@@ -26,6 +26,7 @@ import { THEMES } from './utils/themes';
 import { soundEffects } from './utils/soundEffects';
 import { BUILT_IN_EXTENSIONS } from './utils/extensions';
 import { useExampleScripts } from './utils/useExampleScripts';
+import { useLocalizedSampleFiles } from './utils/useLocalizedSampleFiles';
 import { DEFAULT_KEYBINDINGS, ShortcutsModal } from './components/ShortcutsModal';
 import { HelpModal } from './components/HelpModal';
 const ResourceMonitorHUD = React.lazy(() =>
@@ -309,6 +310,8 @@ export default function App() {
     [activeTabId]
   );
   const [fileSystem, setFileSystem] = useState<Record<string, VirtualFile[]>>(buildInitialFileSystem);
+  // The demo files follow the live language; user-edited ones keep their text.
+  useLocalizedSampleFiles(setFileSystem, t);
 
   // Remember the last native directory so a reload can restore it. The handle
   // lives in IndexedDB; a browser that still grants read/write access is mounted

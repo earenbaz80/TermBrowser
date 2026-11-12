@@ -2,7 +2,9 @@
  * Real-Time Python & Shell Script Interpreter for Terminus
  * Evaluates Python statements, Bash pipelines, and PowerShell/CMD commands.
  */
-import { tStandalone } from '../i18n/standalone';
+import { tStandalone, translateAt } from '../i18n/standalone';
+import { LOCALES } from '../i18n/locales';
+import type { MessageKey } from '../i18n/messages';
 
 export interface ExecutionResult {
   stdout: string;
@@ -121,6 +123,48 @@ export interface VirtualFile {
 }
 
 /** Sample files are written in the active language, so running them reads naturally. */
+export const SAMPLE_FILES: { path: string; name: string; key: MessageKey }[] = [
+  { path: '/home/user', name: 'benchmark.py', key: 'fsSample.benchmark' },
+  { path: '/home/user', name: 'readme.txt', key: 'fsSample.readme' },
+  { path: '/home/user/scripts', name: 'audit.sh', key: 'fsSample.audit' },
+  { path: '/home/user/scripts', name: 'scrape_news.py', key: 'fsSample.scrape' },
+];
+
+/**
+ * Re-traduce los archivos de muestra con el idioma activo. Solo sustituye el
+ * contenido que sigue siendo una de las versiones de fábrica, así que un archivo
+ * editado por el usuario conserva su texto.
+ */
+export const localizeSampleFiles = (
+  fileSystem: Record<string, VirtualFile[]>,
+  t: (key: MessageKey) => string
+): Record<string, VirtualFile[]> => {
+  let next = fileSystem;
+
+  for (const sample of SAMPLE_FILES) {
+    const files = next[sample.path];
+    const index = files?.findIndex((file) => file.name === sample.name) ?? -1;
+    if (!files || index < 0) continue;
+
+    const current = files[index];
+    if (typeof current.content !== 'string') continue;
+
+    const shipped = new Set(LOCALES.map((locale) => translateAt(locale.id, sample.key)));
+    if (!shipped.has(current.content)) continue;
+
+    const localized = t(sample.key);
+    if (localized === current.content) continue;
+
+    next = {
+      ...next,
+      [sample.path]: files.map((file, i) =>
+        i === index ? { ...file, content: localized, size: localized.length } : file
+      ),
+    };
+  }
+
+  return next;
+};
 export const buildInitialFileSystem = (): Record<string, VirtualFile[]> => ({
   '/home/user': [
     { name: 'scripts', type: 'dir', updatedAt: '2026-11-07 00:00' },
