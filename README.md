@@ -76,6 +76,20 @@ Estado esperado: typecheck limpio, pruebas de unidad en verde y ambos builds cor
 
 Para preparar un runner de GitHub Actions con escritorio interactivo, configurar las etiquetas y lanzar el E2E manualmente, consulta [docs/e2e-installed-windows.md](docs/e2e-installed-windows.md).
 
+### Verificar el instalador de un run de CI
+
+Cada run publica el `.exe` y un artefacto `terminus-sha256sums-<versión>-run-<n>-windows` con su SHA-256. Descarga los dos desde la pestaña **Summary** del run y, con ellos en la misma carpeta:
+
+```bash
+sha256sum -c SHA256SUMS.txt
+```
+
+```powershell
+Get-FileHash -Algorithm SHA256 'Terminus Setup 0.3.0.exe'   # compara con la línea del .txt
+```
+
+Ese hash corresponde al build de ese run y no tiene por qué coincidir con el de la release publicada.
+
 ## Seguridad
 
 - Este es un proyecto personal y no ha sido auditado por terceros. La revisión incluida en `docs/security-review-proxy-iframes.md` es interna y de alcance limitado. Úsalo bajo tu propio criterio y no lo presentes como un navegador auditado.
