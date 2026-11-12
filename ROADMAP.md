@@ -61,7 +61,7 @@ Cierre: el log del job contiene los tres `PASS` (Ctrl+F en REAL instalado, búsq
 
 ### 3. Cobertura automatizada de la interfaz nueva — regresiones cubiertas en CI
 
-Las tres regresiones del cierre y la persistencia del tema ya tienen prueba, y corren en `npm test` (40 archivos, 175 pruebas): el CI las vigila sin depender del runner interactivo del hito 2.
+Las tres regresiones del cierre y la persistencia del tema tienen prueba en `npm test` (40 archivos, 175 pruebas), que el CI ejecuta siempre, y además en la app empaquetada: `npm run test:e2e:installed:ui` cerró con cuatro `PASS` sobre la 0.3.0 instalada (12 de noviembre de 2026).
 
 Pendiente:
 
@@ -70,9 +70,9 @@ Pendiente:
 - [x] Búsqueda del inicio (`WebBrowserSurface.test.tsx`): un solo paso (`search <consulta>`, con espacios recortados y el campo vaciado), envío vacío que no navega y sugerencia clicable que busca su propio texto; falla si reaparece el botón «ABRIR TERMINUS SEARCH».
 - [x] Cabecera única (`HeaderBar.test.tsx`): un solo `<header>` con la marca, las pestañas y los controles de ventana dentro, sin barra de título duplicada.
 - [x] Persistencia del tema (`App.theme.test.tsx`): monta la app entera, cambia el tema desde el menú, comprueba que queda en `localStorage` y que al desmontarla y volver a montarla arranca con el tema guardado aplicado; también cubre el tema por defecto y un valor guardado que ya no existe.
-- [ ] Llevar los mismos casos al E2E instalado sobre la app empaquetada: sigue dependiendo del runner interactivo que falta en el hito 2.
+- [x] Los mismos casos en el E2E instalado (`scripts/e2e-installed-ui.mjs`, `npm run test:e2e:installed:ui`): sobre la 0.3.0 instalada comprueba la cabecera única (1 `<header>` con pestañas y los 3 controles de ventana dentro), abre el menú, cambia el tema y lo ve guardado en `localStorage` y aplicado tras recargar el renderer, y hace la búsqueda del inicio escribiendo y pulsando Enter, sin botón intermedio. Resultado: cuatro `PASS`. Para correr en CI sigue dependiendo del runner interactivo del hito 2.
 
-Cierre: las pruebas fallan si se reintroduce el botón intermedio de búsqueda, una segunda cabecera o un menú que no guarda el tema; la persistencia se comprueba remontando la app completa, no recargando en un navegador.
+Cierre: las pruebas fallan si se reintroduce el botón intermedio de búsqueda, una segunda cabecera o un menú que no guarda el tema. La persistencia se comprueba de dos formas: remontando la app completa en Vitest y recargando el renderer de la app instalada, que arranca con el tema guardado seleccionado en el menú.
 
 ### 4. Deuda técnica y de seguridad — abierta, sin fecha
 
