@@ -137,7 +137,7 @@ const INITIAL_SCRIPTS: UserScript[] = [
 ];
 
 export default function App() {
-  const { tc } = useI18n();
+  const { tc, locale } = useI18n();
   // Theme and Aesthetic State (persisted in localStorage)
   const [currentThemeId, setCurrentThemeId] = useState<ThemeId>(() => {
     try {
@@ -652,13 +652,14 @@ export default function App() {
         runAutomatedScript: helpers.runAutomatedScript,
         onNativeMountSaved: () => setPendingLocalMount(null),
         tc,
+        locale,
       });
 
       if (resultLog && (resultLog.output || resultLog.interactiveFiles)) {
         setLogs((prev) => [...prev, resultLog]);
       }
     },
-    [tabs, activeTabId, currentThemeId, crtEnabled, isMuted, bookmarks, scripts, extensions, keybindings, security, metrics, activityLogs, currentPath, fileSystem, setCurrentPath, setLogs, tc]
+          [tabs, activeTabId, currentThemeId, crtEnabled, isMuted, bookmarks, scripts, extensions, keybindings, security, metrics, activityLogs, currentPath, fileSystem, setCurrentPath, setLogs, tc, locale]
   );
 
   // Execute automated script sequentially

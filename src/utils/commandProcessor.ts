@@ -20,6 +20,8 @@ import { formatAsciiBox } from './asciiBox';
 import { runPythonCode, VirtualFile } from './interpreter';
 import { computeSHA256 } from './crypto';
 import { COMMAND_DOCS } from '../components/HelpModal';
+import { localizeCommandDocs } from '../i18n/commandDocs';
+import type { Locale } from '../i18n/locales';
 import { APP_VERSION } from './version';
 import {
   fetchWorkspaceFiles,
@@ -45,6 +47,7 @@ import {
 import type { ConsoleKey } from '../i18n/console';
 
 export interface CommandContext {
+  locale: Locale;
   tabs: BrowserTab[];
   activeTabId: string;
   setTabs: React.Dispatch<React.SetStateAction<BrowserTab[]>>;
@@ -2350,7 +2353,9 @@ function getCategoryHelp(rawCategory: string, ctx: CommandContext): TerminalLogE
 
   if (!targetCategory) return null;
 
-  const docs = COMMAND_DOCS.filter((d) => d.category === targetCategory);
+  const docs = localizeCommandDocs(ctx.locale, COMMAND_DOCS).filter(
+    (d) => d.category === targetCategory
+  );
   if (docs.length === 0) return null;
 
   const header = ctx.tc('out.helpCategoryHeader', {
@@ -2382,7 +2387,7 @@ function getSpecificHelp(cmd: string, ctx: CommandContext): TerminalLogEntry {
   const timestamp = new Date().toLocaleTimeString();
   const c = cmd.toLowerCase().trim();
 
-  const found = COMMAND_DOCS.find(
+  const found = localizeCommandDocs(ctx.locale, COMMAND_DOCS).find(
     (d) => d.command.toLowerCase().split(/[\s/]+/)[0] === c || d.command.toLowerCase().includes(c)
   );
 

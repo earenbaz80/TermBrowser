@@ -29,6 +29,7 @@ const makeContext = (initialTabs: BrowserTab[] = [makeTab()]) => {
     security: {},
     fileSystem: {},
     currentPath: '/workspace',
+    locale: 'es',
     tc: (key: Parameters<typeof translateConsole>[1], vars?: Record<string, string | number>) =>
       translateConsole('es', key, vars),
   };

@@ -35,9 +35,9 @@ export const AutomationScriptsModal: React.FC<AutomationScriptsModalProps> = ({
   const handleStartCreate = () => {
     soundEffects.playKeyClick();
     setSelectedScript(null);
-    setEditName('Nuevo Script de Automatización');
-    setEditDesc('Descripción de la tarea automatizada');
-    setEditStepsText('echo "Iniciando script..."\ndate\ngoto https://news.ycombinator.com\nreader\necho "Tarea completada con exito."');
+    setEditName(t('scripts.defaultName'));
+    setEditDesc(t('scripts.defaultDescription'));
+    setEditStepsText(t('scripts.defaultSteps'));
     setIsEditing(true);
   };
 

@@ -167,6 +167,7 @@ const buildAddressSuggestions = (
   raw: string,
   bookmarks: Bookmark[],
   history: string[],
+  t: (key: MessageKey, vars?: Record<string, string>) => string,
   globalHistory: string[] = []
 ): AddressSuggestion[] => {
   const query = raw.trim();
@@ -188,7 +189,7 @@ const buildAddressSuggestions = (
   if (!looksLikeCommand && !looksLikeUrl) {
     push({
       kind: 'search',
-      label: `Buscar “${query}”`,
+      label: t('browser.suggestSearch', { query }),
       detail: 'Terminus Search',
       command: `search ${query}`,
     });
@@ -200,7 +201,7 @@ const buildAddressSuggestions = (
     push({
       kind: 'bookmark',
       label: bookmark.title || bookmark.url,
-      detail: `Marcador · ${hostLabel(bookmark.url)}`,
+      detail: t('browser.suggestBookmark', { host: hostLabel(bookmark.url) }),
       command: `goto ${bookmark.url}`,
     });
     if (suggestions.length >= 6) return suggestions;
@@ -212,7 +213,7 @@ const buildAddressSuggestions = (
     push({
       kind: 'history',
       label: url.replace(/^https?:\/\//i, ''),
-      detail: `Historial · ${hostLabel(url)}`,
+      detail: t('browser.suggestHistory', { host: hostLabel(url) }),
       command: `goto ${url}`,
     });
     if (suggestions.length >= 6) break;
@@ -278,7 +279,13 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
   const [localZoom, setLocalZoom] = useState(1);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const findInputRef = useRef<HTMLInputElement>(null);
-  const addressSuggestions = buildAddressSuggestions(address, bookmarks, tab?.history ?? [], globalHistory);
+  const addressSuggestions = buildAddressSuggestions(
+    address,
+    bookmarks,
+    tab?.history ?? [],
+    t,
+    globalHistory
+  );
   const zoom = Math.min(2, Math.max(0.5, tab?.zoom ?? localZoom));
 
   // Measure the text before the insertion point so the blinking cursor follows the caret

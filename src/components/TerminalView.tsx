@@ -231,6 +231,7 @@ const ClickableTerminalText: React.FC<{
   text: string;
   onExecuteCommand: (cmd: string) => void;
 }> = ({ text, onExecuteCommand }) => {
+  const { t } = useI18n();
   // Regex to detect URLs: https?://[^\s]+
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   const parts = text.split(urlRegex);
@@ -248,7 +249,7 @@ const ClickableTerminalText: React.FC<{
                 onExecuteCommand(`goto ${part}`);
               }}
               className="underline cursor-pointer hover:opacity-80 transition-opacity font-bold font-mono text-cyan-400"
-              title={`Haga clic para navegar a: ${part}`}
+              title={t('terminal.linkNavigateTitle', { part })}
             >
               {part}
             </span>
@@ -463,7 +464,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     if (e) e.stopPropagation();
     if (!isSpeechRecognitionSupported()) {
       soundEffects.playVoiceError();
-      setVoiceError('Web Speech API no disponible en este navegador. Use Google Chrome, Edge o Safari.');
+      setVoiceError(t('terminal.voiceUnsupported'));
       setTimeout(() => setVoiceError(null), 4500);
       return;
     }
@@ -474,7 +475,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     } else {
       voiceControllerRef.current?.start();
     }
-  }, [isListening]);
+  }, [isListening, t]);
 
   // Keyboard shortcut Ctrl+M / Cmd+M to toggle voice input
   useEffect(() => {
@@ -890,7 +891,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           if (onImportLocalFiles) {
             onImportLocalFiles(loadedFiles, 'disco_local');
           } else {
-            onExecuteCommand(`echo "[✓] ${loadedFiles.length} archivos locales cargados desde el disco."`);
+            onExecuteCommand(`echo "${t('terminal.localFilesLoaded', { count: loadedFiles.length })}"`);
           }
         }
       };
@@ -985,12 +986,19 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       });
       if (result.canceled) return;
       const message = result.ok
-        ? `Extraído ${result.archivePath ?? 'archivo'} en ${result.destination ?? 'destino'}`
-        : `No se pudo extraer: ${result.error ?? 'error desconocido'}`;
+        ? t('terminal.extractDone', {
+            file: result.archivePath ?? t('terminal.defaultFile'),
+            destination: result.destination ?? t('terminal.defaultDestination'),
+          })
+        : t('terminal.extractFailed', {
+            error: result.error ?? t('terminal.extractUnknownError'),
+          });
       if (ptyEnabled) ptyRef.current?.writeNotice(message);
       else onExecuteCommand(`echo "${message.replace(/"/g, "'")}"`);
     } catch (error) {
-      const message = `No se pudo extraer: ${error instanceof Error ? error.message : String(error)}`;
+      const message = t('terminal.extractFailed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       if (ptyEnabled) ptyRef.current?.writeNotice(message);
       else onExecuteCommand(`echo "${message.replace(/"/g, "'")}"`);
     }
@@ -1505,7 +1513,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
               {nativeShellCwd || 'workspace'}
             </span>
             <span className="opacity-40">·</span>
-            <span className="opacity-60">cd &lt;ruta&gt; · cd ~</span>
+            <span className="opacity-60">{t('terminal.pathHint')}</span>
           </div>
           <span className="text-[9px] opacity-50">
             {ptyEnabled
@@ -1783,7 +1791,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                   </pre>
                   <div
                     className="ascii-latency"
-                    title={`Latencia de red actual: ${latencyLabel}`}
+                    title={t('terminal.latencyTitle', { latency: latencyLabel })}
                   >
                     <span className="ascii-latency-dot" aria-hidden="true" />
                     <span>[ LATENCIA {latencyLabel} ]</span>
