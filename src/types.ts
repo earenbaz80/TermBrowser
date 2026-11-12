@@ -242,6 +242,9 @@ export interface TerminusDesktopApi {
   onFindShortcut(listener: () => void): () => void;
   /** Cosmetic CSS computed from EasyList for a proxied page's original URL. */
   getAdblockCosmetics?(url: string): Promise<string>;
+  /** Ad-blocking switch owned by the Electron main process. */
+  getAdblockState?(): Promise<{ enabled: boolean; available: boolean }>;
+  setAdblockEnabled?(enabled: boolean): Promise<{ enabled: boolean; available: boolean }>;
 }
 
 export interface FrameContextMenuEvent {

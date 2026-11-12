@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { NativeShellId, TerminalLogEntry, TerminalShellMode, ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
+import { useI18n } from '../i18n';
 import { BOOT_ASCII_COMPACT } from '../utils/bootBanner';
 import { formatCompactAsciiManual } from '../utils/asciiManual';
 import { getLatencyGlow } from '../utils/latencyGlow';
@@ -320,6 +321,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
     setPtyError('');
   }, [shellMode, tabId]);
 
+  const { t } = useI18n();
   const [inputVal, setInputVal] = useState('');
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
   const [draftInput, setDraftInput] = useState<string>('');
@@ -1211,17 +1213,17 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         <div className="flex items-center gap-2 shrink-0">
           <span className="font-bold text-[11px] flex items-center gap-1.5" style={{ color: theme.accent }}>
             <TerminalIcon className="w-3.5 h-3.5" />
-            <span>CONSOLA & NAVEGADOR WEB</span>
+            <span>{t('terminal.consoleTitle')}</span>
           </span>
           <span className="text-[10px] opacity-60 hidden sm:inline">
-            {isNativeShellMode ? 'Shell nativo · ruta persistente' : 'Tab: autocompletar · ↑↓: historial'}
+            {isNativeShellMode ? t('terminal.hintNative') : t('terminal.hintEmulated')}
           </span>
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0 ml-auto">
           {/* Shell selector: TERMINUS is the internal interpreter; the rest run real local shells. */}
           <div className="flex items-center gap-1 shrink-0">
-            <span className="text-[9px] opacity-50">SHELL</span>
+            <span className="text-[9px] opacity-50">{t('terminal.shellLabel')}</span>
             <select
               value={shellMode}
               onClick={(event) => event.stopPropagation()}
@@ -1234,14 +1236,12 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
               }}
               title={
                 nativeShellAvailable
-                  ? `TERMINUS: intérprete interno · AUTO/CMD/POWERSHELL/BASH: ${
-                      ptyBridgeAvailable
-                        ? 'terminal interactiva (vim, top, ssh) con los permisos de tu usuario'
-                        : 'comandos reales no interactivos con los permisos de tu usuario'
-                    }`
-                  : 'El shell nativo solo está disponible en la aplicación de escritorio de Terminus'
+                  ? ptyBridgeAvailable
+                    ? t('terminal.shellTitleNative')
+                    : t('terminal.shellTitleNativeNoPty')
+                  : t('terminal.shellTitleWeb')
               }
-              aria-label="Seleccionar intérprete de la terminal"
+              aria-label={t('terminal.shellAria')}
             >
               {shellOptions.map((option) => (
                 <option
@@ -1278,10 +1278,10 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                 backgroundColor: isQuickMenuOpen ? theme.accent : theme.bg,
                 color: isQuickMenuOpen ? theme.bg : theme.accent,
               }}
-              title="Menú plegable de acciones rápidas"
+              title={t('terminal.quickMenuTitle')}
             >
               <Zap className="w-3 h-3 text-amber-400" />
-              <span>ACCIONES</span>
+              <span>{t('terminal.quickMenu')}</span>
               <ChevronDown className={`w-3 h-3 transition-transform duration-150 ${isQuickMenuOpen ? 'rotate-180' : ''}`} />
             </button>
 
@@ -1299,7 +1299,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                 <div className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider opacity-60 border-b border-white/10 flex items-center justify-between">
                   <span className="flex items-center gap-1 text-amber-400">
                     <Zap className="w-2.5 h-2.5" />
-                    <span>Acciones Rápidas</span>
+                    <span>{t('terminal.quickHeading')}</span>
                   </span>
                   <span className="text-[9px] opacity-40">[ESC]</span>
                 </div>
@@ -1320,7 +1320,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                     className="w-full flex items-center gap-2 px-2 py-1 rounded-xs hover:bg-white/10 cursor-pointer text-left text-slate-200 hover:text-white"
                   >
                     <Folder className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span className="font-semibold text-[11px]">Listar Archivos (ls)</span>
+                    <span className="font-semibold text-[11px]">{t('terminal.quickList')}</span>
                   </button>
 
                   <button
@@ -1333,7 +1333,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                     className="w-full flex items-center gap-2 px-2 py-1 rounded-xs hover:bg-white/10 cursor-pointer text-left text-slate-200 hover:text-white"
                   >
                     <Code2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                    <span className="font-semibold text-[11px]">Workspace Local</span>
+                    <span className="font-semibold text-[11px]">{t('terminal.quickWorkspace')}</span>
                   </button>
 
                   <button
@@ -1345,7 +1345,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                     className="w-full flex items-center gap-2 px-2 py-1 rounded-xs hover:bg-white/10 cursor-pointer text-left text-slate-200 hover:text-white"
                   >
                     <Globe className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span className="font-semibold text-[11px]">Web: Hacker News</span>
+                    <span className="font-semibold text-[11px]">{t('terminal.quickNews')}</span>
                   </button>
 
                   <button
@@ -1357,7 +1357,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                     className="w-full flex items-center gap-2 px-2 py-1 rounded-xs hover:bg-white/10 cursor-pointer text-left text-slate-200 hover:text-white"
                   >
                     <Play className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
-                    <span className="font-semibold text-[11px]">Ejecutar Python</span>
+                    <span className="font-semibold text-[11px]">{t('terminal.quickPython')}</span>
                   </button>
 
                   {onOpenFileExplorer && (
@@ -1370,7 +1370,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                       className="w-full flex items-center gap-2 px-2 py-1 rounded-xs hover:bg-white/10 cursor-pointer text-left text-slate-200 hover:text-white"
                     >
                       <FileSearch className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                      <span className="font-semibold text-[11px]">Norton Commander</span>
+                      <span className="font-semibold text-[11px]">{t('terminal.quickFiles')}</span>
                     </button>
                   )}
 
@@ -1384,7 +1384,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                       className="w-full flex items-center gap-2 px-2 py-1 rounded-xs hover:bg-white/10 cursor-pointer text-left text-slate-200 hover:text-white"
                     >
                       <Activity className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                      <span className="font-semibold text-[11px]">Monitor del Sistema</span>
+                      <span className="font-semibold text-[11px]">{t('terminal.quickMonitor')}</span>
                     </button>
                   )}
 
@@ -1398,7 +1398,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                       className="w-full flex items-center gap-2 px-2 py-1 rounded-xs hover:bg-white/10 cursor-pointer text-left text-slate-200 hover:text-white"
                     >
                       <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                      <span className="font-semibold text-[11px]">Bóveda & MFA</span>
+                      <span className="font-semibold text-[11px]">{t('terminal.quickVault')}</span>
                     </button>
                   )}
 
@@ -1411,7 +1411,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                     className="w-full flex items-center gap-2 px-2 py-1 rounded-xs hover:bg-white/10 cursor-pointer text-left text-slate-200 hover:text-white"
                   >
                     <Mic className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                    <span className="font-semibold text-[11px]">Dictar por Voz (Ctrl+M)</span>
+                    <span className="font-semibold text-[11px]">{t('terminal.quickVoice')}</span>
                   </button>
 
                   <button
@@ -1423,7 +1423,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                     className="w-full flex items-center gap-2 px-2 py-1 rounded-xs hover:bg-white/10 cursor-pointer text-left text-slate-200 hover:text-white"
                   >
                     <Download className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                    <span className="font-semibold text-[11px]">Exportar Logs (JSON)</span>
+                    <span className="font-semibold text-[11px]">{t('terminal.quickLogsJson')}</span>
                   </button>
 
                   <button
@@ -1435,7 +1435,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                     className="w-full flex items-center gap-2 px-2 py-1 rounded-xs hover:bg-white/10 cursor-pointer text-left text-slate-200 hover:text-white"
                   >
                     <Download className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span className="font-semibold text-[11px]">Exportar Logs (TXT)</span>
+                    <span className="font-semibold text-[11px]">{t('terminal.quickLogsTxt')}</span>
                   </button>
 
                   <button
@@ -1447,7 +1447,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                     className="w-full flex items-center gap-2 px-2 py-1 rounded-xs hover:bg-white/10 cursor-pointer text-left text-slate-200 hover:text-white"
                   >
                     <Bell className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                    <span className="font-semibold text-[11px]">Probar Notificación</span>
+                    <span className="font-semibold text-[11px]">{t('terminal.quickNotify')}</span>
                   </button>
                 </div>
               </div>
@@ -1464,10 +1464,10 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
               }}
               className="flex items-center gap-1 px-2 py-0.5 border text-[10px] font-bold hover:opacity-90 cursor-pointer rounded-xs"
               style={{ borderColor: theme.border, backgroundColor: theme.bg, color: theme.accent }}
-              title="Abrir panel de ayuda interactivo (F1)"
+              title={t('terminal.helpTitle')}
             >
               <HelpCircle className="w-3 h-3" />
-              <span>AYUDA (F1)</span>
+              <span>{t('terminal.help')}</span>
             </button>
           )}
 
@@ -1479,7 +1479,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
             }}
             className="p-1 border text-red-400 hover:text-red-300 hover:bg-red-900/30 cursor-pointer"
             style={{ borderColor: theme.border }}
-            title="Limpiar terminal (Comando: clear)"
+            title={t('terminal.clearTitle')}
           >
             <Trash2 className="w-3 h-3" />
           </button>
@@ -1493,10 +1493,10 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}
         >
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="opacity-50">SHELL:</span>
+            <span className="opacity-50">{t('terminal.shellLabel')}:</span>
             <span className="font-bold" style={{ color: '#fbbf24' }}>{nativeShellLabel}</span>
             <span className="opacity-40">·</span>
-            <span className="opacity-50">CWD:</span>
+            <span className="opacity-50">{t('terminal.cwd')}</span>
             <span
               className="font-bold truncate max-w-[44ch]"
               style={{ color: '#fbbf24' }}
@@ -1509,10 +1509,10 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           </div>
           <span className="text-[9px] opacity-50">
             {ptyEnabled
-              ? 'PTY interactivo · vim · top · ssh · Ctrl+C interrumpe'
+              ? t('terminal.ptyInteractive')
               : ptyFailed
-                ? 'Modo no interactivo · ruta persistente por pestaña'
-                : 'Comandos no interactivos · ruta persistente por pestaña'}
+                ? t('terminal.nonInteractivePersist')
+                : t('terminal.nonInteractive')}
           </span>
         </div>
       )}
@@ -1528,7 +1528,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
       >
         {/* Clickable breadcrumbs */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="opacity-50">DIR:</span>
+          <span className="opacity-50">{t('terminal.dir')}</span>
           <span
             onClick={(e) => {
               e.stopPropagation();
@@ -1536,7 +1536,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
               onExecuteCommand('cd /');
             }}
             className="cursor-pointer hover:underline font-bold text-amber-400"
-            title="Ir a /"
+            title={t('terminal.rootTitle')}
           >
             /
           </span>
@@ -1555,7 +1555,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                   className={`cursor-pointer hover:underline font-bold ${
                     isLast ? 'text-emerald-400' : 'text-cyan-400 opacity-90'
                   }`}
-                  title={`Cambiar a ${subPath}`}
+                  title={t('terminal.branchTitle', { path: subPath })}
                 >
                   {part}
                 </span>
@@ -1574,9 +1574,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
               else onExecuteCommand('fs mount');
             }}
             className="cursor-pointer hover:underline text-amber-400 font-semibold"
-            title="Montar carpeta real del equipo local con File System Access API"
+            title={t('terminal.mountTitle')}
           >
-            [montar disco]
+            {t('terminal.mount')}
           </span>
 
           <span
@@ -1586,9 +1586,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
               fileInputRef.current?.click();
             }}
             className="cursor-pointer hover:underline opacity-80 hover:opacity-100"
-            title="Cargar archivos locales"
+            title={t('terminal.loadFilesTitle')}
           >
-            [cargar archivos]
+            {t('terminal.loadFiles')}
           </span>
 
           <span
@@ -1599,9 +1599,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
               else onExecuteCommand('fs workspace');
             }}
             className="cursor-pointer hover:underline text-cyan-400 font-semibold"
-            title="Montar código fuente del servidor"
+            title={t('terminal.workspaceTitle')}
           >
-            [workspace]
+            {t('terminal.workspace')}
           </span>
 
           {localMountToRestore && localMountToRestore.permission !== 'granted' && (
@@ -1621,15 +1621,15 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
               className="max-w-[240px] truncate border-0 bg-transparent p-0 font-mono text-[10px] font-semibold text-amber-300 cursor-pointer hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
               title={
                 localMountToRestore.permission === 'denied'
-                  ? `El navegador denegó el acceso a "${localMountToRestore.name}". Vuelve a elegirla con [montar disco].`
-                  : `Renovar el permiso de "${localMountToRestore.name}" y montarla de nuevo`
+                  ? t('terminal.restoreDeniedTitle', { name: localMountToRestore.name })
+                  : t('terminal.restoreRenewTitle', { name: localMountToRestore.name })
               }
             >
               {localMountToRestore.restoring
-                ? `[restaurando ${localMountToRestore.name}…]`
+                ? t('terminal.restoring', { name: localMountToRestore.name })
                 : localMountToRestore.permission === 'denied'
-                ? `[permiso denegado: ${localMountToRestore.name}]`
-                : `[restaurar ${localMountToRestore.name}]`}
+                ? t('terminal.permissionDenied', { name: localMountToRestore.name })
+                : t('terminal.restore', { name: localMountToRestore.name })}
             </button>
           )}
         </div>
@@ -1655,9 +1655,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           style={{ backgroundColor: 'rgba(127, 29, 29, 0.35)', borderColor: '#ef4444', color: '#fca5a5' }}
         >
           <span className="truncate" title={ptyError}>
-            [PTY] {ptyError || 'No se pudo iniciar la sesión interactiva.'}
+            [PTY] {ptyError || t('terminal.ptyError')}
           </span>
-          <span className="opacity-75 shrink-0">Modo no interactivo activo</span>
+          <span className="opacity-75 shrink-0">{t('terminal.nonInteractiveActive')}</span>
         </div>
       )}
 
@@ -1682,7 +1682,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                   }
                 }}
                 className="group flex items-start gap-2 pt-1 font-bold cursor-pointer hover:opacity-80 py-0.5 px-1 transition-opacity"
-                title="Haga clic para cargar este comando en la barra de entrada"
+                title={t('terminal.commandReloadTitle')}
               >
                 <span style={{ color: theme.accent }} className="shrink-0 select-none">
                   {isNativeShellMode
@@ -1727,7 +1727,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                 {log.interactiveFiles && log.interactiveFiles.length > 0 && (
                   <div className="pt-1.5 font-mono text-[11px]">
                     <div className="opacity-50 text-[10px] mb-1">
-                      [CONTENIDO · CLIC, TAP O TAB+ENTER SOBRE CUALQUIER ELEMENTO]:
+                      {t('terminal.contentHint')}
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1">
                       {log.interactiveFiles.map((file, fileIndex) => {
@@ -1742,7 +1742,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                               onExecuteCommand(file.action);
                             }}
                             className="group flex w-full items-center gap-2 cursor-pointer py-0.5 text-left touch-manipulation"
-                            title={`Clic para ejecutar: ${file.action}`}
+                            title={t('terminal.fileRunTitle', { action: file.action })}
                           >
                             <span className="shrink-0 opacity-40">{String(fileIndex + 1).padStart(2, '0')}</span>
                             <span className={`shrink-0 font-bold ${isDir ? 'text-amber-400' : 'text-emerald-400'}`}>
@@ -1799,14 +1799,14 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                   <pre
                     className="ascii-manual ascii-manual-wide mx-auto w-fit max-w-full font-mono text-[10px] leading-tight select-none opacity-90 overflow-x-auto"
                     style={{ color: theme.accent }}
-                    aria-label="Manual de comandos"
+                    aria-label={t('terminal.manualAria')}
                   >
                     {log.output}
                   </pre>
                   <pre
                     className="ascii-manual ascii-manual-compact mx-auto w-fit max-w-full font-mono text-[10px] leading-tight select-none opacity-90"
                     style={{ color: theme.accent }}
-                    aria-label="Manual de comandos para móvil"
+                    aria-label={t('terminal.manualMobileAria')}
                   >
                     {compactManual}
                   </pre>
@@ -1849,7 +1849,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
               {log.interactiveFiles && log.interactiveFiles.length > 0 && (
                 <div className="pt-1.5 font-mono text-[11px]">
                   <div className="opacity-50 text-[10px] mb-1">
-                    [CONTENIDO · CLIC, TAP O TAB+ENTER SOBRE CUALQUIER ELEMENTO]:
+                    {t('terminal.contentHint')}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1">
                     {log.interactiveFiles.map((file, fileIndex) => {
@@ -1864,7 +1864,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                             onExecuteCommand(file.action);
                           }}
                           className="group flex w-full items-center gap-2 cursor-pointer py-0.5 text-left touch-manipulation"
-                          title={`Clic para ejecutar: ${file.action}`}
+                          title={t('terminal.fileRunTitle', { action: file.action })}
                         >
                           <span className="shrink-0 opacity-40">{String(fileIndex + 1).padStart(2, '0')}</span>
                           <span className={`shrink-0 font-bold ${isDir ? 'text-amber-400' : 'text-emerald-400'}`}>
@@ -1894,7 +1894,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
             borderColor: theme.border,
           }}
         >
-          <span className="opacity-60 font-bold shrink-0">TAB AUTOCOMPLETAR:</span>
+          <span className="opacity-60 font-bold shrink-0">{t('terminal.autocompleteHeading')}</span>
           {suggestions.map((sug, idx) => {
             const isSelected = idx === selectedSuggestionIndex;
             return (
@@ -1916,7 +1916,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                   backgroundColor: isSelected ? theme.accent : theme.bg,
                   color: isSelected ? theme.bg : theme.text,
                 }}
-                title={`Autocompletar: ${sug.value}`}
+                title={t('terminal.autocompleteTitle', { value: sug.value })}
               >
                 {sug.kind === 'dir' ? (
                   <Folder className="w-2.5 h-2.5 shrink-0" />
@@ -1930,7 +1930,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
             );
           })}
           <span className="opacity-40 ml-auto hidden sm:inline shrink-0">
-            [TAB] siguiente · [SHIFT+TAB] anterior
+            {t('terminal.autocompleteCycling')}
           </span>
         </div>
       )}
@@ -1951,9 +1951,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           <span className="opacity-50 hidden sm:inline truncate">
             {isNativeShellMode
               ? ptyEnabled
-                ? `${nativeShellLabel} · PTY interactivo · Ctrl+C interrumpe · exit cierra`
-                : `${nativeShellLabel} · cd <ruta> · Enter ejecuta · salida al terminar`
-              : `home · ir a <url> · pestaña ${tabSummary} · Ctrl+T nueva · archivos · monitor · limpiar · exit`}
+                ? t('terminal.assistantNativePty', { shell: nativeShellLabel })
+                : t('terminal.assistantNative', { shell: nativeShellLabel })
+              : t('terminal.assistantEmulated', { tab: tabSummary })}
           </span>
         </div>
 
@@ -1982,9 +1982,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
             <div className="flex items-center gap-2">
               <span className="flex items-center gap-1 font-bold text-red-400 animate-pulse">
                 <Radio className="w-3 h-3 text-red-500 animate-pulse" />
-                <span>[GRABANDO VOZ · WEB SPEECH API]</span>
+                <span>{t('terminal.voiceRecording')}</span>
               </span>
-              <span className="opacity-60 hidden sm:inline">Hable claramente hacia el micrófono</span>
+              <span className="opacity-60 hidden sm:inline">{t('terminal.voiceSpeak')}</span>
             </div>
             <div className="flex items-center gap-2.5">
               <span className="font-mono text-[9px] text-emerald-400 font-bold">
@@ -1995,17 +1995,17 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                 onClick={handleToggleVoice}
                 className="text-red-400 hover:text-red-300 hover:underline cursor-pointer text-[10px] font-bold"
               >
-                [CANCELAR]
+                {t('terminal.voiceCancel')}
               </button>
             </div>
           </div>
 
           {/* Transcribed text with retro phosphor aesthetic */}
           <div className="flex items-center gap-2 pt-0.5 min-h-[22px]">
-            <span className="text-amber-400 font-bold shrink-0 text-xs">VOZ❯</span>
+            <span className="text-amber-400 font-bold shrink-0 text-xs">{t('terminal.voicePrompt')}</span>
             <span className="font-mono text-xs text-emerald-300 font-semibold truncate flex-1">
               {voiceInterim || voiceFinal || (
-                <span className="opacity-40 italic">Escuchando... diga "inicio", "ir a wikipedia", "listar archivos", o cualquier búsqueda</span>
+                <span className="opacity-40 italic">{t('terminal.voiceListening')}</span>
               )}
             </span>
             <span className="w-1.5 h-3.5 bg-emerald-400 animate-pulse shrink-0 inline-block"></span>
@@ -2020,13 +2020,13 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
         >
           <div className="flex items-center gap-1.5">
             <MicOff className="w-3.5 h-3.5 shrink-0" />
-            <span>[VOZ]: {voiceError}</span>
+            <span>{t('terminal.voiceError', { error: voiceError })}</span>
           </div>
           <button
             onClick={() => setVoiceError(null)}
             className="text-[10px] hover:underline cursor-pointer opacity-80 hover:opacity-100"
           >
-            [CERRAR]
+            {t('terminal.voiceDismiss')}
           </button>
         </div>
       )}
@@ -2046,8 +2046,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           style={{ color: isNativeShellMode ? '#fbbf24' : theme.accent }}
           title={
             isNativeShellMode
-              ? `Shell nativo: ${nativeShellLabel}\nCWD: ${nativeShellCwd || 'workspace'}`
-              : 'Intérprete interno de Terminus'
+              ? t('terminal.promptShellTitle', { shell: nativeShellLabel, cwd: nativeShellCwd || 'workspace' })
+              : t('terminal.promptInternalTitle')
           }
         >
           {promptSymbol}
@@ -2061,7 +2061,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
               color: theme.accent,
               backgroundColor: theme.bg,
             }}
-            title="Navegando el historial persistente de localStorage (↑/↓)"
+            title={t('terminal.historyNavigating')}
           >
             HIST {historyIndex + 1}/{commandHistory.length}
           </span>
@@ -2090,8 +2090,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
             autoFocus
             placeholder={
               isNativeShellMode
-                ? `Comando para ${nativeShellLabel} (se ejecuta en el workspace)...`
-                : 'Escriba cualquier búsqueda o comando (Tab: autocompletar · ↑/↓: historial persistente)...'
+                ? t('terminal.inputNativePlaceholder', { shell: nativeShellLabel })
+                : t('terminal.inputPlaceholder')
             }
             className="w-full min-w-0 bg-transparent border-0 p-0 outline-hidden font-mono text-xs focus:ring-0 placeholder:opacity-45"
             style={{ color: theme.text, caretColor: 'transparent' }}
@@ -2126,7 +2126,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
               backgroundColor: isHistoryMenuOpen ? theme.accent : 'transparent',
               color: isHistoryMenuOpen ? theme.bg : theme.accent,
             }}
-            title={`Historial persistente en localStorage (${commandHistory.length} comandos guardados · Use ↑/↓ para recuperar)`}
+            title={t('terminal.historyTitle', { n: commandHistory.length })}
           >
             <History className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">{commandHistory.length}</span>
@@ -2148,7 +2148,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
               >
                 <span className="flex items-center gap-1.5" style={{ color: theme.accent }}>
                   <History className="w-3 h-3" />
-                  <span>HISTORIAL LOCALSTORAGE ({commandHistory.length})</span>
+                  <span>{t('terminal.historyHeading', { n: commandHistory.length })}</span>
                 </span>
                 {commandHistory.length > 0 && (
                   <button
@@ -2160,9 +2160,9 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                       setHistoryIndex(-1);
                     }}
                     className="text-red-400 hover:underline cursor-pointer text-[9px]"
-                    title="Vaciar historial persistente de localStorage"
+                    title={t('terminal.historyClearTitle')}
                   >
-                    [VACIAR]
+                    {t('terminal.historyClear')}
                   </button>
                 )}
               </div>
@@ -2170,7 +2170,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
               <div className="overflow-y-auto flex-1 divide-y divide-white/5 p-1">
                 {commandHistory.length === 0 ? (
                   <div className="py-4 text-center opacity-50 text-[10px]">
-                    Sin comandos en localStorage.
+                    {t('terminal.historyEmpty')}
                   </div>
                 ) : (
                   [...commandHistory]
@@ -2190,7 +2190,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                             focusInput();
                           }}
                           className="flex-1 text-left truncate cursor-pointer flex items-center gap-2"
-                          title="Clic para cargar en el prompt"
+                          title={t('terminal.historyLoadTitle')}
                         >
                           <span className="opacity-40 text-[9px] w-5 shrink-0">#{item.idx}</span>
                           <span className="truncate font-semibold">{item.cmd}</span>
@@ -2204,7 +2204,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                           }}
                           className="opacity-60 group-hover:opacity-100 hover:underline text-[9px] font-bold px-1 shrink-0 cursor-pointer"
                           style={{ color: theme.accent }}
-                          title="Ejecutar inmediatamente"
+                          title={t('terminal.historyRunTitle')}
                         >
                           [RUN]
                         </button>
@@ -2217,8 +2217,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
                 className="px-2.5 py-1 border-t text-[9px] opacity-60 flex items-center justify-between"
                 style={{ borderColor: theme.border }}
               >
-                <span>↑/↓: navegar en barra</span>
-                <span>Persiste al recargar</span>
+                <span>{t('terminal.historyFooterKeys')}</span>
+                <span>{t('terminal.historyFooterPersist')}</span>
               </div>
             </div>
           )}
@@ -2237,11 +2237,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
             borderColor: isListening ? '#ef4444' : theme.border,
             color: isListening ? '#f87171' : theme.accent,
           }}
-          title={
-            isListening
-              ? 'Detener dictado por voz (Escuchando...)'
-              : 'Activar dictado por voz [Ctrl+M] (Web Speech API)'
-          }
+          title={isListening ? t('terminal.voiceStopTitle') : t('terminal.voiceStartTitle')}
         >
           {isListening ? (
             <MicOff className="w-3.5 h-3.5 text-red-400" />
@@ -2254,7 +2250,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           type="submit"
           className="p-1 hover:opacity-80 cursor-pointer ml-1"
           style={{ color: theme.accent }}
-          title="Ejecutar comando (Enter)"
+          title={t('terminal.runTitle')}
         >
           <CornerDownLeft className="w-3.5 h-3.5" />
         </button>
@@ -2265,7 +2261,11 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
           theme={theme}
           x={contextMenu.x}
           y={contextMenu.y}
-          title={`TERMINAL · ${isNativeShellMode ? nativeShellLabel : 'INTÉRPRETE'}`}
+          title={
+            isNativeShellMode
+              ? t('terminal.menuTitleShell', { shell: nativeShellLabel })
+              : t('terminal.menuTitleInternal')
+          }
           items={terminalMenuItems}
           onClose={() => setContextMenu(null)}
         />

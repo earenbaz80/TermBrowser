@@ -14,6 +14,7 @@ import {
   Check,
   Terminal,
 } from 'lucide-react';
+import { useI18n } from '../i18n';
 
 export type HelpCategory = 'todas' | 'navegación' | 'sistema' | 'red' | 'seguridad' | 'automatización';
 
@@ -460,17 +461,18 @@ export const HelpModal: React.FC<HelpModalProps> = ({
   onClose,
   onExecuteCommand,
 }) => {
+  const { t } = useI18n();
   const [selectedCategory, setSelectedCategory] = useState<HelpCategory>('todas');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   const categories: { id: HelpCategory; label: string; icon: React.ReactNode; count: number }[] = [
-    { id: 'todas', label: 'Todos los Comandos', icon: <Terminal className="w-3.5 h-3.5" />, count: COMMAND_DOCS.length },
-    { id: 'navegación', label: 'Navegación Web', icon: <Globe className="w-3.5 h-3.5" />, count: COMMAND_DOCS.filter((c) => c.category === 'navegación').length },
-    { id: 'sistema', label: 'Sistema & Shell', icon: <Cpu className="w-3.5 h-3.5" />, count: COMMAND_DOCS.filter((c) => c.category === 'sistema').length },
-    { id: 'red', label: 'Red & Diagnóstico', icon: <Network className="w-3.5 h-3.5" />, count: COMMAND_DOCS.filter((c) => c.category === 'red').length },
-    { id: 'seguridad', label: 'Seguridad & Cifrado', icon: <Shield className="w-3.5 h-3.5" />, count: COMMAND_DOCS.filter((c) => c.category === 'seguridad').length },
-    { id: 'automatización', label: 'Automatización & Scripts', icon: <Zap className="w-3.5 h-3.5" />, count: COMMAND_DOCS.filter((c) => c.category === 'automatización').length },
+    { id: 'todas', label: t('modal.help.catAll'), icon: <Terminal className="w-3.5 h-3.5" />, count: COMMAND_DOCS.length },
+    { id: 'navegación', label: t('modal.help.catWeb'), icon: <Globe className="w-3.5 h-3.5" />, count: COMMAND_DOCS.filter((c) => c.category === 'navegación').length },
+    { id: 'sistema', label: t('modal.help.catSystem'), icon: <Cpu className="w-3.5 h-3.5" />, count: COMMAND_DOCS.filter((c) => c.category === 'sistema').length },
+    { id: 'red', label: t('modal.help.catNetwork'), icon: <Network className="w-3.5 h-3.5" />, count: COMMAND_DOCS.filter((c) => c.category === 'red').length },
+    { id: 'seguridad', label: t('modal.help.catSecurity'), icon: <Shield className="w-3.5 h-3.5" />, count: COMMAND_DOCS.filter((c) => c.category === 'seguridad').length },
+    { id: 'automatización', label: t('modal.help.catAutomation'), icon: <Zap className="w-3.5 h-3.5" />, count: COMMAND_DOCS.filter((c) => c.category === 'automatización').length },
   ];
 
   const filteredDocs = useMemo(() => {
@@ -525,7 +527,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({
         >
           <div className="flex items-center gap-2 font-bold">
             <HelpCircle className="w-4 h-4 text-emerald-400" />
-            <span className="tracking-wide">PANEL DE AYUDA INTERACTIVO · MANUAL DE COMANDOS Y EJEMPLOS</span>
+            <span className="tracking-wide">{t('modal.help.title')}</span>
           </div>
           <button
             onClick={() => {
@@ -548,7 +550,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 opacity-60" />
             <input
               type="text"
-              placeholder="Buscar comando, ejemplo o palabra clave..."
+              placeholder={t('modal.help.search')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-8 pr-3 py-1.5 text-xs border rounded-xs focus:outline-hidden"
@@ -561,7 +563,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({
           </div>
 
           <div className="text-[11px] opacity-75 whitespace-nowrap self-end sm:self-center">
-            Mostrando <span className="font-bold text-emerald-400">{filteredDocs.length}</span> comandos disponibles
+            {t('modal.help.showing', { n: filteredDocs.length })}
           </div>
         </div>
 
@@ -570,7 +572,9 @@ export const HelpModal: React.FC<HelpModalProps> = ({
           className="flex items-center gap-1 px-3 py-1.5 border-b overflow-x-auto text-xs shrink-0 select-none"
           style={{ backgroundColor: theme.bg, borderColor: theme.border }}
         >
-          <span className="text-[10px] opacity-60 mr-2 uppercase tracking-wider shrink-0">Categoría:</span>
+          <span className="text-[10px] opacity-60 mr-2 uppercase tracking-wider shrink-0">
+            {t('modal.help.category')}
+          </span>
           {categories.map((cat) => {
             const isSelected = selectedCategory === cat.id;
             return (
@@ -601,8 +605,8 @@ export const HelpModal: React.FC<HelpModalProps> = ({
         <div className="flex-1 overflow-y-auto p-4 space-y-3.5 text-xs">
           {filteredDocs.length === 0 ? (
             <div className="py-12 text-center opacity-60 space-y-1">
-              <div className="font-bold text-sm">No se encontraron comandos coincidentes</div>
-              <div className="text-[11px]">Intente con otro término o seleccione la categoría "Todos los Comandos".</div>
+              <div className="font-bold text-sm">{t('modal.help.emptyTitle')}</div>
+              <div className="text-[11px]">{t('modal.help.emptyHint')}</div>
             </div>
           ) : (
             filteredDocs.map((doc) => (
@@ -618,7 +622,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({
                       {doc.command}
                     </code>
                     <span className="text-[11px] opacity-80 font-mono">
-                      Sintaxis: <span className="font-semibold text-white/90">{doc.syntax}</span>
+                      {t('modal.help.syntax', { syntax: doc.syntax })}
                     </span>
                   </div>
                   <span
@@ -651,7 +655,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({
                 {/* Interactive Examples Strip */}
                 <div className="space-y-1.5 pt-1">
                   <div className="text-[10px] opacity-65 font-bold uppercase tracking-wider">
-                    EJEMPLOS PRÁCTICOS DE USO (COPIE LOS COMANDOS DE INSTALACIÓN Y EJECUTE LOS DE USO):
+                    {t('modal.help.examples')}
                   </div>
                   <div className="space-y-1.5">
                     {doc.examples.map((ex, exIdx) => (
@@ -667,7 +671,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({
                           <div className="text-[10px] opacity-70 truncate">{ex.description}</div>
                           {ex.copyOnly && (
                             <div className="text-[9px] font-bold uppercase tracking-wider text-amber-400/90">
-                              Instalación · solo copiar
+                              {t('modal.help.install')}
                             </div>
                           )}
                         </div>
@@ -677,17 +681,17 @@ export const HelpModal: React.FC<HelpModalProps> = ({
                             onClick={() => handleCopy(ex.code)}
                             className="flex items-center gap-1 px-2 py-1 border text-[10px] font-bold hover:opacity-80 cursor-pointer rounded-xs"
                             style={{ borderColor: theme.border }}
-                            title="Copiar comando al portapapeles"
+                            title={t('modal.help.copyTitle')}
                           >
                             {copiedCode === ex.code ? (
                               <>
                                 <Check className="w-3 h-3 text-emerald-400" />
-                                <span>Copiado</span>
+                                <span>{t('modal.help.copied')}</span>
                               </>
                             ) : (
                               <>
                                 <Copy className="w-3 h-3" />
-                                <span>Copiar</span>
+                                <span>{t('modal.help.copy')}</span>
                               </>
                             )}
                           </button>
@@ -701,10 +705,10 @@ export const HelpModal: React.FC<HelpModalProps> = ({
                                 color: theme.bg,
                                 borderColor: theme.accent,
                               }}
-                              title="Ejecutar inmediatamente este comando en la terminal"
+                              title={t('modal.help.runTitle')}
                             >
                               <Play className="w-3 h-3 fill-current" />
-                              <span>Ejecutar</span>
+                              <span>{t('modal.help.run')}</span>
                             </button>
                           )}
                         </div>
@@ -723,7 +727,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({
           style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}
         >
           <span className="text-[11px] opacity-70">
-            Consejo: también puede escribir en la consola <code className="font-bold">help &lt;categoría&gt;</code> (ej. <code className="font-bold">help red</code>)
+            {t('modal.help.tip')}
           </span>
           <button
             onClick={() => {
@@ -733,7 +737,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({
             className="px-4 py-1 border text-xs font-bold cursor-pointer"
             style={{ borderColor: theme.border }}
           >
-            Cerrar Manual
+            {t('modal.help.close')}
           </button>
         </div>
       </div>

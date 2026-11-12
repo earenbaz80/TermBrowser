@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ThemeConfig, UserScript } from '../types';
 import { soundEffects } from '../utils/soundEffects';
 import { Play, Plus, Trash2, Edit3, Code, Zap } from 'lucide-react';
+import { useI18n } from '../i18n';
 
 interface AutomationScriptsModalProps {
   theme: ThemeConfig;
@@ -22,6 +23,7 @@ export const AutomationScriptsModal: React.FC<AutomationScriptsModalProps> = ({
   onSaveScript,
   onDeleteScript,
 }) => {
+  const { t } = useI18n();
   const [selectedScript, setSelectedScript] = useState<UserScript | null>(scripts[0] || null);
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
@@ -89,7 +91,7 @@ export const AutomationScriptsModal: React.FC<AutomationScriptsModalProps> = ({
         >
           <div className="flex items-center gap-2 font-bold">
             <Zap className="w-4 h-4 text-amber-400" />
-            <span>GESTOR DE SCRIPTS DE AUTOMATIZACIÓN Y MACROS</span>
+            <span>{t('modal.scripts.title')}</span>
           </div>
           <button
             onClick={() => {
@@ -108,14 +110,16 @@ export const AutomationScriptsModal: React.FC<AutomationScriptsModalProps> = ({
           {/* Left Script List */}
           <div className="p-3 overflow-y-auto space-y-2 text-xs" style={{ backgroundColor: theme.cardBg }}>
             <div className="flex items-center justify-between pb-1 border-b" style={{ borderColor: theme.border }}>
-              <span className="font-bold text-[11px] opacity-80">SCRIPTS ({scripts.length})</span>
+              <span className="font-bold text-[11px] opacity-80">
+                {t('modal.scripts.list', { n: scripts.length })}
+              </span>
               <button
                 onClick={handleStartCreate}
                 className="flex items-center gap-1 px-1.5 py-0.5 border text-[11px] font-bold hover:opacity-80 cursor-pointer"
                 style={{ borderColor: theme.border, backgroundColor: theme.bg }}
               >
                 <Plus className="w-3 h-3 text-emerald-400" />
-                <span>NUEVO</span>
+                <span>{t('modal.scripts.new')}</span>
               </button>
             </div>
 
@@ -139,8 +143,8 @@ export const AutomationScriptsModal: React.FC<AutomationScriptsModalProps> = ({
                     <div className="font-bold truncate">{script.name}</div>
                     <div className="text-[10px] opacity-70 truncate mt-0.5">{script.description}</div>
                     <div className="flex items-center justify-between mt-1 text-[10px] opacity-60">
-                      <span>{script.steps.length} pasos</span>
-                      <span>ejecutado {script.runCount}x</span>
+                      <span>{t('modal.scripts.steps', { n: script.steps.length })}</span>
+                      <span>{t('modal.scripts.runs', { n: script.runCount })}</span>
                     </div>
                   </div>
                 );
@@ -155,11 +159,11 @@ export const AutomationScriptsModal: React.FC<AutomationScriptsModalProps> = ({
                 <div className="space-y-3">
                   <div className="font-bold text-xs flex items-center gap-2">
                     <Edit3 className="w-4 h-4 text-cyan-400" />
-                    <span>EDITOR DE FLUJO DE TRABAJO</span>
+                    <span>{t('modal.scripts.editor')}</span>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] opacity-75 mb-0.5">NOMBRE DEL SCRIPT</label>
+                    <label className="block text-[10px] opacity-75 mb-0.5">{t('modal.scripts.nameLabel')}</label>
                     <input
                       type="text"
                       value={editName}
@@ -171,7 +175,7 @@ export const AutomationScriptsModal: React.FC<AutomationScriptsModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] opacity-75 mb-0.5">OBJETIVO / DESCRIPCIÓN</label>
+                    <label className="block text-[10px] opacity-75 mb-0.5">{t('modal.scripts.descLabel')}</label>
                     <input
                       type="text"
                       value={editDesc}
@@ -183,7 +187,7 @@ export const AutomationScriptsModal: React.FC<AutomationScriptsModalProps> = ({
 
                   <div>
                     <label className="block text-[10px] opacity-75 mb-0.5">
-                      PASOS DE EJECUCIÓN (UN COMANDO POR LÍNEA, LÍNEAS CON '#' SON COMENTARIOS)
+                      {t('modal.scripts.stepsLabel')}
                     </label>
                     <textarea
                       rows={8}
@@ -202,14 +206,14 @@ export const AutomationScriptsModal: React.FC<AutomationScriptsModalProps> = ({
                     className="px-3 py-1 border text-xs cursor-pointer"
                     style={{ borderColor: theme.border }}
                   >
-                    Cancelar
+                    {t('common.cancel')}
                   </button>
                   <button
                     type="submit"
                     className="px-4 py-1 text-xs font-bold border rounded-xs cursor-pointer"
                     style={{ backgroundColor: theme.accent, color: theme.bg, borderColor: theme.accent }}
                   >
-                    Guardar Script
+                    {t('modal.scripts.save')}
                   </button>
                 </div>
               </form>
@@ -228,18 +232,18 @@ export const AutomationScriptsModal: React.FC<AutomationScriptsModalProps> = ({
                         style={{ borderColor: theme.border }}
                       >
                         <Edit3 className="w-3 h-3 text-cyan-400" />
-                        <span>Editar</span>
+                        <span>{t('modal.scripts.edit')}</span>
                       </button>
                       <button
                         onClick={() => {
-                          if (confirm(`¿Eliminar script "${selectedScript.name}"?`)) {
+                          if (confirm(t('modal.scripts.confirmDelete', { name: selectedScript.name }))) {
                             onDeleteScript(selectedScript.id);
                             setSelectedScript(scripts[0] || null);
                           }
                         }}
                         className="p-1 border text-red-400 hover:text-red-300 hover:bg-red-900/30 cursor-pointer"
                         style={{ borderColor: theme.border }}
-                        title="Eliminar script"
+                        title={t('modal.scripts.deleteTitle')}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -249,7 +253,7 @@ export const AutomationScriptsModal: React.FC<AutomationScriptsModalProps> = ({
                   <div className="p-3 border rounded-xs space-y-2" style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}>
                     <div className="text-[11px] font-bold opacity-80 flex items-center gap-1.5">
                       <Code className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>SECUENCIA DE COMANDOS ({selectedScript.steps.length} PASOS):</span>
+                      <span>{t('modal.scripts.sequence', { n: selectedScript.steps.length })}</span>
                     </div>
                     <div className="space-y-1 font-mono text-[11px]">
                       {selectedScript.steps.map((step, idx) => (
@@ -262,7 +266,10 @@ export const AutomationScriptsModal: React.FC<AutomationScriptsModalProps> = ({
                   </div>
 
                   <div className="text-[11px] opacity-70">
-                    Creado: {selectedScript.createdAt} · Última ejecución: {selectedScript.lastRun || 'Nunca'}
+                    {t('modal.scripts.created', {
+                      date: selectedScript.createdAt,
+                      last: selectedScript.lastRun || t('modal.scripts.never'),
+                    })}
                   </div>
                 </div>
 
@@ -277,13 +284,13 @@ export const AutomationScriptsModal: React.FC<AutomationScriptsModalProps> = ({
                     style={{ backgroundColor: theme.accent, color: theme.bg, borderColor: theme.accent }}
                   >
                     <Play className="w-4 h-4 fill-current" />
-                    <span>EJECUTAR SCRIPT EN TERMINAL</span>
+                    <span>{t('modal.scripts.run')}</span>
                   </button>
                 </div>
               </div>
             ) : (
               <div className="py-12 text-center opacity-60">
-                Seleccione un script de la lista o cree uno nuevo.
+                {t('modal.scripts.pick')}
               </div>
             )}
           </div>

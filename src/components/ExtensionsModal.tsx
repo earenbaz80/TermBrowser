@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ExtensionManifest, ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
 import { Puzzle, Check, Play, Terminal, Code } from 'lucide-react';
+import { useI18n } from '../i18n';
 
 interface ExtensionsModalProps {
   theme: ThemeConfig;
@@ -20,6 +21,7 @@ export const ExtensionsModal: React.FC<ExtensionsModalProps> = ({
   onToggleExtension,
   onRunCommandInTerminal,
 }) => {
+  const { t } = useI18n();
   const [selectedExt, setSelectedExt] = useState<ExtensionManifest | null>(extensions[0] || null);
   const [showApiDoc, setShowApiDoc] = useState(false);
 
@@ -42,7 +44,7 @@ export const ExtensionsModal: React.FC<ExtensionsModalProps> = ({
         >
           <div className="flex items-center gap-2 font-bold">
             <Puzzle className="w-4 h-4 text-purple-400" />
-            <span>ECOSISTEMA DE EXTENSIONES DE CONSOLA (CLI EXTENSIONS API)</span>
+            <span>{t('modal.ext.title')}</span>
           </div>
           <button
             onClick={() => {
@@ -62,7 +64,10 @@ export const ExtensionsModal: React.FC<ExtensionsModalProps> = ({
           style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}
         >
           <span className="text-[11px] opacity-80">
-            {extensions.filter((e) => e.installed).length} de {extensions.length} extensiones habilitadas
+            {t('modal.ext.enabled', {
+              n: extensions.filter((e) => e.installed).length,
+              total: extensions.length,
+            })}
           </span>
           <button
             onClick={() => {
@@ -72,16 +77,16 @@ export const ExtensionsModal: React.FC<ExtensionsModalProps> = ({
             className="text-[11px] underline hover:opacity-100 cursor-pointer flex items-center gap-1"
           >
             <Code className="w-3.5 h-3.5" />
-            <span>{showApiDoc ? 'Ver Catálogo de Extensiones' : 'Ver API para Desarrolladores'}</span>
+            <span>{showApiDoc ? t('modal.ext.showCatalog') : t('modal.ext.showApi')}</span>
           </button>
         </div>
 
         {/* Content */}
         {showApiDoc ? (
           <div className="p-4 overflow-y-auto space-y-3 text-xs">
-            <h3 className="font-bold text-sm text-cyan-400">ESPECIFICACIÓN DE API PARA EXTENSIONES DE TERCEROS</h3>
+            <h3 className="font-bold text-sm text-cyan-400">{t('modal.ext.apiTitle')}</h3>
             <p className="opacity-80 text-[11px] leading-relaxed">
-              Terminus proporciona una arquitectura de micro-plugins que permite registrar comandos en tiempo de ejecución. Cualquier herramienta externa o script puede exportar un manifiesto estándar:
+              {t('modal.ext.apiIntro')}
             </p>
             <pre
               className="p-3 border rounded-xs font-mono text-[11px] overflow-x-auto"
@@ -102,7 +107,7 @@ export const ExtensionsModal: React.FC<ExtensionsModalProps> = ({
 }`}
             </pre>
             <div className="text-[11px] opacity-75">
-              Comando para instalar dinámicamente desde terminal: <code className="font-bold">ext install &lt;nombre&gt;</code>
+              {t('modal.ext.apiInstall')} <code className="font-bold">ext install &lt;nombre&gt;</code>
             </div>
           </div>
         ) : (
@@ -128,10 +133,10 @@ export const ExtensionsModal: React.FC<ExtensionsModalProps> = ({
                       <span className="font-bold truncate">{ext.name}</span>
                       {ext.installed ? (
                         <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-0.5">
-                          <Check className="w-3 h-3" /> ACTIVA
+                          <Check className="w-3 h-3" /> {t('modal.ext.active')}
                         </span>
                       ) : (
-                        <span className="text-[10px] opacity-50">INACTIVA</span>
+                        <span className="text-[10px] opacity-50">{t('modal.ext.inactive')}</span>
                       )}
                     </div>
                     <div className="text-[10px] opacity-70 mt-1 truncate">{ext.description}</div>
@@ -148,7 +153,7 @@ export const ExtensionsModal: React.FC<ExtensionsModalProps> = ({
                     <div>
                       <h3 className="text-sm font-bold">{selectedExt.name}</h3>
                       <div className="text-[11px] opacity-70 mt-0.5">
-                        Versión {selectedExt.version} · Autor: {selectedExt.author}
+                        {t('modal.ext.meta', { version: selectedExt.version, author: selectedExt.author })}
                       </div>
                     </div>
                     <button
@@ -163,7 +168,7 @@ export const ExtensionsModal: React.FC<ExtensionsModalProps> = ({
                         color: selectedExt.installed ? '#fca5a5' : '#86efac',
                       }}
                     >
-                      {selectedExt.installed ? 'Deshabilitar Extensión' : 'Habilitar Extensión'}
+                      {selectedExt.installed ? t('modal.ext.disable') : t('modal.ext.enable')}
                     </button>
                   </div>
 
@@ -172,7 +177,7 @@ export const ExtensionsModal: React.FC<ExtensionsModalProps> = ({
                   <div className="p-3 border rounded-xs space-y-2" style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}>
                     <div className="text-[11px] font-bold opacity-80 flex items-center gap-1.5">
                       <Terminal className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>COMANDOS REGISTRADOS:</span>
+                      <span>{t('modal.ext.commands')}</span>
                     </div>
 
                     <div className="space-y-2">
@@ -190,18 +195,20 @@ export const ExtensionsModal: React.FC<ExtensionsModalProps> = ({
                               style={{ borderColor: theme.border }}
                             >
                               <Play className="w-2.5 h-2.5 fill-current" />
-                              <span>PROBAR EN CONSOLA</span>
+                              <span>{t('modal.ext.try')}</span>
                             </button>
                           </div>
                           <div className="text-[11px] opacity-80">{cmd.description}</div>
-                          <div className="text-[10px] font-mono opacity-60">Sintaxis: {cmd.usage}</div>
+                          <div className="text-[10px] font-mono opacity-60">
+                            {t('modal.ext.syntax', { usage: cmd.usage })}
+                          </div>
                         </div>
                       ))}
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="py-12 text-center opacity-60">Seleccione una extensión.</div>
+                <div className="py-12 text-center opacity-60">{t('modal.ext.pick')}</div>
               )}
             </div>
           </div>

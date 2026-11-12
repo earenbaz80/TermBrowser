@@ -59,6 +59,8 @@ import { INITIAL_FILESYSTEM, VirtualFile } from './utils/interpreter';
 import { notificationManager } from './utils/notificationManager';
 import { appendCommandToHistory } from './utils/commandHistoryStorage';
 import { APP_VERSION } from './utils/version';
+import { LockScreen } from './components/LockScreen';
+import { hasLockPassword } from './utils/lockStorage';
 import {
   formatNativeShellResult,
   getNativeFsInfo,
@@ -309,6 +311,9 @@ export default function App() {
     activeProcesses: 12,
     anomalies: [],
   });
+
+  // Local password gate: only engaged when the user configured a password.
+  const [locked, setLocked] = useState(() => hasLockPassword());
 
   // Activity Logs (for JSON / TXT export)
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([
@@ -1229,6 +1234,10 @@ export default function App() {
     ]);
   };
 
+  if (locked) {
+    return <LockScreen theme={theme} onUnlock={() => setLocked(false)} />;
+  }
+
   return (
     <div
       className={`w-screen h-screen flex flex-col overflow-hidden ${crtEnabled ? 'crt-effect' : ''} ${
@@ -1264,6 +1273,7 @@ export default function App() {
         onOpenFileExplorer={() => setIsFileManagerOpen(true)}
         crtEnabled={crtEnabled}
         onToggleCrt={() => setCrtEnabled(!crtEnabled)}
+        onLockNow={() => setLocked(true)}
         surface={surface}
         onSelectSurface={handleSelectSurface}
       />

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { KeyBinding, ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
 import { Keyboard, Plus, Trash2, RotateCcw } from 'lucide-react';
+import { useI18n } from '../i18n';
 
 interface ShortcutsModalProps {
   theme: ThemeConfig;
@@ -38,6 +39,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({
   keybindings,
   onUpdateKeybinding,
 }) => {
+  const { t } = useI18n();
   const [newKey, setNewKey] = useState('');
   const [newCmd, setNewCmd] = useState('');
   const [newDesc, setNewDesc] = useState('');
@@ -49,7 +51,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({
     e.preventDefault();
     setErrorMsg('');
     if (!newKey.trim() || !newCmd.trim()) {
-      setErrorMsg('Debe especificar la tecla (ej. alt+p) y el comando.');
+      setErrorMsg(t('modal.shortcuts.error'));
       return;
     }
 
@@ -62,7 +64,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({
       updated[existingIndex] = {
         key: cleanKey,
         command: newCmd.trim(),
-        description: newDesc.trim() || `Ejecuta ${newCmd.trim()}`,
+        description: newDesc.trim() || t('modal.shortcuts.autoDesc', { cmd: newCmd.trim() }),
         custom: true,
       };
     } else {
@@ -71,7 +73,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({
         {
           key: cleanKey,
           command: newCmd.trim(),
-          description: newDesc.trim() || `Ejecuta ${newCmd.trim()}`,
+          description: newDesc.trim() || t('modal.shortcuts.autoDesc', { cmd: newCmd.trim() }),
           custom: true,
         },
       ];
@@ -112,7 +114,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({
         >
           <div className="flex items-center gap-2 font-bold">
             <Keyboard className="w-4 h-4 text-cyan-400" />
-            <span>CONFIGURACIÓN DE ATAJOS DE TECLADO (KEYBINDINGS)</span>
+            <span>{t('modal.shortcuts.title')}</span>
           </div>
           <button
             onClick={() => {
@@ -129,7 +131,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({
         {/* Content */}
         <div className="p-4 overflow-y-auto space-y-4 text-xs">
           <div className="text-[11px] opacity-80 leading-relaxed">
-            Presione la combinación de teclas configurada en cualquier momento en el terminal o navegador para ejecutar el comando asignado.
+            {t('modal.shortcuts.intro')}
           </div>
 
           {/* List of Keybindings */}
@@ -153,19 +155,19 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({
                   <div>
                     <div className="font-semibold">{kb.description}</div>
                     <div className="text-[11px] opacity-70">
-                      → comando: <code className="font-bold">{kb.command}</code>
+                      {t('modal.shortcuts.command')} <code className="font-bold">{kb.command}</code>
                     </div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
                   {kb.custom && (
-                    <span className="text-[10px] opacity-60 italic">personalizado</span>
+                    <span className="text-[10px] opacity-60 italic">{t('modal.shortcuts.custom')}</span>
                   )}
                   <button
                     onClick={() => handleDelete(kb.key)}
                     className="p-1 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-xs cursor-pointer"
-                    title="Eliminar atajo"
+                    title={t('modal.shortcuts.delete')}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -182,15 +184,15 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({
           >
             <div className="font-bold text-[11px] flex items-center gap-1.5">
               <Plus className="w-3.5 h-3.5 text-emerald-400" />
-              <span>CREAR O SOBRESCRIBIR ATAJO</span>
+              <span>{t('modal.shortcuts.create')}</span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               <div>
-                <label className="block text-[10px] opacity-75 mb-0.5">TECLA / COMBO</label>
+                <label className="block text-[10px] opacity-75 mb-0.5">{t('modal.shortcuts.keyLabel')}</label>
                 <input
                   type="text"
-                  placeholder="ej. alt+x o ctrl+shift+p"
+                  placeholder={t('modal.shortcuts.keyPlaceholder')}
                   value={newKey}
                   onChange={(e) => setNewKey(e.target.value)}
                   className="w-full px-2 py-1 text-xs border rounded-xs focus:outline-hidden"
@@ -203,10 +205,10 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[10px] opacity-75 mb-0.5">COMANDO DE TERMINAL</label>
+                <label className="block text-[10px] opacity-75 mb-0.5">{t('modal.shortcuts.commandLabel')}</label>
                 <input
                   type="text"
-                  placeholder="ej. goto https://github.com"
+                  placeholder={t('modal.shortcuts.commandPlaceholder')}
                   value={newCmd}
                   onChange={(e) => setNewCmd(e.target.value)}
                   className="w-full px-2 py-1 text-xs border rounded-xs focus:outline-hidden"
@@ -219,10 +221,10 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[10px] opacity-75 mb-0.5">DESCRIPCIÓN</label>
+                <label className="block text-[10px] opacity-75 mb-0.5">{t('modal.shortcuts.descLabel')}</label>
                 <input
                   type="text"
-                  placeholder="ej. Abrir GitHub en navegador"
+                  placeholder={t('modal.shortcuts.descPlaceholder')}
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
                   className="w-full px-2 py-1 text-xs border rounded-xs focus:outline-hidden"
@@ -249,7 +251,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({
                   borderColor: theme.accent,
                 }}
               >
-                Vincular Atajo
+                {t('modal.shortcuts.bind')}
               </button>
             </div>
           </form>
@@ -265,7 +267,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({
             className="flex items-center gap-1.5 text-[11px] opacity-75 hover:opacity-100 underline cursor-pointer"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Restablecer atajos de fábrica</span>
+            <span>{t('modal.shortcuts.reset')}</span>
           </button>
           <button
             onClick={() => {
@@ -275,7 +277,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({
             className="px-3 py-1 border text-xs font-bold cursor-pointer"
             style={{ borderColor: theme.border }}
           >
-            Listo
+            {t('common.done')}
           </button>
         </div>
       </div>

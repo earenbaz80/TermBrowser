@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
 import { AlertTriangle } from 'lucide-react';
+import { useI18n } from '../i18n';
 
 interface ConfirmDialogProps {
   theme: ThemeConfig;
@@ -20,11 +21,12 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   isOpen,
   title,
   message,
-  confirmLabel = 'Confirmar',
-  cancelLabel = 'Cancelar',
+  confirmLabel,
+  cancelLabel,
   onConfirm,
   onCancel,
 }) => {
+  const { t } = useI18n();
   const panelRef = useRef<HTMLDivElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -154,7 +156,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             className="border px-3 py-1 text-[10px] font-bold cursor-pointer hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-0"
             style={{ borderColor: theme.border, color: theme.text }}
           >
-            {cancelLabel}
+            {cancelLabel ?? t('common.cancel')}
           </button>
           <button
             type="button"
@@ -165,7 +167,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             className="border px-3 py-1 text-[10px] font-bold cursor-pointer hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-0"
             style={{ borderColor: theme.accent, backgroundColor: theme.accent, color: theme.bg }}
           >
-            {confirmLabel}
+            {confirmLabel ?? t('common.confirm')}
           </button>
         </div>
       </div>
