@@ -116,23 +116,23 @@ const START_LINKS = [
 
 interface WebCommandOption {
   command: string;
-  label: string;
+  labelKey: MessageKey;
   hint: string;
   needsValue?: boolean;
 }
 
 /** Mouse-friendly shortcuts for the commands a web session needs most often. */
 const WEB_COMMAND_OPTIONS: WebCommandOption[] = [
-  { command: 'goto ', label: 'Ir a una dirección', hint: 'goto https://…', needsValue: true },
-  { command: 'search ', label: 'Buscar en Terminus Search', hint: 'search términos', needsValue: true },
-  { command: 'home', label: 'Página de inicio', hint: 'home' },
-  { command: 'back', label: 'Atrás', hint: 'back' },
-  { command: 'forward', label: 'Adelante', hint: 'forward' },
-  { command: 'reload', label: 'Recargar', hint: 'reload' },
-  { command: 'tab new', label: 'Nueva pestaña', hint: 'tab new' },
-  { command: 'reader', label: 'Modo lectura', hint: 'reader' },
-  { command: 'help', label: 'Manual de comandos', hint: 'help' },
-  { command: 'top', label: 'Monitor de recursos', hint: 'top' },
+  { command: 'goto ', labelKey: 'cmd.goto', hint: 'goto https://…', needsValue: true },
+  { command: 'search ', labelKey: 'cmd.search', hint: 'search términos', needsValue: true },
+  { command: 'home', labelKey: 'browser.home', hint: 'home' },
+  { command: 'back', labelKey: 'browser.back', hint: 'back' },
+  { command: 'forward', labelKey: 'browser.forward', hint: 'forward' },
+  { command: 'reload', labelKey: 'browser.reloadLabel', hint: 'reload' },
+  { command: 'tab new', labelKey: 'cmd.newTab', hint: 'tab new' },
+  { command: 'reader', labelKey: 'browser.readerMode', hint: 'reader' },
+  { command: 'help', labelKey: 'browser.manual', hint: 'help' },
+  { command: 'top', labelKey: 'cmd.top', hint: 'top' },
 ];
 
 interface AddressSuggestion {
@@ -653,14 +653,14 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
       return;
     }
     if (!usesProxy) {
-      setFindStatus('Cambia a OSCURO o TEXTO para buscar dentro de esta página.');
+      setFindStatus(t('find.changeMode'));
       return;
     }
     iframeRef.current?.contentWindow?.postMessage(
       { source: 'termbrowser-find', query: findQuery, backwards },
       '*'
     );
-  }, [findQuery, usesProxy]);
+  }, [findQuery, usesProxy, t]);
 
   const applyProxiedCosmetics = useCallback(async () => {
     if (!usesProxy || !tab?.url) return;
@@ -731,11 +731,11 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
       if (!isTrustedFrameMessage(event, iframeRef.current, expectedFrameOrigin)) return;
       const data = event.data;
       if (!data || data.source !== 'termbrowser-find-result' || !findOpen) return;
-      setFindStatus(data.found ? 'Coincidencia encontrada' : 'Sin coincidencias');
+      setFindStatus(data.found ? t('find.match') : t('find.noMatch'));
     };
     window.addEventListener('message', handleFindResult);
     return () => window.removeEventListener('message', handleFindResult);
-  }, [findOpen, expectedFrameOrigin]);
+  }, [findOpen, expectedFrameOrigin, t]);
 
   useEffect(() => {
     const closeFindWithEscape = (event: KeyboardEvent) => {
@@ -794,31 +794,31 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
   const canGoBack = Boolean(tab && tab.historyIndex > 0);
   const canGoForward = Boolean(tab && tab.historyIndex >= 0 && tab.historyIndex < tab.history.length - 1);
   const selectionQuery = contextMenu?.selectionText?.trim() ?? '';
-  const webMenuTitle = tab && currentUrl ? `WEB · ${hostOf(currentUrl) || 'local'}` : 'WEB · inicio';
+  const webMenuTitle = tab && currentUrl ? `WEB · ${hostOf(currentUrl) || 'local'}` : t('browser.menuHome');
   const webMenuItems: ContextMenuItem[] = [
-    { id: 'back', label: 'Atrás', hint: 'back', disabled: !canGoBack, onSelect: () => go('back') },
-    { id: 'forward', label: 'Adelante', hint: 'forward', disabled: !canGoForward, onSelect: () => go('forward') },
-    { id: 'reload', label: 'Recargar', hint: 'reload', disabled: !hasPage, onSelect: () => go('reload') },
-    { id: 'home', label: 'Página de inicio', hint: 'home', onSelect: () => go('home') },
+    { id: 'back', label: t('browser.back'), hint: 'back', disabled: !canGoBack, onSelect: () => go('back') },
+    { id: 'forward', label: t('browser.forward'), hint: 'forward', disabled: !canGoForward, onSelect: () => go('forward') },
+    { id: 'reload', label: t('browser.reloadLabel'), hint: 'reload', disabled: !hasPage, onSelect: () => go('reload') },
+    { id: 'home', label: t('browser.home'), hint: 'home', onSelect: () => go('home') },
     {
       id: 'bookmark',
-      label: savedBookmark ? 'Quitar marcador' : 'Guardar en marcadores',
+      label: savedBookmark ? t('browser.bookmarkRemove') : t('browser.bookmarkMenuSave'),
       disabled: !currentUrl || isTerminusSearch,
       separatorBefore: true,
       onSelect: toggleCurrentBookmark,
     },
     {
       id: 'copy-url',
-      label: 'Copiar dirección',
+      label: t('browser.copyUrl'),
       disabled: !currentUrl,
       onSelect: () => {
         void copyText(currentUrl);
       },
     },
-    { id: 'paste-url', label: 'Pegar en la barra', onSelect: () => void pasteIntoAddress() },
+    { id: 'paste-url', label: t('browser.pasteUrl'), onSelect: () => void pasteIntoAddress() },
     {
       id: 'find-in-page',
-      label: 'Buscar en la página',
+      label: t('browser.find'),
       hint: 'Ctrl+F',
       disabled: !hasPage || isTerminusSearch,
       separatorBefore: true,
@@ -828,7 +828,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
       ? [
           {
             id: 'copy-link',
-            label: 'Copiar enlace',
+            label: t('browser.copyLink'),
             onSelect: () => void copyText(contextMenu.linkURL ?? ''),
           },
         ]
@@ -837,7 +837,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
       ? [
           {
             id: 'search-selection',
-            label: 'Buscar selección',
+            label: t('browser.searchSelection'),
             hint: 'search',
             onSelect: () => go(`search ${selectionQuery}`),
           },
@@ -845,7 +845,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
       : []),
     {
       id: 'mode-real',
-      label: 'Vista real',
+      label: t('browser.viewReal'),
       checked: mode === 'real',
       disabled: !hasExternalPage,
       separatorBefore: true,
@@ -853,26 +853,26 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
     },
     {
       id: 'mode-dark',
-      label: 'Vista oscura',
+      label: t('browser.viewDark'),
       checked: mode === 'dark',
       disabled: !hasExternalPage,
       onSelect: () => selectMode('dark'),
     },
     {
       id: 'mode-text',
-      label: 'Vista de texto',
+      label: t('browser.viewText'),
       checked: mode === 'text',
       disabled: !hasExternalPage,
       onSelect: () => selectMode('text'),
     },
     {
       id: 'reader',
-      label: 'Modo lectura',
+      label: t('browser.readerMode'),
       disabled: !hasExternalPage,
       separatorBefore: true,
       onSelect: () => go('reader'),
     },
-    { id: 'help', label: 'Manual de comandos', hint: 'help', onSelect: () => go('help') },
+    { id: 'help', label: t('browser.manual'), hint: 'help', onSelect: () => go('help') },
   ];
 
   return (
@@ -1545,7 +1545,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                         style={{ borderColor: theme.border }}
                       >
                         <span className="min-w-0">
-                          <span className="block font-bold">{option.label}</span>
+                          <span className="block font-bold">{t(option.labelKey)}</span>
                           <span className="block text-[9px] opacity-50">{option.hint}</span>
                         </span>
                         {option.needsValue && (

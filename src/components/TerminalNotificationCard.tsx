@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { TerminalNotification, ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
+import { useI18n } from '../i18n';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -25,6 +26,7 @@ export const TerminalNotificationCard: React.FC<TerminalNotificationCardProps> =
   onExecuteCommand,
   onDismiss,
 }) => {
+  const { t } = useI18n();
   const [isDismissed, setIsDismissed] = useState(false);
 
   if (isDismissed) return null;
@@ -82,10 +84,10 @@ export const TerminalNotificationCard: React.FC<TerminalNotificationCardProps> =
             <IconComponent className="w-3 h-3 shrink-0" />
             <span>
               {isAnomaly
-                ? '¡ALERTA DE ANOMALÍA EN SISTEMA!'
+                ? t('notify.anomaly')
                 : isScript
-                ? 'SCRIPT AUTOMATIZADO COMPLETADO'
-                : 'NOTIFICACIÓN DEL NAVEGADOR'}
+                ? t('notify.scriptDone')
+                : t('notify.browser')}
             </span>
           </span>
           <span className="text-[10px] opacity-60 font-mono">[{notification.timestamp}]</span>
@@ -99,7 +101,7 @@ export const TerminalNotificationCard: React.FC<TerminalNotificationCardProps> =
               onDismiss(notification.id);
             }}
             className="p-1 hover:text-red-400 cursor-pointer opacity-70 hover:opacity-100"
-            title="Descartar notificación"
+            title={t('notify.dismiss')}
           >
             <X className="w-3 h-3" />
           </button>
@@ -128,9 +130,9 @@ export const TerminalNotificationCard: React.FC<TerminalNotificationCardProps> =
                 color: '#000000',
                 borderColor: badgeColor,
               }}
-              title={`Ejecutar: ${notification.actionCommand}`}
+              title={t('notify.runTitle', { cmd: notification.actionCommand })}
             >
-              <span>{notification.actionText || 'Ver Detalles'}</span>
+              <span>{notification.actionText || t('notify.details')}</span>
               <ArrowRight className="w-3 h-3" />
             </button>
           )}
@@ -142,7 +144,7 @@ export const TerminalNotificationCard: React.FC<TerminalNotificationCardProps> =
               style={{ borderColor }}
             >
               <Activity className="w-3 h-3 text-red-400" />
-              <span>Abrir Monitor TOP</span>
+              <span>{t('notify.openMonitor')}</span>
             </button>
           )}
 
@@ -153,13 +155,13 @@ export const TerminalNotificationCard: React.FC<TerminalNotificationCardProps> =
               style={{ borderColor }}
             >
               <Terminal className="w-3 h-3 text-emerald-400" />
-              <span>Ver Scripts</span>
+              <span>{t('notify.viewScripts')}</span>
             </button>
           )}
         </div>
 
         <span className="text-[9px] opacity-40 font-mono select-none">
-          Notificación W3C Web + Terminal CLI
+          {t('notify.footer')}
         </span>
       </div>
     </div>

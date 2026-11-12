@@ -3,6 +3,7 @@ import { KeyBinding, ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
 import { Keyboard, Plus, Trash2, RotateCcw } from 'lucide-react';
 import { useI18n } from '../i18n';
+import type { MessageKey } from '../i18n/messages';
 
 interface ShortcutsModalProps {
   theme: ThemeConfig;
@@ -31,6 +32,27 @@ export const DEFAULT_KEYBINDINGS: KeyBinding[] = [
   { key: 'f2', command: 'mc', description: 'Abrir explorador de archivos interactivo (MC)' },
   { key: 'ctrl+f', command: 'mc', description: 'Gestión de ficheros y directorios' },
 ];
+
+/** Factory bindings are labelled from the dictionary; custom ones keep their own text. */
+const DEFAULT_BINDING_KEYS: Record<string, MessageKey> = {
+  'ctrl+t': 'shortcut.newTab',
+  'ctrl+w': 'shortcut.closeTab',
+  'ctrl+m': 'shortcut.voice',
+  'ctrl+j': 'shortcut.monitor',
+  'ctrl+l': 'shortcut.clear',
+  'ctrl+s': 'shortcut.scripts',
+  'ctrl+k': 'shortcut.security',
+  'ctrl+e': 'shortcut.extensions',
+  'ctrl+g': 'shortcut.bw',
+  'ctrl+h': 'shortcut.help',
+  'ctrl+1': 'shortcut.tab1',
+  'ctrl+2': 'shortcut.tab2',
+  'ctrl+3': 'shortcut.tab3',
+  'ctrl+r': 'shortcut.reload',
+  f1: 'shortcut.helpExamples',
+  f2: 'shortcut.fileExplorer',
+  'ctrl+f': 'shortcut.fileManager',
+};
 
 export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({
   theme,
@@ -153,7 +175,11 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({
                     {kb.key}
                   </span>
                   <div>
-                    <div className="font-semibold">{kb.description}</div>
+                    <div className="font-semibold">
+                      {!kb.custom && DEFAULT_BINDING_KEYS[kb.key]
+                        ? t(DEFAULT_BINDING_KEYS[kb.key])
+                        : kb.description}
+                    </div>
                     <div className="text-[11px] opacity-70">
                       {t('modal.shortcuts.command')} <code className="font-bold">{kb.command}</code>
                     </div>
