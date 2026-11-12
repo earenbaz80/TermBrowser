@@ -90,6 +90,23 @@ export const pythonRunnerPage = String.raw`<!doctype html>
     jsCode = jsCode.replace(/if\s+([^:]+):/g, 'if ($1) {');
     jsCode = jsCode.replace(/else:/g, '} else {');
 
+    // Python list comprehensions: [expr for var in iterable] / [expr for var in iterable if cond]
+    var comprehensionPattern = /\[([^\[\]]*?)\bfor\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+([^\[\]]*?)\]/;
+    var comprehensionPasses = 0;
+    while (comprehensionPattern.test(jsCode) && comprehensionPasses < 50) {
+      comprehensionPasses += 1;
+      jsCode = jsCode.replace(comprehensionPattern, function (_match, expression, varName, source) {
+        var guardSplit = source.split(/\s+if\s+/);
+        var iterable = '(Array.prototype.slice.call(' + guardSplit[0].trim() + '))';
+        var condition = guardSplit.slice(1).join(' if ').trim();
+        var mapper = '.map(function (' + varName + ') { return ' + expression.trim() + '; })';
+        if (condition) {
+          return iterable + '.filter(function (' + varName + ') { return ' + condition + '; })' + mapper;
+        }
+        return iterable + mapper;
+      });
+    }
+
     // Shadow the worker/browser capabilities the interpreter does not need. The iframe is
     // already origin-isolated and CSP-blocked; this is an extra guard against accidental use.
     var runner = new Function(

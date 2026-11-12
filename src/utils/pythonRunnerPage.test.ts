@@ -116,6 +116,20 @@ describe('pythonRunnerPage', () => {
     expect(networkCalls).toEqual([]);
   });
 
+  it('evalúa comprensiones de listas con range y con filtro', async () => {
+    const { message } = await runInIsolatedPage(
+      [
+        "print('total:', sum([x**2 for x in range(10)]))",
+        'print([n for n in range(10) if n % 2 == 0])',
+      ].join('\n')
+    );
+
+    expect(message.error).toBeUndefined();
+    expect(message.result?.stderr).toBe('');
+    expect(message.result?.stdout).toContain('total: 285');
+    expect(message.result?.stdout).toMatch(/\[\s*0,\s*2,\s*4,\s*6,\s*8\s*\]/);
+  });
+
   it('no realiza una petición cuando el código intenta usar fetch', async () => {
     const { message, networkCalls } = await runInIsolatedPage(
       'fetch("http://127.0.0.1:9/network-leak")'
