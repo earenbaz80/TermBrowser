@@ -108,6 +108,54 @@ const es = {
     'La vista se recuerda por sitio; en SITIOS puedes olvidar una o todas.',
   'assistant.webTip7':
     'Escribe "goto <url>" o "search <texto>" y pulsa RUN para navegar.',
+  'ext.jsonPretty.description':
+    'Parsea, indenta, valida y resalta sintaxis JSON con soporte para minificación.',
+  'ext.jsonPretty.command': 'Formatea y valida un string JSON o archivo.',
+  'ext.jsonPretty.usage': 'json-pretty \'{"key":"value"}\' [--minify]',
+  'ext.webScraper.description':
+    'Extrae títulos, metadatos OpenGraph, enlaces y encabezados H1-H3 de cualquier URL o pestaña activa.',
+  'ext.webScraper.command': 'Extrae enlaces, imágenes y texto de una URL o de la pestaña actual.',
+  'ext.webScraper.usage': 'scrape [url] [--links] [--images] [--meta]',
+  'ext.dnsLookup.description':
+    'Consulta servidores de nombres, registros A, AAAA, MX y tiempos de resolución.',
+  'ext.dnsLookup.command': 'Resuelve registros DNS para un dominio específico.',
+  'ext.dnsLookup.usage': 'dns <dominio>',
+  'ext.base64.description':
+    'Codifica y decodifica texto binario en base64 y hexadecimal de manera instantánea.',
+  'ext.base64.command': 'Codifica o decodifica un string en base64.',
+  'ext.base64.usage': 'base64 -e "texto"  o  base64 -d "dGV4dG8="',
+  'ext.regexTester.description':
+    'Evalúa expresiones regulares en tiempo real con grupos de captura y conteo de coincidencias.',
+  'ext.regexTester.command': 'Prueba una expresión regular contra un texto objetivo.',
+  'ext.regexTester.usage': 'regex <patrón> <texto> [-g] [-i]',
+  'ext.cyberHash.description':
+    'Calcula sumas criptográficas SHA-256, SHA-512 y simulación de HMAC para verificación de integridad.',
+  'ext.cyberHash.command': 'Calcula el hash SHA-256 de una cadena.',
+  'ext.cyberHash.usage': 'hash <texto>',
+  'ext.speedtest.description':
+    'Mide la latencia de red, jitter y rendimiento de paquetes hacia servidores globales.',
+  'ext.speedtest.command': 'Ejecuta una prueba de latencia y velocidad.',
+  'ext.speedtest.usage': 'speedtest [--host=<url>]',
+  'exampleScripts.auditName': 'Auditoría de Seguridad y Cifrado AES-256',
+  'exampleScripts.auditDescription':
+    'Verifica la integridad de la sesión, estado del cifrado y certificados.',
+  'exampleScripts.newsName': 'Ronda Matutina de Noticias Tecnológicas',
+  'exampleScripts.newsDescription':
+    'Carga Hacker News, activa modo lectura y extrae titulares.',
+  'exampleScripts.benchName': 'Prueba de Cómputo Python y Rendimiento',
+  'exampleScripts.benchDescription':
+    'Ejecuta cálculo en tiempo real y prueba la latencia de red.',
+  'interpreter.noBrowser': 'El intérprete Python necesita un navegador.',
+  'interpreter.codeTooLong': 'El código Python supera el límite permitido.',
+  'interpreter.notReady': 'El documento aún no está listo para ejecutar Python.',
+  'interpreter.timeout': 'Tiempo de ejecución agotado (10 s).',
+  'interpreter.invalidResult': 'El intérprete devolvió un resultado inválido.',
+  'interpreter.loadError': 'No se pudo cargar el intérprete aislado.',
+  'interpreter.openError': 'No se pudo abrir el intérprete aislado.',
+  'interpreter.frameTitle': 'Intérprete Python aislado',
+  'error.invalidCipherFormat': 'Formato cifrado inválido. Se esperaba salt.iv.ciphertext',
+  'error.sessionStart': 'No se pudo iniciar la sesión local (HTTP {status}).',
+  'error.sessionToken': 'El servidor no devolvió un token de sesión válido.',
   'webpage.openLink': 'Abrir [{part}]: {href}',
   'webpage.zoomImage': 'Ampliar imagen',
   'webpage.zoomImageAlt': 'Ampliar imagen: {alt}',
@@ -782,6 +830,55 @@ const de: Record<MessageKey, string> = {
     'Die Ansicht wird pro Seite gemerkt; unter SEITEN kannst du sie zurücksetzen.',
   'assistant.webTip7':
     'Tippe "goto <url>" oder "search <text>" und drücke RUN zum Navigieren.',
+  'ext.jsonPretty.description':
+    'Parst, rückt ein, validiert und hebt JSON-Syntax hervor, inklusive Minifizierung.',
+  'ext.jsonPretty.command': 'Formatiert und validiert einen JSON-String oder eine Datei.',
+  'ext.jsonPretty.usage': 'json-pretty \'{"key":"value"}\' [--minify]',
+  'ext.webScraper.description':
+    'Extrahiert Titel, OpenGraph-Metadaten, Links und H1-H3-Überschriften aus jeder URL oder dem aktiven Tab.',
+  'ext.webScraper.command':
+    'Extrahiert Links, Bilder und Text aus einer URL oder dem aktuellen Tab.',
+  'ext.webScraper.usage': 'scrape [url] [--links] [--images] [--meta]',
+  'ext.dnsLookup.description':
+    'Fragt Namensserver, A-, AAAA- und MX-Einträge sowie Auflösungszeiten ab.',
+  'ext.dnsLookup.command': 'Löst DNS-Einträge für eine bestimmte Domain auf.',
+  'ext.dnsLookup.usage': 'dns <Domain>',
+  'ext.base64.description':
+    'Kodiert und dekodiert Binärtext sofort in Base64 und Hexadezimal.',
+  'ext.base64.command': 'Kodiert oder dekodiert einen String in Base64.',
+  'ext.base64.usage': 'base64 -e "texto"  oder  base64 -d "dGV4dG8="',
+  'ext.regexTester.description':
+    'Wertet reguläre Ausdrücke in Echtzeit mit Gruppen und Trefferzahl aus.',
+  'ext.regexTester.command': 'Testet einen regulären Ausdruck gegen einen Zieltext.',
+  'ext.regexTester.usage': 'regex <Muster> <Text> [-g] [-i]',
+  'ext.cyberHash.description':
+    'Berechnet SHA-256-, SHA-512- und HMAC-Simulationen zur Integritätsprüfung.',
+  'ext.cyberHash.command': 'Berechnet den SHA-256-Hash einer Zeichenkette.',
+  'ext.cyberHash.usage': 'hash <Text>',
+  'ext.speedtest.description':
+    'Misst Netzwerklatenz, Jitter und Paketdurchsatz zu globalen Servern.',
+  'ext.speedtest.command': 'Führt einen Latenz- und Geschwindigkeitstest aus.',
+  'ext.speedtest.usage': 'speedtest [--host=<url>]',
+  'exampleScripts.auditName': 'Sicherheits- und AES-256-Verschlüsselungsaudit',
+  'exampleScripts.auditDescription':
+    'Prüft Sitzungsintegrität, Verschlüsselungsstatus und Zertifikate.',
+  'exampleScripts.newsName': 'Morgenrunde der Technik-Nachrichten',
+  'exampleScripts.newsDescription':
+    'Lädt Hacker News, aktiviert den Lesemodus und holt die Schlagzeilen.',
+  'exampleScripts.benchName': 'Python-Rechen- und Leistungstest',
+  'exampleScripts.benchDescription':
+    'Führt Echtzeitberechnungen aus und prüft die Netzlatenz.',
+  'interpreter.noBrowser': 'Der Python-Interpreter braucht einen Browser.',
+  'interpreter.codeTooLong': 'Der Python-Code überschreitet das erlaubte Limit.',
+  'interpreter.notReady': 'Das Dokument ist noch nicht bereit, Python auszuführen.',
+  'interpreter.timeout': 'Ausführungszeit überschritten (10 s).',
+  'interpreter.invalidResult': 'Der Interpreter lieferte ein ungültiges Ergebnis.',
+  'interpreter.loadError': 'Der isolierte Interpreter konnte nicht geladen werden.',
+  'interpreter.openError': 'Der isolierte Interpreter konnte nicht geöffnet werden.',
+  'interpreter.frameTitle': 'Isolierter Python-Interpreter',
+  'error.invalidCipherFormat': 'Ungültiges Verschlüsselungsformat. salt.iv.ciphertext erwartet',
+  'error.sessionStart': 'Die lokale Sitzung konnte nicht gestartet werden (HTTP {status}).',
+  'error.sessionToken': 'Der Server lieferte kein gültiges Sitzungstoken.',
   'webpage.openLink': 'Öffnen [{part}]: {href}',
   'webpage.zoomImage': 'Bild vergrößern',
   'webpage.zoomImageAlt': 'Bild vergrößern: {alt}',
@@ -1453,6 +1550,55 @@ const fr: Record<MessageKey, string> = {
     'La vue est mémorisée par site ; dans SITES tu peux l’oublier.',
   'assistant.webTip7':
     'Tape "goto <url>" ou "search <texte>" puis RUN pour naviguer.',
+  'ext.jsonPretty.description':
+    'Analyse, indente, valide et colore la syntaxe JSON, minification comprise.',
+  'ext.jsonPretty.command': 'Formate et valide une chaîne JSON ou un fichier.',
+  'ext.jsonPretty.usage': 'json-pretty \'{"key":"value"}\' [--minify]',
+  'ext.webScraper.description':
+    'Extrait titres, métadonnées OpenGraph, liens et en-têtes H1-H3 de toute URL ou de l’onglet actif.',
+  'ext.webScraper.command':
+    'Extrait liens, images et texte d’une URL ou de l’onglet courant.',
+  'ext.webScraper.usage': 'scrape [url] [--links] [--images] [--meta]',
+  'ext.dnsLookup.description':
+    'Interroge les serveurs de noms, les enregistrements A, AAAA, MX et les temps de résolution.',
+  'ext.dnsLookup.command': 'Résout les enregistrements DNS d’un domaine donné.',
+  'ext.dnsLookup.usage': 'dns <domaine>',
+  'ext.base64.description':
+    'Encode et décode instantanément du texte binaire en base64 et hexadécimal.',
+  'ext.base64.command': 'Encode ou décode une chaîne en base64.',
+  'ext.base64.usage': 'base64 -e "texto"  ou  base64 -d "dGV4dG8="',
+  'ext.regexTester.description':
+    'Évalue des expressions régulières en temps réel avec groupes et nombre de correspondances.',
+  'ext.regexTester.command': 'Teste une expression régulière sur un texte cible.',
+  'ext.regexTester.usage': 'regex <motif> <texte> [-g] [-i]',
+  'ext.cyberHash.description':
+    'Calcule des sommes SHA-256, SHA-512 et une simulation HMAC pour vérifier l’intégrité.',
+  'ext.cyberHash.command': 'Calcule le hash SHA-256 d’une chaîne.',
+  'ext.cyberHash.usage': 'hash <texte>',
+  'ext.speedtest.description':
+    'Mesure la latence réseau, la gigue et le débit vers des serveurs mondiaux.',
+  'ext.speedtest.command': 'Lance un test de latence et de débit.',
+  'ext.speedtest.usage': 'speedtest [--host=<url>]',
+  'exampleScripts.auditName': 'Audit de sécurité et de chiffrement AES-256',
+  'exampleScripts.auditDescription':
+    'Vérifie l’intégrité de la session, l’état du chiffrement et les certificats.',
+  'exampleScripts.newsName': 'Ronde matinale des actualités technologiques',
+  'exampleScripts.newsDescription':
+    'Charge Hacker News, active le mode lecture et extrait les titres.',
+  'exampleScripts.benchName': 'Test de calcul Python et de performance',
+  'exampleScripts.benchDescription':
+    'Lance un calcul en temps réel et mesure la latence réseau.',
+  'interpreter.noBrowser': 'L’interpréteur Python a besoin d’un navigateur.',
+  'interpreter.codeTooLong': 'Le code Python dépasse la limite autorisée.',
+  'interpreter.notReady': 'Le document n’est pas encore prêt à exécuter Python.',
+  'interpreter.timeout': 'Temps d’exécution dépassé (10 s).',
+  'interpreter.invalidResult': 'L’interpréteur a renvoyé un résultat invalide.',
+  'interpreter.loadError': 'Impossible de charger l’interpréteur isolé.',
+  'interpreter.openError': 'Impossible d’ouvrir l’interpréteur isolé.',
+  'interpreter.frameTitle': 'Interpréteur Python isolé',
+  'error.invalidCipherFormat': 'Format chiffré invalide. salt.iv.ciphertext attendu',
+  'error.sessionStart': 'Impossible de démarrer la session locale (HTTP {status}).',
+  'error.sessionToken': 'Le serveur n’a pas renvoyé de jeton de session valide.',
   'webpage.openLink': 'Ouvrir [{part}] : {href}',
   'webpage.zoomImage': 'Agrandir l’image',
   'webpage.zoomImageAlt': 'Agrandir l’image : {alt}',
@@ -2124,6 +2270,54 @@ const it: Record<MessageKey, string> = {
     'La vista è ricordata per sito; in SITI puoi dimenticarla.',
   'assistant.webTip7':
     'Scrivi "goto <url>" o "search <testo>" e premi RUN per navigare.',
+  'ext.jsonPretty.description':
+    'Analizza, indenta, valida e colora la sintassi JSON, minificazione inclusa.',
+  'ext.jsonPretty.command': 'Formatta e valida una stringa JSON o un file.',
+  'ext.jsonPretty.usage': 'json-pretty \'{"key":"value"}\' [--minify]',
+  'ext.webScraper.description':
+    'Estrae titoli, metadati OpenGraph, link e intestazioni H1-H3 da qualsiasi URL o scheda attiva.',
+  'ext.webScraper.command': 'Estrae link, immagini e testo da un URL o dalla scheda corrente.',
+  'ext.webScraper.usage': 'scrape [url] [--links] [--images] [--meta]',
+  'ext.dnsLookup.description':
+    'Interroga server dei nomi, record A, AAAA, MX e tempi di risoluzione.',
+  'ext.dnsLookup.command': 'Risolve i record DNS di un dominio specifico.',
+  'ext.dnsLookup.usage': 'dns <dominio>',
+  'ext.base64.description':
+    'Codifica e decodifica all’istante testo binario in base64 ed esadecimale.',
+  'ext.base64.command': 'Codifica o decodifica una stringa in base64.',
+  'ext.base64.usage': 'base64 -e "texto"  o  base64 -d "dGV4dG8="',
+  'ext.regexTester.description':
+    'Valuta espressioni regolari in tempo reale con gruppi e conteggio dei risultati.',
+  'ext.regexTester.command': 'Prova un’espressione regolare su un testo di destinazione.',
+  'ext.regexTester.usage': 'regex <schema> <testo> [-g] [-i]',
+  'ext.cyberHash.description':
+    'Calcola somme SHA-256, SHA-512 e una simulazione HMAC per verificare l’integrità.',
+  'ext.cyberHash.command': 'Calcola l’hash SHA-256 di una stringa.',
+  'ext.cyberHash.usage': 'hash <testo>',
+  'ext.speedtest.description':
+    'Misura latenza di rete, jitter e throughput verso server globali.',
+  'ext.speedtest.command': 'Esegue un test di latenza e velocità.',
+  'ext.speedtest.usage': 'speedtest [--host=<url>]',
+  'exampleScripts.auditName': 'Audit di sicurezza e cifratura AES-256',
+  'exampleScripts.auditDescription':
+    'Verifica l’integrità della sessione, lo stato della cifratura e i certificati.',
+  'exampleScripts.newsName': 'Rassegna mattutina delle notizie tech',
+  'exampleScripts.newsDescription':
+    'Carica Hacker News, attiva la modalità lettura ed estrae i titoli.',
+  'exampleScripts.benchName': 'Test di calcolo Python e prestazioni',
+  'exampleScripts.benchDescription':
+    'Esegue calcoli in tempo reale e misura la latenza di rete.',
+  'interpreter.noBrowser': 'L’interprete Python richiede un browser.',
+  'interpreter.codeTooLong': 'Il codice Python supera il limite consentito.',
+  'interpreter.notReady': 'Il documento non è ancora pronto per eseguire Python.',
+  'interpreter.timeout': 'Tempo di esecuzione esaurito (10 s).',
+  'interpreter.invalidResult': 'L’interprete ha restituito un risultato non valido.',
+  'interpreter.loadError': 'Impossibile caricare l’interprete isolato.',
+  'interpreter.openError': 'Impossibile aprire l’interprete isolato.',
+  'interpreter.frameTitle': 'Interprete Python isolato',
+  'error.invalidCipherFormat': 'Formato cifrato non valido. Atteso salt.iv.ciphertext',
+  'error.sessionStart': 'Impossibile avviare la sessione locale (HTTP {status}).',
+  'error.sessionToken': 'Il server non ha restituito un token di sessione valido.',
   'webpage.openLink': 'Apri [{part}]: {href}',
   'webpage.zoomImage': 'Ingrandisci immagine',
   'webpage.zoomImageAlt': 'Ingrandisci immagine: {alt}',
@@ -2795,6 +2989,55 @@ const en: Record<MessageKey, string> = {
     'The view is remembered per site; in SITES you can forget one or all.',
   'assistant.webTip7':
     'Type "goto <url>" or "search <text>" and press RUN to navigate.',
+  'ext.jsonPretty.description':
+    'Parses, indents, validates and highlights JSON syntax, including minification.',
+  'ext.jsonPretty.command': 'Formats and validates a JSON string or file.',
+  'ext.jsonPretty.usage': 'json-pretty \'{"key":"value"}\' [--minify]',
+  'ext.webScraper.description':
+    'Extracts titles, OpenGraph metadata, links and H1-H3 headings from any URL or active tab.',
+  'ext.webScraper.command':
+    'Extracts links, images and text from a URL or the current tab.',
+  'ext.webScraper.usage': 'scrape [url] [--links] [--images] [--meta]',
+  'ext.dnsLookup.description':
+    'Queries name servers, A, AAAA and MX records plus resolution times.',
+  'ext.dnsLookup.command': 'Resolves DNS records for a specific domain.',
+  'ext.dnsLookup.usage': 'dns <domain>',
+  'ext.base64.description':
+    'Encodes and decodes binary text in base64 and hexadecimal instantly.',
+  'ext.base64.command': 'Encodes or decodes a string in base64.',
+  'ext.base64.usage': 'base64 -e "texto"  or  base64 -d "dGV4dG8="',
+  'ext.regexTester.description':
+    'Evaluates regular expressions in real time with capture groups and match counts.',
+  'ext.regexTester.command': 'Tests a regular expression against a target text.',
+  'ext.regexTester.usage': 'regex <pattern> <text> [-g] [-i]',
+  'ext.cyberHash.description':
+    'Computes SHA-256, SHA-512 and HMAC simulations for integrity verification.',
+  'ext.cyberHash.command': 'Computes the SHA-256 hash of a string.',
+  'ext.cyberHash.usage': 'hash <text>',
+  'ext.speedtest.description':
+    'Measures network latency, jitter and packet throughput to global servers.',
+  'ext.speedtest.command': 'Runs a latency and speed test.',
+  'ext.speedtest.usage': 'speedtest [--host=<url>]',
+  'exampleScripts.auditName': 'Security and AES-256 Encryption Audit',
+  'exampleScripts.auditDescription':
+    'Checks session integrity, encryption status and certificates.',
+  'exampleScripts.newsName': 'Morning Tech News Roundup',
+  'exampleScripts.newsDescription':
+    'Loads Hacker News, enables reader mode and pulls the headlines.',
+  'exampleScripts.benchName': 'Python Compute and Performance Test',
+  'exampleScripts.benchDescription':
+    'Runs live computation and tests network latency.',
+  'interpreter.noBrowser': 'The Python interpreter needs a browser.',
+  'interpreter.codeTooLong': 'The Python code exceeds the allowed limit.',
+  'interpreter.notReady': 'The document is not ready to run Python yet.',
+  'interpreter.timeout': 'Execution time exceeded (10 s).',
+  'interpreter.invalidResult': 'The interpreter returned an invalid result.',
+  'interpreter.loadError': 'Could not load the isolated interpreter.',
+  'interpreter.openError': 'Could not open the isolated interpreter.',
+  'interpreter.frameTitle': 'Isolated Python interpreter',
+  'error.invalidCipherFormat': 'Invalid encrypted format. Expected salt.iv.ciphertext',
+  'error.sessionStart': 'Could not start the local session (HTTP {status}).',
+  'error.sessionToken': 'The server did not return a valid session token.',
   'webpage.openLink': 'Open [{part}]: {href}',
   'webpage.zoomImage': 'Enlarge image',
   'webpage.zoomImageAlt': 'Enlarge image: {alt}',

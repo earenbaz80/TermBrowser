@@ -94,11 +94,11 @@ const titleForWebTab = (url: string, t: (key: MessageKey) => string): string => 
   }
 };
 
-const INITIAL_SCRIPTS: UserScript[] = [
+const buildInitialScripts = (t: (key: MessageKey) => string): UserScript[] => [
   {
     id: 'script_audit',
-    name: 'Auditoría de Seguridad y Cifrado AES-256',
-    description: 'Verifica la integridad de la sesión, estado del cifrado y certificados.',
+    name: t('exampleScripts.auditName'),
+    description: t('exampleScripts.auditDescription'),
     steps: [
       'echo "=== INICIANDO AUDITORÍA CRIPTOGRÁFICA ==="',
       'whoami',
@@ -111,8 +111,8 @@ const INITIAL_SCRIPTS: UserScript[] = [
   },
   {
     id: 'script_morning_news',
-    name: 'Ronda Matutina de Noticias Tecnológicas',
-    description: 'Carga Hacker News, activa modo lectura y extrae titulares.',
+    name: t('exampleScripts.newsName'),
+    description: t('exampleScripts.newsDescription'),
     steps: [
       'echo "Obteniendo titulares de Hacker News..."',
       'goto https://news.ycombinator.com',
@@ -124,8 +124,8 @@ const INITIAL_SCRIPTS: UserScript[] = [
   },
   {
     id: 'script_benchmark',
-    name: 'Prueba de Cómputo Python y Rendimiento',
-    description: 'Ejecuta cálculo en tiempo real y prueba la latencia de red.',
+    name: t('exampleScripts.benchName'),
+    description: t('exampleScripts.benchDescription'),
     steps: [
       'echo "Ejecutando algoritmo en Python 3.12..."',
       'python -c "print(\'Calculo factorial:\', sum([x**2 for x in range(100)]))"',
@@ -161,7 +161,12 @@ export default function App() {
   // Tabs Management: the last session (tabs, active tab, each tab's view) is restored on load
   const [restoredSession] = useState(() => loadSession());
   const [tabs, setTabs] = useState<BrowserTab[]>(
-    restoredSession?.tabs ?? [
+    // Blank tab titles are defaults, so a restored session follows the current language.
+    restoredSession?.tabs.map((tab) =>
+      tab.kind === 'web' && (!tab.url || tab.url === 'about:blank')
+        ? { ...tab, title: tab.id === 'tab_1' ? t('tabs.start') : t('tabs.new') }
+        : tab
+    ) ?? [
       {
         id: 'tab_1',
         kind: 'web',
@@ -264,7 +269,7 @@ export default function App() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => loadBookmarks());
   const [browserHistory, setBrowserHistory] = useState(() => loadBrowserHistory());
   const lastHistorySignatureRef = useRef('');
-  const [scripts, setScripts] = useState<UserScript[]>(INITIAL_SCRIPTS);
+  const [scripts, setScripts] = useState<UserScript[]>(() => buildInitialScripts(t));
   const [extensions, setExtensions] = useState<ExtensionManifest[]>(BUILT_IN_EXTENSIONS);
   const [keybindings, setKeybindings] = useState<KeyBinding[]>(DEFAULT_KEYBINDINGS);
 

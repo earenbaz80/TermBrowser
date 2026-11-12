@@ -2,6 +2,7 @@
  * Real-Time Python & Shell Script Interpreter for Terminus
  * Evaluates Python statements, Bash pipelines, and PowerShell/CMD commands.
  */
+import { tStandalone } from '../i18n/standalone';
 
 export interface ExecutionResult {
   stdout: string;
@@ -29,13 +30,13 @@ function pythonError(message: string): ExecutionResult {
  */
 export function runPythonCode(code: string): Promise<ExecutionResult> {
   if (typeof document === 'undefined' || typeof window === 'undefined') {
-    return Promise.resolve(pythonError('El intérprete Python necesita un navegador.'));
+    return Promise.resolve(pythonError(tStandalone('interpreter.noBrowser')));
   }
   if (code.length > MAX_PYTHON_CODE_LENGTH) {
-    return Promise.resolve(pythonError('El código Python supera el límite permitido.'));
+    return Promise.resolve(pythonError(tStandalone('interpreter.codeTooLong')));
   }
   if (!document.body) {
-    return Promise.resolve(pythonError('El documento aún no está listo para ejecutar Python.'));
+    return Promise.resolve(pythonError(tStandalone('interpreter.notReady')));
   }
 
   const requestId = `python-${Date.now()}-${(pythonRunSequence += 1)}`;
@@ -46,12 +47,12 @@ export function runPythonCode(code: string): Promise<ExecutionResult> {
     iframe.setAttribute('sandbox', 'allow-scripts');
     iframe.setAttribute('referrerpolicy', 'no-referrer');
     iframe.setAttribute('aria-hidden', 'true');
-    iframe.setAttribute('title', 'Intérprete Python aislado');
+    iframe.setAttribute('title', tStandalone('interpreter.frameTitle'));
     iframe.style.display = 'none';
     iframe.src = PYTHON_RUNNER_URL;
 
     const timer = window.setTimeout(() => {
-      finish(pythonError('Tiempo de ejecución agotado (10 s).'));
+      finish(pythonError(tStandalone('interpreter.timeout')));
     }, PYTHON_TIMEOUT_MS);
 
     const cleanup = () => {
@@ -86,17 +87,17 @@ export function runPythonCode(code: string): Promise<ExecutionResult> {
         typeof result.stderr !== 'string' ||
         typeof result.exitCode !== 'number'
       ) {
-        finish(pythonError('El intérprete devolvió un resultado inválido.'));
+        finish(pythonError(tStandalone('interpreter.invalidResult')));
         return;
       }
       finish({ stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode });
     };
 
-    iframe.onerror = () => finish(pythonError('No se pudo cargar el intérprete aislado.'));
+    iframe.onerror = () => finish(pythonError(tStandalone('interpreter.loadError')));
     iframe.onload = () => {
       const target = iframe.contentWindow;
       if (!target) {
-        finish(pythonError('No se pudo abrir el intérprete aislado.'));
+        finish(pythonError(tStandalone('interpreter.openError')));
         return;
       }
       target.postMessage({ type: 'terminus-python-run', id: requestId, code }, '*');

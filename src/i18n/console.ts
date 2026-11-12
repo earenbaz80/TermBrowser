@@ -8,6 +8,8 @@ import type { Locale } from './locales';
 export const CONSOLE_ES = {
   'out.fsMount':
     '[✓] Carpeta local "{name}" montada en {path} mediante File System Access API ({count} elementos cargados).\nAcceso local en modo lectura/escritura concedido.',
+  'out.extActive': '✓ ACTIVA',
+  'out.extInactive': '✗ INACTIVA',
   'out.themeBw': '[✓] Estilo visual cambiado a: Blanco y Negro (1-Bit Monocromo Puro).',
   'out.themeChanged': '[✓] Paleta cambiada a: {name} ({id})',
   'out.themeUsage': 'Uso: theme <bw|blanco-y-negro|green|amber|cyberpunk|retro|dos|matrix>',
@@ -201,6 +203,8 @@ export type ConsoleKey = keyof typeof CONSOLE_ES;
 export const CONSOLE_DE: Record<ConsoleKey, string> = {
   'out.fsMount':
     '[✓] Lokaler Ordner "{name}" unter {path} über die File System Access API eingebunden ({count} Elemente geladen).\nLese-/Schreibzugriff lokal gewährt.',
+  'out.extActive': '✓ AKTIV',
+  'out.extInactive': '✗ INAKTIV',
   'out.themeBw': '[✓] Darstellung geändert: Schwarzweiß (reines 1-Bit-Monochrom).',
   'out.themeChanged': '[✓] Palette geändert: {name} ({id})',
   'out.themeUsage': 'Verwendung: theme <bw|blanco-y-negro|green|amber|cyberpunk|retro|dos|matrix>',
@@ -392,6 +396,8 @@ export const CONSOLE_DE: Record<ConsoleKey, string> = {
 export const CONSOLE_FR: Record<ConsoleKey, string> = {
   'out.fsMount':
     '[✓] Dossier local « {name} » monté sur {path} via File System Access API ({count} éléments chargés).\nAccès local en lecture/écriture accordé.',
+  'out.extActive': '✓ ACTIVE',
+  'out.extInactive': '✗ INACTIVE',
   'out.themeBw': '[✓] Style visuel modifié : Noir et Blanc (monochrome 1 bit pur).',
   'out.themeChanged': '[✓] Palette changée : {name} ({id})',
   'out.themeUsage': 'Utilisation : theme <bw|blanco-y-negro|green|amber|cyberpunk|retro|dos|matrix>',
@@ -583,6 +589,8 @@ export const CONSOLE_FR: Record<ConsoleKey, string> = {
 export const CONSOLE_IT: Record<ConsoleKey, string> = {
   'out.fsMount':
     '[✓] Cartella locale "{name}" montata su {path} tramite File System Access API ({count} elementi caricati).\nAccesso locale in lettura/scrittura concesso.',
+  'out.extActive': '✓ ATTIVA',
+  'out.extInactive': '✗ INATTIVA',
   'out.themeBw': '[✓] Stile visivo cambiato: Bianco e Nero (monocromatico 1 bit puro).',
   'out.themeChanged': '[✓] Palette cambiata: {name} ({id})',
   'out.themeUsage': 'Uso: theme <bw|blanco-y-negro|green|amber|cyberpunk|retro|dos|matrix>',
@@ -774,6 +782,8 @@ export const CONSOLE_IT: Record<ConsoleKey, string> = {
 export const CONSOLE_EN: Record<ConsoleKey, string> = {
   'out.fsMount':
     '[✓] Local folder "{name}" mounted at {path} through the File System Access API ({count} items loaded).\nLocal read/write access granted.',
+  'out.extActive': '✓ ACTIVE',
+  'out.extInactive': '✗ INACTIVE',
   'out.themeBw': '[✓] Visual style changed to: Black & White (pure 1-bit monochrome).',
   'out.themeChanged': '[✓] Palette changed to: {name} ({id})',
   'out.themeUsage': 'Usage: theme <bw|blanco-y-negro|green|amber|cyberpunk|retro|dos|matrix>',

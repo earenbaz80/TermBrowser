@@ -1878,7 +1878,10 @@ Tiempos aproximados de ida y vuelta en milisegundos:
     if (sub === 'list') {
       ctx.openExtensions();
       const list = ctx.extensions
-        .map((e) => `  [${e.installed ? '✓ ACTIVA' : '✗ INACTIVA'}] ${e.name} v${e.version} (${e.author})`)
+        .map(
+          (e) =>
+            `  [${e.installed ? ctx.tc('out.extActive') : ctx.tc('out.extInactive')}] ${e.name} v${e.version} (${e.author})`
+        )
         .join('\n');
       return {
         id: `cmd_${Date.now()}`,

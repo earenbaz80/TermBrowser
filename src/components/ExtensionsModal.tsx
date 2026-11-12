@@ -3,6 +3,7 @@ import { ExtensionManifest, ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
 import { Puzzle, Check, Play, Terminal, Code } from 'lucide-react';
 import { useI18n } from '../i18n';
+import { localizeExtensions } from '../i18n/extensions';
 
 interface ExtensionsModalProps {
   theme: ThemeConfig;
@@ -21,8 +22,12 @@ export const ExtensionsModal: React.FC<ExtensionsModalProps> = ({
   onToggleExtension,
   onRunCommandInTerminal,
 }) => {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const localizedExtensions = localizeExtensions(locale, extensions);
   const [selectedExt, setSelectedExt] = useState<ExtensionManifest | null>(extensions[0] || null);
+  const selectedText = selectedExt
+    ? localizedExtensions.find((ext) => ext.id === selectedExt.id) ?? selectedExt
+    : null;
   const [showApiDoc, setShowApiDoc] = useState(false);
 
   if (!isOpen) return null;
@@ -114,7 +119,7 @@ export const ExtensionsModal: React.FC<ExtensionsModalProps> = ({
           <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x" style={{ borderColor: theme.border }}>
             {/* Left Extension List */}
             <div className="p-3 overflow-y-auto space-y-1.5 text-xs" style={{ backgroundColor: theme.cardBg }}>
-              {extensions.map((ext) => {
+              {localizedExtensions.map((ext) => {
                 const isSelected = selectedExt?.id === ext.id;
                 return (
                   <div
@@ -147,32 +152,32 @@ export const ExtensionsModal: React.FC<ExtensionsModalProps> = ({
 
             {/* Right Details */}
             <div className="md:col-span-2 p-4 overflow-y-auto flex flex-col justify-between text-xs">
-              {selectedExt ? (
+              {selectedText ? (
                 <div className="space-y-4">
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="text-sm font-bold">{selectedExt.name}</h3>
+                      <h3 className="text-sm font-bold">{selectedText.name}</h3>
                       <div className="text-[11px] opacity-70 mt-0.5">
-                        {t('modal.ext.meta', { version: selectedExt.version, author: selectedExt.author })}
+                        {t('modal.ext.meta', { version: selectedText.version, author: selectedText.author })}
                       </div>
                     </div>
                     <button
                       onClick={() => {
                         soundEffects.playKeyClick();
-                        onToggleExtension(selectedExt.id);
+                        onToggleExtension(selectedText.id);
                       }}
                       className="px-3 py-1 border text-xs font-bold rounded-xs cursor-pointer"
                       style={{
                         borderColor: theme.border,
-                        backgroundColor: selectedExt.installed ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)',
-                        color: selectedExt.installed ? '#fca5a5' : '#86efac',
+                        backgroundColor: selectedText.installed ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)',
+                        color: selectedText.installed ? '#fca5a5' : '#86efac',
                       }}
                     >
-                      {selectedExt.installed ? t('modal.ext.disable') : t('modal.ext.enable')}
+                      {selectedText.installed ? t('modal.ext.disable') : t('modal.ext.enable')}
                     </button>
                   </div>
 
-                  <p className="text-xs opacity-85 leading-relaxed">{selectedExt.description}</p>
+                  <p className="text-xs opacity-85 leading-relaxed">{selectedText.description}</p>
 
                   <div className="p-3 border rounded-xs space-y-2" style={{ backgroundColor: theme.cardBg, borderColor: theme.border }}>
                     <div className="text-[11px] font-bold opacity-80 flex items-center gap-1.5">
@@ -181,7 +186,7 @@ export const ExtensionsModal: React.FC<ExtensionsModalProps> = ({
                     </div>
 
                     <div className="space-y-2">
-                      {selectedExt.commands.map((cmd) => (
+                      {selectedText.commands.map((cmd) => (
                         <div key={cmd.name} className="p-2 border rounded-xs space-y-1" style={{ borderColor: theme.border, backgroundColor: theme.bg }}>
                           <div className="flex items-center justify-between">
                             <code className="font-bold text-xs text-amber-400">{cmd.name}</code>
