@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { WindowControls } from './WindowControls';
 import { TerminusDesktopApi, ThemeConfig } from '../types';
 
@@ -77,5 +77,38 @@ describe('WindowControls', () => {
     expect(minimize.getAttribute('aria-disabled')).toBe('true');
     expect(maximize.getAttribute('aria-disabled')).toBe('true');
     expect(close.getAttribute('aria-disabled')).toBe('true');
+  });
+});
+
+describe('WindowControls con el puente de escritorio', () => {
+  it('refleja el maximizado que empuja el puente, sin pulsar ningún botón', async () => {
+    let push: ((value: boolean) => void) | null = null;
+    const desktop: TerminusDesktopApi = {
+      platform: 'win32',
+      minimize: vi.fn(),
+      toggleMaximize: vi.fn(async () => true),
+      close: vi.fn(),
+      isMaximized: vi.fn(async () => false),
+      onMaximizedChange: vi.fn((listener) => {
+        push = listener;
+        return () => {
+          push = null;
+        };
+      }),
+      onFrameContextMenu: vi.fn(() => () => {}),
+      onFindShortcut: vi.fn(() => () => {}),
+    };
+
+    window.terminusDesktop = desktop;
+    render(<WindowControls theme={theme} />);
+
+    await waitFor(() => expect(desktop.onMaximizedChange).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('button', { name: 'Maximizar ventana' })).toBeTruthy();
+
+    act(() => push?.(true));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Restaurar ventana' })).toBeTruthy());
+
+    act(() => push?.(false));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Maximizar ventana' })).toBeTruthy());
   });
 });

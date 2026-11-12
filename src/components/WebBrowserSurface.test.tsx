@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { FOCUS_ADDRESS_EVENT, WebBrowserSurface } from './WebBrowserSurface';
 import { THEMES } from '../utils/themes';
 import type { BrowserTab, TerminusDesktopApi, TerminusSearchState } from '../types';
@@ -383,5 +383,47 @@ describe('WebBrowserSurface', () => {
     expect(screen.getByRole('alert', { name: 'PÁGINA NO ENCONTRADA' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'REINTENTAR' }));
     expect(onCommand).toHaveBeenCalledWith('reload');
+  });
+});
+
+describe('búsqueda desde la pantalla de inicio', () => {
+  const startForm = () => screen.getByRole('search', { name: 'Buscar en Terminus Search' });
+
+  it('lanza la búsqueda en un solo paso, sin pantalla intermedia', () => {
+    const { onCommand } = renderSurface();
+    const form = startForm();
+    const input = within(form).getByRole('searchbox', { name: 'Buscar en Terminus Search' }) as HTMLInputElement;
+
+    // Regresión del rediseño: el botón intermedio que abría otra pantalla ya no existe.
+    expect(screen.queryByText(/abrir terminus search/i)).toBeNull();
+
+    fireEvent.change(input, { target: { value: '  electron  ' } });
+    fireEvent.submit(form);
+
+    expect(onCommand).toHaveBeenCalledTimes(1);
+    expect(onCommand).toHaveBeenCalledWith('search electron');
+    expect(input.value).toBe('');
+  });
+
+  it('ignora un envío vacío', () => {
+    const { onCommand } = renderSurface();
+    const form = startForm();
+
+    fireEvent.change(within(form).getByRole('searchbox') as HTMLInputElement, { target: { value: '   ' } });
+    fireEvent.submit(form);
+
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  it('lanza la búsqueda al pulsar una sugerencia', () => {
+    const { onCommand } = renderSurface();
+    const suggestion = screen.getAllByTitle(/^Buscar «/)[0];
+    const query = (suggestion.textContent ?? '').trim();
+
+    expect(query.length).toBeGreaterThan(0);
+    fireEvent.click(suggestion);
+
+    expect(onCommand).toHaveBeenCalledTimes(1);
+    expect(onCommand).toHaveBeenCalledWith(`search ${query}`);
   });
 });
