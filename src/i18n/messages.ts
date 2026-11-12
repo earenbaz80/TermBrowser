@@ -3,6 +3,150 @@
  * de sus claves, así que un idioma al que le falte una entrada falla en el typecheck.
  */
 const es = {
+  'search.formLabel': 'Buscar en Terminus Search',
+  'search.placeholder': 'Busca en la web desde Terminus…',
+  'search.submit': 'BUSCAR',
+  'search.eyebrow': 'Buscador propio / proveedor actual',
+  'search.intro':
+    'Una puerta de entrada a la web con la estética de Terminus. La interfaz y la lectura son propias; los resultados se consultan en DuckDuckGo y Wikipedia.',
+  'search.try': 'Prueba con',
+  'search.suggest1': 'computación cuántica',
+  'search.suggest2': 'noticias de tecnología',
+  'search.suggest3': 'documentación de React',
+  'search.statSources': 'FUENTES',
+  'search.statReading': 'LECTURA',
+  'search.statReadingValue': 'Resultados en pestaña',
+  'search.statShortcuts': 'ATAJOS',
+  'search.disclaimer':
+    'Terminus Search es la capa de búsqueda del navegador. No mantiene un índice propio todavía: consulta el proveedor actual y presenta los resultados con su propia interfaz.',
+  'search.resultsEyebrow': 'Terminus Search / resultados',
+  'search.resultsFor': 'Resultados para {query}',
+  'search.statusLoading': 'CONSULTANDO',
+  'search.statusError': 'ERROR DE CONSULTA',
+  'search.statusCount': '{count} RESULTADOS',
+  'search.consulting': 'Consultando {provider}…',
+  'search.errorTitle': 'No se pudo consultar el proveedor',
+  'search.retry': 'REINTENTAR',
+  'search.emptyTitle': 'Sin resultados',
+  'search.emptyBody':
+    'El proveedor no devolvió resultados para esta consulta. Prueba con otras palabras.',
+  'search.footerProvider': 'Proveedor: {provider}',
+  'search.footerKeys': 'Enter buscar · Esc limpiar · Ctrl+L barra',
+  'search.footerBrand': 'Terminus Search · capa de búsqueda del navegador',
+  'search.footerNote': 'Interfaz propia / resultados del proveedor actual',
+  'assistant.chipNext': 'Siguiente',
+  'assistant.moodHappy': 'feliz',
+  'assistant.moodThinking': 'piensa',
+  'assistant.moodAlert': 'alerta',
+  'assistant.moodExcited': '¡wow!',
+  'assistant.moodSleepy': 'sueño',
+  'assistant.stateNormal': 'Normal',
+  'assistant.stateHappy': 'Feliz',
+  'assistant.stateThinking': 'Pensando',
+  'assistant.stateAlert': 'Alerta',
+  'assistant.stateExcited': 'Entusiasmado',
+  'assistant.stateSleepy': 'Reposo',
+  'assistant.close': 'Cerrar globo',
+  'assistant.openMenu': 'Abrir el menú de comandos de la barra',
+  'assistant.bookmarkNoPage': 'Abre una página para guardarla en marcadores',
+  'assistant.bookmarkRemove': 'Quitar la página actual de marcadores',
+  'assistant.bookmarkAdd': 'Guardar la página actual en marcadores',
+  'assistant.viewNoPage': 'Abre una página para cambiar la vista',
+  'assistant.viewMode': 'Ver la página en modo {mode}',
+  'assistant.eyesTitle':
+    'DOSY: Asistente personal (ojos rectangulares verticales sin pupilas · siguen el cursor · clic para consejos)',
+  'assistant.listening':
+    'Te estoy escuchando por el micrófono... Di cualquier comando o búsqueda web.',
+  'assistant.errorWeb':
+    'Ese comando no salió bien. Abre CMD para revisar las opciones o escribe "help".',
+  'assistant.errorTerm':
+    '¡Atención! Ese comando tuvo un detalle. Escribe "ayuda" para ver la sintaxis.',
+  'assistant.navWeb':
+    'Página cargada. Cambia entre REAL, OSCURO y TEXTO para ajustar la vista.',
+  'assistant.navTerm': '¡Navegando! Web cargada en terminal con imágenes reales.',
+  'assistant.searchSent':
+    'Búsqueda enviada. Abre un resultado o pulsa CMD para otra acción.',
+  'assistant.bookmarksOk':
+    'Marcadores al día. La estrella ★ y la tira superior son tus accesos rápidos.',
+  'assistant.readerOn':
+    'Modo lectura activo. Prueba REAL u OSCURO para volver a la página completa.',
+  'assistant.homeBack':
+    'De vuelta a la portada. Pulsa CMD para empezar otra búsqueda.',
+  'assistant.pythonOk': '¡Código Python ejecutado correctamente!',
+  'assistant.fsOk': 'Sistema de archivos local listo. ¡Haz clic para interactuar!',
+  'assistant.notifyOk': 'Sistema de notificaciones W3C + Terminal activo.',
+  'assistant.tip1': '¡Hola! Soy DOSY. Escribe "home" para volver al inicio.',
+  'assistant.tip2':
+    'Presiona [Ctrl+M] o pulsa el icono de micrófono para dictar comandos por voz.',
+  'assistant.tip3': 'Usa "ir a <url>" para navegar en terminal con fotos reales.',
+  'assistant.tip4':
+    'Abre pestañas con Ctrl+T y salta a cualquiera con Ctrl+1..9 o "pestaña <n>".',
+  'assistant.tip5':
+    'Haz clic sobre cualquier archivo en la terminal para abrirlo o ejecutarlo.',
+  'assistant.tip6': 'Escribe "fs workspace" para explorar el código fuente local.',
+  'assistant.tip7': 'Ejecuta "python benchmark.py" para cálculo numérico en tiempo real.',
+  'assistant.tip8': 'Escribe "mc" para abrir Norton Commander con teclado y ratón.',
+  'assistant.tip9':
+    'Tu sesión cuenta con cifrado AES-256. Escribe "bóveda" para gestionarla.',
+  'assistant.tip10':
+    'Usa Flechas Arriba y Abajo (↑↓) para recuperar comandos del historial.',
+  'assistant.tip11':
+    'Escribe "top" o "monitor" para ver el uso de CPU/RAM y alertas.',
+  'assistant.tip12':
+    'Escribe "notify status" o "notify on" para activar alertas del navegador.',
+  'assistant.webTip1':
+    'Pulsa [CMD] en la barra para ver y elegir comandos de navegación con el ratón.',
+  'assistant.webTip2':
+    'El menú CMD reúne ir, buscar, recargar, abrir pestañas y el manual.',
+  'assistant.webTip3':
+    'Guarda la página actual con la estrella ★ y aparecerá en la tira de Marcadores.',
+  'assistant.webTip4':
+    'Haz clic en un marcador para abrirlo; su X lo elimina de la tira.',
+  'assistant.webTip5':
+    'Cambia entre REAL, OSCURO y TEXTO desde la barra superior o desde este globo.',
+  'assistant.webTip6':
+    'La vista se recuerda por sitio; en SITIOS puedes olvidar una o todas.',
+  'assistant.webTip7':
+    'Escribe "goto <url>" o "search <texto>" y pulsa RUN para navegar.',
+  'webpage.openLink': 'Abrir [{part}]: {href}',
+  'webpage.zoomImage': 'Ampliar imagen',
+  'webpage.zoomImageAlt': 'Ampliar imagen: {alt}',
+  'webpage.status':
+    '── [{code}] {url} · {ms}ms · {images} imágenes · {links} enlaces{proxy} ──',
+  'webpage.viaProxy': ' · vía proxy',
+  'webpage.viewTitleFrames':
+    'Vistas: WEB (página original) → RETRO (estructura) → TEXTO (plano)',
+  'webpage.viewTitleNoFrames':
+    'El sitio prohíbe mostrarse en marco: vistas RETRO (estructura) y TEXTO (plano). Use "abrir original" para verlo completo.',
+  'webpage.view': 'VISTA {mode}',
+  'webpage.openOriginal': 'abrir original ↗',
+  'webpage.openOriginalTitle':
+    'Abrir la página original en una pestaña del navegador',
+  'webpage.crtTitle':
+    'Activar o desactivar el efecto CRT (tinte de fósforo, viñeta y líneas de barrido) sobre la página original',
+  'webpage.emptyText': 'Página cargada sin texto extraíble.',
+  'webpage.linksHeading': '── enlaces ({count}) · clic, tap o escriba el número ──',
+  'assistant.header': 'DOSY · ASISTENTE [{state}]',
+  'window.controls': 'Controles de ventana',
+  'window.minimize': 'Minimizar ventana',
+  'window.minimizeTitle': 'Minimizar',
+  'window.maximize': 'Maximizar ventana',
+  'window.maximizeTitle': 'Maximizar',
+  'window.restore': 'Restaurar ventana',
+  'window.restoreTitle': 'Restaurar',
+  'window.close': 'Cerrar ventana',
+  'window.closeTitle': 'Cerrar',
+  'window.desktopOnly': 'Disponible al abrir Terminus como aplicación de escritorio',
+  'themeName.monochromeGreen': 'P1 Phosphor Green (VT100)',
+  'themeName.amberCrt': 'DEC VT220 Amber',
+  'themeName.cyberpunk': 'Cyberpunk Obsidian',
+  'themeName.retro': 'Retro Futurista (Órbita 2086)',
+  'themeName.msdos': 'MS-DOS 6.22 Classic Blue',
+  'themeName.matrix': 'Matrix Minimalist Black',
+  'themeName.bw': 'Blanco y Negro (1-Bit Monocromo)',
+  'tabs.new': 'Nueva Pestaña',
+  'tabs.start': 'Portal de Inicio',
+  'tabs.browser': 'Navegador',
   'common.close': 'Cerrar',
   'common.cancel': 'Cancelar',
 
@@ -533,6 +677,149 @@ const es = {
 export type MessageKey = keyof typeof es;
 
 const de: Record<MessageKey, string> = {
+  'search.formLabel': 'In Terminus Search suchen',
+  'search.placeholder': 'Im Web über Terminus suchen…',
+  'search.submit': 'SUCHEN',
+  'search.eyebrow': 'Eigene Suche / aktueller Anbieter',
+  'search.intro':
+    'Ein Tor zum Web im Terminus-Look. Oberfläche und Leseansicht sind eigenständig; die Ergebnisse kommen von DuckDuckGo und Wikipedia.',
+  'search.try': 'Probiere',
+  'search.suggest1': 'Quantencomputing',
+  'search.suggest2': 'Technik-Nachrichten',
+  'search.suggest3': 'React-Dokumentation',
+  'search.statSources': 'QUELLEN',
+  'search.statReading': 'LESEN',
+  'search.statReadingValue': 'Ergebnisse im Tab',
+  'search.statShortcuts': 'KÜRZEL',
+  'search.disclaimer':
+    'Terminus Search ist die Suchebene des Browsers. Noch kein eigener Index: Der aktuelle Anbieter wird abgefragt und die Ergebnisse in eigener Oberfläche dargestellt.',
+  'search.resultsEyebrow': 'Terminus Search / Ergebnisse',
+  'search.resultsFor': 'Ergebnisse für {query}',
+  'search.statusLoading': 'ABFRAGE LÄUFT',
+  'search.statusError': 'ABFAGEFEHLER',
+  'search.statusCount': '{count} ERGEBNISSE',
+  'search.consulting': '{provider} wird abgefragt…',
+  'search.errorTitle': 'Der Anbieter konnte nicht abgefragt werden',
+  'search.retry': 'ERNEUT VERSUCHEN',
+  'search.emptyTitle': 'Keine Ergebnisse',
+  'search.emptyBody':
+    'Der Anbieter lieferte keine Ergebnisse. Probiere andere Wörter.',
+  'search.footerProvider': 'Anbieter: {provider}',
+  'search.footerKeys': 'Enter suchen · Esc leeren · Ctrl+L Leiste',
+  'search.footerBrand': 'Terminus Search · Suchebene des Browsers',
+  'search.footerNote': 'Eigene Oberfläche / Ergebnisse des aktuellen Anbieters',
+  'assistant.chipNext': 'Weiter',
+  'assistant.moodHappy': 'fröhlich',
+  'assistant.moodThinking': 'denkt',
+  'assistant.moodAlert': 'alarm',
+  'assistant.moodExcited': 'wow!',
+  'assistant.moodSleepy': 'müde',
+  'assistant.stateNormal': 'Normal',
+  'assistant.stateHappy': 'Fröhlich',
+  'assistant.stateThinking': 'Denkend',
+  'assistant.stateAlert': 'Alarm',
+  'assistant.stateExcited': 'Begeistert',
+  'assistant.stateSleepy': 'Ruhend',
+  'assistant.close': 'Sprechblase schließen',
+  'assistant.openMenu': 'Befehlsmenü der Leiste öffnen',
+  'assistant.bookmarkNoPage': 'Öffne eine Seite, um sie als Lesezeichen zu speichern',
+  'assistant.bookmarkRemove': 'Aktuelle Seite aus den Lesezeichen entfernen',
+  'assistant.bookmarkAdd': 'Aktuelle Seite als Lesezeichen speichern',
+  'assistant.viewNoPage': 'Öffne eine Seite, um die Ansicht zu wechseln',
+  'assistant.viewMode': 'Seite im Modus {mode} anzeigen',
+  'assistant.eyesTitle':
+    'DOSY: Persönlicher Assistent (hohe rechteckige Augen ohne Pupillen · folgen dem Cursor · Klick für Tipps)',
+  'assistant.listening':
+    'Ich höre über das Mikrofon zu ... Sage einen Befehl oder eine Websuche.',
+  'assistant.errorWeb':
+    'Dieser Befehl ging schief. Öffne CMD für die Optionen oder tippe "help".',
+  'assistant.errorTerm':
+    'Achtung! Bei diesem Befehl gab es ein Problem. Tippe "hilfe" für die Syntax.',
+  'assistant.navWeb':
+    'Seite geladen. Wechsle zwischen REAL, DUNKEL und TEXT für die Ansicht.',
+  'assistant.navTerm': 'Navigation! Web im Terminal mit echten Bildern geladen.',
+  'assistant.searchSent':
+    'Suche gesendet. Öffne ein Ergebnis oder tippe CMD für mehr.',
+  'assistant.bookmarksOk':
+    'Lesezeichen aktuell. Der Stern ★ und die obere Leiste sind deine Schnellzugriffe.',
+  'assistant.readerOn':
+    'Lesemodus aktiv. Probiere REAL oder DUNKEL für die volle Seite.',
+  'assistant.homeBack':
+    'Zurück zur Startseite. Tippe CMD für eine neue Suche.',
+  'assistant.pythonOk': 'Python-Code erfolgreich ausgeführt!',
+  'assistant.fsOk': 'Lokales Dateisystem bereit. Klicke zum Interagieren!',
+  'assistant.notifyOk': 'W3C- und Terminal-Benachrichtigungen aktiv.',
+  'assistant.tip1': 'Hallo! Ich bin DOSY. Tippe "home" für die Startseite.',
+  'assistant.tip2':
+    'Drücke [Ctrl+M] oder klicke das Mikrofon, um Befehle zu diktieren.',
+  'assistant.tip3': 'Nutze "ir a <url>" für Webseiten mit echten Bildern im Terminal.',
+  'assistant.tip4':
+    'Öffne Tabs mit Ctrl+T und springe mit Ctrl+1..9 oder "pestaña <n>".',
+  'assistant.tip5':
+    'Klicke eine Datei im Terminal an, um sie zu öffnen oder auszuführen.',
+  'assistant.tip6': 'Tippe "fs workspace", um den lokalen Quelltext zu erkunden.',
+  'assistant.tip7': 'Führe "python benchmark.py" für Numerik in Echtzeit aus.',
+  'assistant.tip8': 'Tippe "mc" für den Norton Commander mit Tastatur und Maus.',
+  'assistant.tip9':
+    'Deine Sitzung ist AES-256-verschlüsselt. Tippe "bóveda" für den Tresor.',
+  'assistant.tip10':
+    'Mit Pfeil hoch/runter (↑↓) holst du Befehle aus dem Verlauf.',
+  'assistant.tip11':
+    'Tippe "top" oder "monitor" für CPU/RAM-Auslastung und Warnungen.',
+  'assistant.tip12':
+    'Tippe "notify status" oder "notify on" für Browser-Benachrichtigungen.',
+  'assistant.webTip1':
+    'Klicke [CMD] in der Leiste, um Navigationsbefehle mit der Maus zu wählen.',
+  'assistant.webTip2':
+    'Das CMD-Menü bündelt Navigation, Suche, Neuladen, Tabs und das Handbuch.',
+  'assistant.webTip3':
+    'Speichere die Seite mit dem Stern ★, sie erscheint in der Lesezeichenleiste.',
+  'assistant.webTip4':
+    'Klicke ein Lesezeichen zum Öffnen; das X entfernt es aus der Leiste.',
+  'assistant.webTip5':
+    'Wechsle REAL, DUNKEL und TEXT über die obere Leiste oder diese Blase.',
+  'assistant.webTip6':
+    'Die Ansicht wird pro Seite gemerkt; unter SEITEN kannst du sie zurücksetzen.',
+  'assistant.webTip7':
+    'Tippe "goto <url>" oder "search <text>" und drücke RUN zum Navigieren.',
+  'webpage.openLink': 'Öffnen [{part}]: {href}',
+  'webpage.zoomImage': 'Bild vergrößern',
+  'webpage.zoomImageAlt': 'Bild vergrößern: {alt}',
+  'webpage.status':
+    '── [{code}] {url} · {ms}ms · {images} Bilder · {links} Links{proxy} ──',
+  'webpage.viaProxy': ' · über Proxy',
+  'webpage.viewTitleFrames':
+    'Ansichten: WEB (Originalseite) → RETRO (Struktur) → TEXT (einfach)',
+  'webpage.viewTitleNoFrames':
+    'Die Seite verbietet die Einbettung: Ansichten RETRO (Struktur) und TEXT (einfach). Nutze "Original öffnen" für die volle Seite.',
+  'webpage.view': 'ANSICHT {mode}',
+  'webpage.openOriginal': 'Original öffnen ↗',
+  'webpage.openOriginalTitle': 'Die Originalseite in einem Browser-Tab öffnen',
+  'webpage.crtTitle':
+    'CRT-Effekt (Phosphorton, Vignette und Scanlines) über der Originalseite an- oder abschalten',
+  'webpage.emptyText': 'Seite geladen, aber kein Text extrahierbar.',
+  'webpage.linksHeading': '── Links ({count}) · klicken, tippen oder Nummer eingeben ──',
+  'assistant.header': 'DOSY · ASSISTENT [{state}]',
+  'window.controls': 'Fenstersteuerung',
+  'window.minimize': 'Fenster minimieren',
+  'window.minimizeTitle': 'Minimieren',
+  'window.maximize': 'Fenster maximieren',
+  'window.maximizeTitle': 'Maximieren',
+  'window.restore': 'Fenster wiederherstellen',
+  'window.restoreTitle': 'Wiederherstellen',
+  'window.close': 'Fenster schließen',
+  'window.closeTitle': 'Schließen',
+  'window.desktopOnly': 'Verfügbar, wenn Terminus als Desktop-App läuft',
+  'themeName.monochromeGreen': 'P1 Phosphor Green (VT100)',
+  'themeName.amberCrt': 'DEC VT220 Amber',
+  'themeName.cyberpunk': 'Cyberpunk Obsidian',
+  'themeName.retro': 'Retro-Futurismus (Orbit 2086)',
+  'themeName.msdos': 'MS-DOS 6.22 Classic Blue',
+  'themeName.matrix': 'Matrix Minimalist Black',
+  'themeName.bw': 'Schwarzweiß (1-Bit-Monochrom)',
+  'tabs.new': 'Neuer Tab',
+  'tabs.start': 'Startportal',
+  'tabs.browser': 'Browser',
   'common.close': 'Schließen',
   'common.cancel': 'Abbrechen',
 
@@ -1061,6 +1348,149 @@ const de: Record<MessageKey, string> = {
 };
 
 const fr: Record<MessageKey, string> = {
+  'search.formLabel': 'Rechercher dans Terminus Search',
+  'search.placeholder': 'Chercher sur le web depuis Terminus…',
+  'search.submit': 'CHERCHER',
+  'search.eyebrow': 'Moteur maison / fournisseur actuel',
+  'search.intro':
+    'Une porte vers le web avec l’esthétique de Terminus. L’interface et la lecture sont maison ; les résultats viennent de DuckDuckGo et Wikipédia.',
+  'search.try': 'Essaie',
+  'search.suggest1': 'informatique quantique',
+  'search.suggest2': 'actualités technologiques',
+  'search.suggest3': 'documentation React',
+  'search.statSources': 'SOURCES',
+  'search.statReading': 'LECTURE',
+  'search.statReadingValue': 'Résultats dans un onglet',
+  'search.statShortcuts': 'RACCOURCIS',
+  'search.disclaimer':
+    'Terminus Search est la couche de recherche du navigateur. Pas encore d’index propre : le fournisseur actuel est interrogé et les résultats s’affichent dans notre interface.',
+  'search.resultsEyebrow': 'Terminus Search / résultats',
+  'search.resultsFor': 'Résultats pour {query}',
+  'search.statusLoading': 'INTERROGATION',
+  'search.statusError': 'ERREUR DE REQUÊTE',
+  'search.statusCount': '{count} RÉSULTATS',
+  'search.consulting': 'Interrogation de {provider}…',
+  'search.errorTitle': 'Impossible d’interroger le fournisseur',
+  'search.retry': 'RÉESSAYER',
+  'search.emptyTitle': 'Aucun résultat',
+  'search.emptyBody':
+    'Le fournisseur n’a rien renvoyé pour cette requête. Essaie d’autres mots.',
+  'search.footerProvider': 'Fournisseur : {provider}',
+  'search.footerKeys': 'Entrée chercher · Échap effacer · Ctrl+L barre',
+  'search.footerBrand': 'Terminus Search · couche de recherche du navigateur',
+  'search.footerNote': 'Interface maison / résultats du fournisseur actuel',
+  'assistant.chipNext': 'Suivant',
+  'assistant.moodHappy': 'content',
+  'assistant.moodThinking': 'réfléchit',
+  'assistant.moodAlert': 'alerte',
+  'assistant.moodExcited': 'wow !',
+  'assistant.moodSleepy': 'somnolent',
+  'assistant.stateNormal': 'Normal',
+  'assistant.stateHappy': 'Content',
+  'assistant.stateThinking': 'Réflexion',
+  'assistant.stateAlert': 'Alerte',
+  'assistant.stateExcited': 'Enthousiaste',
+  'assistant.stateSleepy': 'Repos',
+  'assistant.close': 'Fermer la bulle',
+  'assistant.openMenu': 'Ouvrir le menu de commandes de la barre',
+  'assistant.bookmarkNoPage': 'Ouvre une page pour l’enregistrer en favori',
+  'assistant.bookmarkRemove': 'Retirer la page actuelle des favoris',
+  'assistant.bookmarkAdd': 'Enregistrer la page actuelle en favori',
+  'assistant.viewNoPage': 'Ouvre une page pour changer la vue',
+  'assistant.viewMode': 'Voir la page en mode {mode}',
+  'assistant.eyesTitle':
+    'DOSY : assistant personnel (yeux rectangulaires verticaux sans pupilles · suivent le curseur · clic pour des astuces)',
+  'assistant.listening':
+    'Je t’écoute au micro… Dis une commande ou une recherche web.',
+  'assistant.errorWeb':
+    'Cette commande a échoué. Ouvre CMD pour voir les options ou tape "help".',
+  'assistant.errorTerm':
+    'Attention ! Cette commande a eu un souci. Tape "aide" pour la syntaxe.',
+  'assistant.navWeb':
+    'Page chargée. Passe de REAL à SOMBRE ou TEXTE pour ajuster la vue.',
+  'assistant.navTerm': 'Navigation ! Page chargée dans le terminal avec de vraies images.',
+  'assistant.searchSent':
+    'Recherche envoyée. Ouvre un résultat ou appuie sur CMD pour une autre action.',
+  'assistant.bookmarksOk':
+    'Favoris à jour. L’étoile ★ et la bande du haut sont tes accès rapides.',
+  'assistant.readerOn':
+    'Mode lecture actif. Essaie REAL ou SOMBRE pour revenir à la page complète.',
+  'assistant.homeBack':
+    'Retour à l’accueil. Appuie sur CMD pour une nouvelle recherche.',
+  'assistant.pythonOk': 'Code Python exécuté correctement !',
+  'assistant.fsOk': 'Système de fichiers local prêt. Clique pour interagir !',
+  'assistant.notifyOk': 'Notifications W3C + terminal actives.',
+  'assistant.tip1': 'Bonjour ! Je suis DOSY. Tape "home" pour revenir à l’accueil.',
+  'assistant.tip2':
+    'Appuie sur [Ctrl+M] ou clique le micro pour dicter des commandes.',
+  'assistant.tip3': 'Utilise "ir a <url>" pour naviguer avec de vraies photos.',
+  'assistant.tip4':
+    'Ouvre des onglets avec Ctrl+T et saute avec Ctrl+1..9 ou "pestaña <n>".',
+  'assistant.tip5':
+    'Clique un fichier dans le terminal pour l’ouvrir ou l’exécuter.',
+  'assistant.tip6': 'Tape "fs workspace" pour explorer le code source local.',
+  'assistant.tip7': 'Lance "python benchmark.py" pour du calcul en temps réel.',
+  'assistant.tip8': 'Tape "mc" pour ouvrir Norton Commander au clavier et à la souris.',
+  'assistant.tip9':
+    'Ta session est chiffrée AES-256. Tape "bóveda" pour gérer le coffre.',
+  'assistant.tip10':
+    'Utilise les flèches haut et bas (↑↓) pour rappeler l’historique.',
+  'assistant.tip11':
+    'Tape "top" ou "monitor" pour voir CPU/RAM et les alertes.',
+  'assistant.tip12':
+    'Tape "notify status" ou "notify on" pour activer les alertes du navigateur.',
+  'assistant.webTip1':
+    'Appuie sur [CMD] dans la barre pour choisir les commandes à la souris.',
+  'assistant.webTip2':
+    'Le menu CMD réunit navigation, recherche, rechargement, onglets et manuel.',
+  'assistant.webTip3':
+    'Enregistre la page avec l’étoile ★ : elle apparaît dans la bande de favoris.',
+  'assistant.webTip4':
+    'Clique un favori pour l’ouvrir ; son X le retire de la bande.',
+  'assistant.webTip5':
+    'Passe de REAL à SOMBRE ou TEXTE depuis la barre du haut ou cette bulle.',
+  'assistant.webTip6':
+    'La vue est mémorisée par site ; dans SITES tu peux l’oublier.',
+  'assistant.webTip7':
+    'Tape "goto <url>" ou "search <texte>" puis RUN pour naviguer.',
+  'webpage.openLink': 'Ouvrir [{part}] : {href}',
+  'webpage.zoomImage': 'Agrandir l’image',
+  'webpage.zoomImageAlt': 'Agrandir l’image : {alt}',
+  'webpage.status':
+    '── [{code}] {url} · {ms}ms · {images} images · {links} liens{proxy} ──',
+  'webpage.viaProxy': ' · via le proxy',
+  'webpage.viewTitleFrames':
+    'Vues : WEB (page originale) → RETRO (structure) → TEXTE (brut)',
+  'webpage.viewTitleNoFrames':
+    'Le site interdit l’affichage en cadre : vues RETRO (structure) et TEXTE (brut). Utilise « ouvrir l’original » pour la page complète.',
+  'webpage.view': 'VUE {mode}',
+  'webpage.openOriginal': 'ouvrir l’original ↗',
+  'webpage.openOriginalTitle': 'Ouvrir la page originale dans un onglet du navigateur',
+  'webpage.crtTitle':
+    'Activer ou couper l’effet CRT (teinte phosphore, vignette et lignes de balayage) sur la page originale',
+  'webpage.emptyText': 'Page chargée sans texte extractible.',
+  'webpage.linksHeading': '── liens ({count}) · clic, tap ou numéro saisi ──',
+  'assistant.header': 'DOSY · ASSISTANT [{state}]',
+  'window.controls': 'Contrôles de fenêtre',
+  'window.minimize': 'Réduire la fenêtre',
+  'window.minimizeTitle': 'Réduire',
+  'window.maximize': 'Agrandir la fenêtre',
+  'window.maximizeTitle': 'Agrandir',
+  'window.restore': 'Restaurer la fenêtre',
+  'window.restoreTitle': 'Restaurer',
+  'window.close': 'Fermer la fenêtre',
+  'window.closeTitle': 'Fermer',
+  'window.desktopOnly': 'Disponible quand Terminus tourne comme application de bureau',
+  'themeName.monochromeGreen': 'P1 Phosphor Green (VT100)',
+  'themeName.amberCrt': 'DEC VT220 Amber',
+  'themeName.cyberpunk': 'Cyberpunk Obsidian',
+  'themeName.retro': 'Rétro-Futuriste (Orbite 2086)',
+  'themeName.msdos': 'MS-DOS 6.22 Classic Blue',
+  'themeName.matrix': 'Matrix Minimalist Black',
+  'themeName.bw': 'Noir et Blanc (monochrome 1 bit)',
+  'tabs.new': 'Nouvel onglet',
+  'tabs.start': 'Portail de départ',
+  'tabs.browser': 'Navigateur',
   'common.close': 'Fermer',
   'common.cancel': 'Annuler',
 
@@ -1589,6 +2019,149 @@ const fr: Record<MessageKey, string> = {
 };
 
 const it: Record<MessageKey, string> = {
+  'search.formLabel': 'Cerca in Terminus Search',
+  'search.placeholder': 'Cerca sul web da Terminus…',
+  'search.submit': 'CERCA',
+  'search.eyebrow': 'Motore interno / provider attuale',
+  'search.intro':
+    'Una porta verso il web con l’estetica di Terminus. Interfaccia e lettura sono nostre; i risultati arrivano da DuckDuckGo e Wikipedia.',
+  'search.try': 'Prova con',
+  'search.suggest1': 'informatica quantistica',
+  'search.suggest2': 'notizie di tecnologia',
+  'search.suggest3': 'documentazione React',
+  'search.statSources': 'FONTI',
+  'search.statReading': 'LETTURA',
+  'search.statReadingValue': 'Risultati in una scheda',
+  'search.statShortcuts': 'SCORCIATOIE',
+  'search.disclaimer':
+    'Terminus Search è il livello di ricerca del browser. Non ha ancora un indice proprio: interroga il provider attuale e mostra i risultati nella propria interfaccia.',
+  'search.resultsEyebrow': 'Terminus Search / risultati',
+  'search.resultsFor': 'Risultati per {query}',
+  'search.statusLoading': 'INTERROGAZIONE',
+  'search.statusError': 'ERRORE DI RICERCA',
+  'search.statusCount': '{count} RISULTATI',
+  'search.consulting': 'Interrogazione di {provider}…',
+  'search.errorTitle': 'Impossibile interrogare il provider',
+  'search.retry': 'RIPROVA',
+  'search.emptyTitle': 'Nessun risultato',
+  'search.emptyBody':
+    'Il provider non ha restituito risultati per questa ricerca. Prova altre parole.',
+  'search.footerProvider': 'Provider: {provider}',
+  'search.footerKeys': 'Invio cerca · Esc pulisce · Ctrl+L barra',
+  'search.footerBrand': 'Terminus Search · livello di ricerca del browser',
+  'search.footerNote': 'Interfaccia nostra / risultati del provider attuale',
+  'assistant.chipNext': 'Avanti',
+  'assistant.moodHappy': 'felice',
+  'assistant.moodThinking': 'pensa',
+  'assistant.moodAlert': 'allarme',
+  'assistant.moodExcited': 'wow!',
+  'assistant.moodSleepy': 'assonnato',
+  'assistant.stateNormal': 'Normale',
+  'assistant.stateHappy': 'Felice',
+  'assistant.stateThinking': 'Pensieroso',
+  'assistant.stateAlert': 'Allarme',
+  'assistant.stateExcited': 'Entusiasta',
+  'assistant.stateSleepy': 'Riposo',
+  'assistant.close': 'Chiudi il fumetto',
+  'assistant.openMenu': 'Apri il menu comandi della barra',
+  'assistant.bookmarkNoPage': 'Apri una pagina per salvarla nei segnalibri',
+  'assistant.bookmarkRemove': 'Rimuovi la pagina attuale dai segnalibri',
+  'assistant.bookmarkAdd': 'Salva la pagina attuale nei segnalibri',
+  'assistant.viewNoPage': 'Apri una pagina per cambiare vista',
+  'assistant.viewMode': 'Vedi la pagina in modalità {mode}',
+  'assistant.eyesTitle':
+    'DOSY: assistente personale (occhi rettangolari verticali senza pupille · seguono il cursore · clic per i consigli)',
+  'assistant.listening':
+    'Ti ascolto dal microfono... Di’ un comando o una ricerca web.',
+  'assistant.errorWeb':
+    'Quel comando non è andato: apri CMD per le opzioni o scrivi "help".',
+  'assistant.errorTerm':
+    'Attenzione! Quel comando ha avuto un problema. Scrivi "aiuto" per la sintassi.',
+  'assistant.navWeb':
+    'Pagina caricata. Passa tra REAL, SCURO e TESTO per la vista.',
+  'assistant.navTerm': 'Navigazione! Web caricato nel terminale con immagini reali.',
+  'assistant.searchSent':
+    'Ricerca inviata. Apri un risultato o premi CMD per altro.',
+  'assistant.bookmarksOk':
+    'Segnalibri aggiornati. La stella ★ e la barra superiore sono i tuoi accessi rapidi.',
+  'assistant.readerOn':
+    'Modalità lettura attiva. Prova REAL o SCURO per la pagina completa.',
+  'assistant.homeBack':
+    'Di nuovo alla pagina iniziale. Premi CMD per una nuova ricerca.',
+  'assistant.pythonOk': 'Codice Python eseguito correttamente!',
+  'assistant.fsOk': 'File system locale pronto. Clicca per interagire!',
+  'assistant.notifyOk': 'Notifiche W3C e del terminale attive.',
+  'assistant.tip1': 'Ciao! Sono DOSY. Scrivi "home" per tornare all’inizio.',
+  'assistant.tip2':
+    'Premi [Ctrl+M] o clicca il microfono per dettare i comandi.',
+  'assistant.tip3': 'Usa "ir a <url>" per navigare nel terminale con foto reali.',
+  'assistant.tip4':
+    'Apri schede con Ctrl+T e salta con Ctrl+1..9 o "pestaña <n>".',
+  'assistant.tip5':
+    'Clicca un file nel terminale per aprirlo o eseguirlo.',
+  'assistant.tip6': 'Scrivi "fs workspace" per esplorare il codice locale.',
+  'assistant.tip7': 'Esegui "python benchmark.py" per calcoli in tempo reale.',
+  'assistant.tip8': 'Scrivi "mc" per aprire Norton Commander con tastiera e mouse.',
+  'assistant.tip9':
+    'La sessione è cifrata AES-256. Scrivi "bóveda" per gestire la cassaforte.',
+  'assistant.tip10':
+    'Usa le frecce su e giù (↑↓) per richiamare i comandi dalla cronologia.',
+  'assistant.tip11':
+    'Scrivi "top" o "monitor" per vedere CPU/RAM e avvisi.',
+  'assistant.tip12':
+    'Scrivi "notify status" o "notify on" per attivare gli avvisi del browser.',
+  'assistant.webTip1':
+    'Premi [CMD] nella barra per scegliere i comandi col mouse.',
+  'assistant.webTip2':
+    'Il menu CMD raccoglie navigazione, ricerca, ricarica, schede e manuale.',
+  'assistant.webTip3':
+    'Salva la pagina con la stella ★: comparirà nella barra dei segnalibri.',
+  'assistant.webTip4':
+    'Clicca un segnalibro per aprirlo; la sua X lo toglie dalla barra.',
+  'assistant.webTip5':
+    'Passa tra REAL, SCURO e TESTO dalla barra in alto o da questo fumetto.',
+  'assistant.webTip6':
+    'La vista è ricordata per sito; in SITI puoi dimenticarla.',
+  'assistant.webTip7':
+    'Scrivi "goto <url>" o "search <testo>" e premi RUN per navigare.',
+  'webpage.openLink': 'Apri [{part}]: {href}',
+  'webpage.zoomImage': 'Ingrandisci immagine',
+  'webpage.zoomImageAlt': 'Ingrandisci immagine: {alt}',
+  'webpage.status':
+    '── [{code}] {url} · {ms}ms · {images} immagini · {links} link{proxy} ──',
+  'webpage.viaProxy': ' · tramite proxy',
+  'webpage.viewTitleFrames':
+    'Viste: WEB (pagina originale) → RETRO (struttura) → TESTO (semplice)',
+  'webpage.viewTitleNoFrames':
+    'Il sito vieta la visualizzazione in frame: viste RETRO (struttura) e TESTO (semplice). Usa "apri originale" per la pagina completa.',
+  'webpage.view': 'VISTA {mode}',
+  'webpage.openOriginal': 'apri originale ↗',
+  'webpage.openOriginalTitle': 'Apri la pagina originale in una scheda del browser',
+  'webpage.crtTitle':
+    'Attiva o disattiva l’effetto CRT (tinta fosforo, vignettatura e righe di scansione) sulla pagina originale',
+  'webpage.emptyText': 'Pagina caricata senza testo estraibile.',
+  'webpage.linksHeading': '── link ({count}) · clic, tap o digita il numero ──',
+  'assistant.header': 'DOSY · ASSISTENTE [{state}]',
+  'window.controls': 'Controlli finestra',
+  'window.minimize': 'Riduci a icona',
+  'window.minimizeTitle': 'Riduci',
+  'window.maximize': 'Ingrandisci finestra',
+  'window.maximizeTitle': 'Ingrandisci',
+  'window.restore': 'Ripristina finestra',
+  'window.restoreTitle': 'Ripristina',
+  'window.close': 'Chiudi finestra',
+  'window.closeTitle': 'Chiudi',
+  'window.desktopOnly': 'Disponibile quando Terminus gira come app desktop',
+  'themeName.monochromeGreen': 'P1 Phosphor Green (VT100)',
+  'themeName.amberCrt': 'DEC VT220 Amber',
+  'themeName.cyberpunk': 'Cyberpunk Obsidian',
+  'themeName.retro': 'Retro-Futurista (Orbita 2086)',
+  'themeName.msdos': 'MS-DOS 6.22 Classic Blue',
+  'themeName.matrix': 'Matrix Minimalist Black',
+  'themeName.bw': 'Bianco e Nero (1-bit monocromatico)',
+  'tabs.new': 'Nuova scheda',
+  'tabs.start': 'Portale iniziale',
+  'tabs.browser': 'Browser',
   'common.close': 'Chiudi',
   'common.cancel': 'Annulla',
 
@@ -2117,6 +2690,149 @@ const it: Record<MessageKey, string> = {
 };
 
 const en: Record<MessageKey, string> = {
+  'search.formLabel': 'Search Terminus Search',
+  'search.placeholder': 'Search the web from Terminus…',
+  'search.submit': 'SEARCH',
+  'search.eyebrow': 'Homegrown search / current provider',
+  'search.intro':
+    'A gateway to the web in Terminus style. The interface and reading are our own; results come from DuckDuckGo and Wikipedia.',
+  'search.try': 'Try',
+  'search.suggest1': 'quantum computing',
+  'search.suggest2': 'technology news',
+  'search.suggest3': 'React documentation',
+  'search.statSources': 'SOURCES',
+  'search.statReading': 'READING',
+  'search.statReadingValue': 'Results in a tab',
+  'search.statShortcuts': 'SHORTCUTS',
+  'search.disclaimer':
+    'Terminus Search is the browser’s search layer. It has no index of its own yet: it queries the current provider and renders the results in its own interface.',
+  'search.resultsEyebrow': 'Terminus Search / results',
+  'search.resultsFor': 'Results for {query}',
+  'search.statusLoading': 'QUERYING',
+  'search.statusError': 'QUERY ERROR',
+  'search.statusCount': '{count} RESULTS',
+  'search.consulting': 'Querying {provider}…',
+  'search.errorTitle': 'Could not query the provider',
+  'search.retry': 'RETRY',
+  'search.emptyTitle': 'No results',
+  'search.emptyBody':
+    'The provider returned nothing for this query. Try different words.',
+  'search.footerProvider': 'Provider: {provider}',
+  'search.footerKeys': 'Enter search · Esc clear · Ctrl+L bar',
+  'search.footerBrand': 'Terminus Search · the browser’s search layer',
+  'search.footerNote': 'Our interface / current provider results',
+  'assistant.chipNext': 'Next',
+  'assistant.moodHappy': 'happy',
+  'assistant.moodThinking': 'thinking',
+  'assistant.moodAlert': 'alert',
+  'assistant.moodExcited': 'wow!',
+  'assistant.moodSleepy': 'sleepy',
+  'assistant.stateNormal': 'Normal',
+  'assistant.stateHappy': 'Happy',
+  'assistant.stateThinking': 'Thinking',
+  'assistant.stateAlert': 'Alert',
+  'assistant.stateExcited': 'Excited',
+  'assistant.stateSleepy': 'Resting',
+  'assistant.close': 'Close bubble',
+  'assistant.openMenu': 'Open the bar command menu',
+  'assistant.bookmarkNoPage': 'Open a page to save it as a bookmark',
+  'assistant.bookmarkRemove': 'Remove the current page from bookmarks',
+  'assistant.bookmarkAdd': 'Save the current page as a bookmark',
+  'assistant.viewNoPage': 'Open a page to change the view',
+  'assistant.viewMode': 'View the page in {mode} mode',
+  'assistant.eyesTitle':
+    'DOSY: personal assistant (tall rectangular pupil-less eyes · follow the cursor · click for tips)',
+  'assistant.listening':
+    'I am listening through the microphone… Say any command or web search.',
+  'assistant.errorWeb':
+    'That command did not work. Open CMD to review the options or type "help".',
+  'assistant.errorTerm':
+    'Careful! That command hit a snag. Type "help" to see the syntax.',
+  'assistant.navWeb':
+    'Page loaded. Switch between REAL, DARK and TEXT to adjust the view.',
+  'assistant.navTerm': 'Browsing! Page loaded in the terminal with real images.',
+  'assistant.searchSent':
+    'Search sent. Open a result or press CMD for another action.',
+  'assistant.bookmarksOk':
+    'Bookmarks up to date. The ★ star and the top strip are your quick access.',
+  'assistant.readerOn':
+    'Reader mode on. Try REAL or DARK to return to the full page.',
+  'assistant.homeBack':
+    'Back at the start page. Press CMD to begin another search.',
+  'assistant.pythonOk': 'Python code ran successfully!',
+  'assistant.fsOk': 'Local file system ready. Click around to interact!',
+  'assistant.notifyOk': 'W3C and terminal notifications active.',
+  'assistant.tip1': 'Hi! I am DOSY. Type "home" to go back to the start page.',
+  'assistant.tip2':
+    'Press [Ctrl+M] or click the microphone to dictate commands.',
+  'assistant.tip3': 'Use "ir a <url>" to browse with real photos in the terminal.',
+  'assistant.tip4':
+    'Open tabs with Ctrl+T and jump with Ctrl+1..9 or "pestaña <n>".',
+  'assistant.tip5':
+    'Click any file in the terminal to open or run it.',
+  'assistant.tip6': 'Type "fs workspace" to explore the local source.',
+  'assistant.tip7': 'Run "python benchmark.py" for live numeric computing.',
+  'assistant.tip8': 'Type "mc" to open Norton Commander with keyboard and mouse.',
+  'assistant.tip9':
+    'Your session is AES-256 encrypted. Type "bóveda" to manage the vault.',
+  'assistant.tip10':
+    'Use the up and down arrows (↑↓) to recall commands from history.',
+  'assistant.tip11':
+    'Type "top" or "monitor" to see CPU/RAM usage and alerts.',
+  'assistant.tip12':
+    'Type "notify status" or "notify on" to enable browser alerts.',
+  'assistant.webTip1':
+    'Press [CMD] in the bar to pick navigation commands with the mouse.',
+  'assistant.webTip2':
+    'The CMD menu gathers navigation, search, reload, tabs and the manual.',
+  'assistant.webTip3':
+    'Save the page with the ★ star and it appears in the bookmarks strip.',
+  'assistant.webTip4':
+    'Click a bookmark to open it; its X removes it from the strip.',
+  'assistant.webTip5':
+    'Switch between REAL, DARK and TEXT from the top bar or this bubble.',
+  'assistant.webTip6':
+    'The view is remembered per site; in SITES you can forget one or all.',
+  'assistant.webTip7':
+    'Type "goto <url>" or "search <text>" and press RUN to navigate.',
+  'webpage.openLink': 'Open [{part}]: {href}',
+  'webpage.zoomImage': 'Enlarge image',
+  'webpage.zoomImageAlt': 'Enlarge image: {alt}',
+  'webpage.status':
+    '── [{code}] {url} · {ms}ms · {images} images · {links} links{proxy} ──',
+  'webpage.viaProxy': ' · via proxy',
+  'webpage.viewTitleFrames':
+    'Views: WEB (original page) → RETRO (structure) → TEXT (plain)',
+  'webpage.viewTitleNoFrames':
+    'The site blocks framing: RETRO (structure) and TEXT (plain) views. Use "open original" for the full page.',
+  'webpage.view': 'VIEW {mode}',
+  'webpage.openOriginal': 'open original ↗',
+  'webpage.openOriginalTitle': 'Open the original page in a browser tab',
+  'webpage.crtTitle':
+    'Turn the CRT effect (phosphor tint, vignette and scanlines) on or off over the original page',
+  'webpage.emptyText': 'Page loaded with no extractable text.',
+  'webpage.linksHeading': '── links ({count}) · click, tap or type the number ──',
+  'assistant.header': 'DOSY · ASSISTANT [{state}]',
+  'window.controls': 'Window controls',
+  'window.minimize': 'Minimize window',
+  'window.minimizeTitle': 'Minimize',
+  'window.maximize': 'Maximize window',
+  'window.maximizeTitle': 'Maximize',
+  'window.restore': 'Restore window',
+  'window.restoreTitle': 'Restore',
+  'window.close': 'Close window',
+  'window.closeTitle': 'Close',
+  'window.desktopOnly': 'Available when Terminus runs as a desktop app',
+  'themeName.monochromeGreen': 'P1 Phosphor Green (VT100)',
+  'themeName.amberCrt': 'DEC VT220 Amber',
+  'themeName.cyberpunk': 'Cyberpunk Obsidian',
+  'themeName.retro': 'Retro Futurist (Orbit 2086)',
+  'themeName.msdos': 'MS-DOS 6.22 Classic Blue',
+  'themeName.matrix': 'Matrix Minimalist Black',
+  'themeName.bw': 'Black & White (1-Bit Monochrome)',
+  'tabs.new': 'New Tab',
+  'tabs.start': 'Start Portal',
+  'tabs.browser': 'Browser',
   'common.close': 'Close',
   'common.cancel': 'Cancel',
 

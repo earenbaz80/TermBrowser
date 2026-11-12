@@ -6,6 +6,7 @@
 
 import React, { Suspense, useState, useEffect, useCallback, useRef } from 'react';
 import { useI18n } from './i18n';
+import type { MessageKey } from './i18n/messages';
 import {
   ActivityLog,
   Bookmark,
@@ -83,13 +84,13 @@ import {
 } from './utils/lastMountStorage';
 import type { LastNativeMount, NativeMountPermission } from './utils/lastMountStorage';
 
-const titleForWebTab = (url: string): string => {
-  if (!url || url === 'about:blank') return 'Nueva Pestaña';
+const titleForWebTab = (url: string, t: (key: MessageKey) => string): string => {
+  if (!url || url === 'about:blank') return t('tabs.new');
   if (url.startsWith('terminus://search')) return 'Terminus Search';
   try {
-    return new URL(url).hostname.replace(/^www\./i, '') || 'Navegador';
+    return new URL(url).hostname.replace(/^www\./i, '') || t('tabs.browser');
   } catch {
-    return 'Navegador';
+    return t('tabs.browser');
   }
 };
 
@@ -137,7 +138,7 @@ const INITIAL_SCRIPTS: UserScript[] = [
 ];
 
 export default function App() {
-  const { tc, locale } = useI18n();
+  const { t, tc, locale } = useI18n();
   // Theme and Aesthetic State (persisted in localStorage)
   const [currentThemeId, setCurrentThemeId] = useState<ThemeId>(() => {
     try {
@@ -164,7 +165,7 @@ export default function App() {
       {
         id: 'tab_1',
         kind: 'web',
-        title: 'Portal de Inicio',
+        title: t('tabs.start'),
         url: 'about:blank',
         displayUrl: 'about:blank',
         isLoading: false,
@@ -924,13 +925,13 @@ export default function App() {
     if (next === surface) return;
     if (next === 'web') window.terminusPty?.kill(activeTabId);
     setTabs((prev) =>
-      prev.map((t) => {
-        if (t.id !== activeTabId) return t;
-        const blank = !t.url || t.url === 'about:blank';
+      prev.map((tab) => {
+        if (tab.id !== activeTabId) return tab;
+        const blank = !tab.url || tab.url === 'about:blank';
         return {
-          ...t,
+          ...tab,
           kind: next,
-          title: next === 'terminal' ? 'Terminal' : titleForWebTab(t.url),
+          title: next === 'terminal' ? 'Terminal' : titleForWebTab(tab.url, t),
         };
       })
     );
@@ -942,7 +943,7 @@ export default function App() {
     const newTab: BrowserTab = {
       id: newId,
       kind,
-      title: kind === 'terminal' ? 'Terminal' : 'Nueva Pestaña',
+      title: kind === 'terminal' ? 'Terminal' : t('tabs.new'),
       url: 'about:blank',
       displayUrl: 'about:blank',
       isLoading: false,
@@ -960,7 +961,7 @@ export default function App() {
     const freshTab: BrowserTab = {
       id: newId,
       kind: 'web',
-      title: 'Nueva Pestaña',
+      title: t('tabs.new'),
       url: 'about:blank',
       displayUrl: 'about:blank',
       isLoading: false,

@@ -6,6 +6,11 @@ import type { Locale } from './locales';
  * Spanish is the reference and every other locale must translate every key.
  */
 export const CONSOLE_ES = {
+  'out.fsMount':
+    '[✓] Carpeta local "{name}" montada en {path} mediante File System Access API ({count} elementos cargados).\nAcceso local en modo lectura/escritura concedido.',
+  'out.themeBw': '[✓] Estilo visual cambiado a: Blanco y Negro (1-Bit Monocromo Puro).',
+  'out.themeChanged': '[✓] Paleta cambiada a: {name} ({id})',
+  'out.themeUsage': 'Uso: theme <bw|blanco-y-negro|green|amber|cyberpunk|retro|dos|matrix>',
   'out.historyEmpty': '[!] El historial persistente en localStorage está vacío.',
   'out.historyMissing': '[!] No se encontró la entrada {entry} en el historial persistente (1..{max}).',
   'out.linkMissing': 'No existe el enlace [{index}]. La página actual tiene {count} enlaces numerados (1-{count}).',
@@ -194,6 +199,11 @@ export const CONSOLE_ES = {
 export type ConsoleKey = keyof typeof CONSOLE_ES;
 
 export const CONSOLE_DE: Record<ConsoleKey, string> = {
+  'out.fsMount':
+    '[✓] Lokaler Ordner "{name}" unter {path} über die File System Access API eingebunden ({count} Elemente geladen).\nLese-/Schreibzugriff lokal gewährt.',
+  'out.themeBw': '[✓] Darstellung geändert: Schwarzweiß (reines 1-Bit-Monochrom).',
+  'out.themeChanged': '[✓] Palette geändert: {name} ({id})',
+  'out.themeUsage': 'Verwendung: theme <bw|blanco-y-negro|green|amber|cyberpunk|retro|dos|matrix>',
   'out.historyEmpty': '[!] Der dauerhafte Verlauf in localStorage ist leer.',
   'out.historyMissing': '[!] Eintrag {entry} wurde im dauerhaften Verlauf nicht gefunden (1..{max}).',
   'out.linkMissing': 'Link [{index}] existiert nicht. Die aktuelle Seite hat {count} nummerierte Links (1-{count}).',
@@ -380,6 +390,11 @@ export const CONSOLE_DE: Record<ConsoleKey, string> = {
 };
 
 export const CONSOLE_FR: Record<ConsoleKey, string> = {
+  'out.fsMount':
+    '[✓] Dossier local « {name} » monté sur {path} via File System Access API ({count} éléments chargés).\nAccès local en lecture/écriture accordé.',
+  'out.themeBw': '[✓] Style visuel modifié : Noir et Blanc (monochrome 1 bit pur).',
+  'out.themeChanged': '[✓] Palette changée : {name} ({id})',
+  'out.themeUsage': 'Utilisation : theme <bw|blanco-y-negro|green|amber|cyberpunk|retro|dos|matrix>',
   'out.historyEmpty': '[!] L’historique persistant dans localStorage est vide.',
   'out.historyMissing': '[!] Entrée {entry} introuvable dans l’historique persistant (1..{max}).',
   'out.linkMissing': 'Le lien [{index}] n’existe pas. La page actuelle a {count} liens numérotés (1-{count}).',
@@ -566,6 +581,11 @@ export const CONSOLE_FR: Record<ConsoleKey, string> = {
 };
 
 export const CONSOLE_IT: Record<ConsoleKey, string> = {
+  'out.fsMount':
+    '[✓] Cartella locale "{name}" montata su {path} tramite File System Access API ({count} elementi caricati).\nAccesso locale in lettura/scrittura concesso.',
+  'out.themeBw': '[✓] Stile visivo cambiato: Bianco e Nero (monocromatico 1 bit puro).',
+  'out.themeChanged': '[✓] Palette cambiata: {name} ({id})',
+  'out.themeUsage': 'Uso: theme <bw|blanco-y-negro|green|amber|cyberpunk|retro|dos|matrix>',
   'out.historyEmpty': '[!] La cronologia persistente in localStorage è vuota.',
   'out.historyMissing': '[!] Voce {entry} non trovata nella cronologia persistente (1..{max}).',
   'out.linkMissing': 'Il link [{index}] non esiste. La pagina attuale ha {count} link numerati (1-{count}).',
@@ -752,6 +772,11 @@ export const CONSOLE_IT: Record<ConsoleKey, string> = {
 };
 
 export const CONSOLE_EN: Record<ConsoleKey, string> = {
+  'out.fsMount':
+    '[✓] Local folder "{name}" mounted at {path} through the File System Access API ({count} items loaded).\nLocal read/write access granted.',
+  'out.themeBw': '[✓] Visual style changed to: Black & White (pure 1-bit monochrome).',
+  'out.themeChanged': '[✓] Palette changed to: {name} ({id})',
+  'out.themeUsage': 'Usage: theme <bw|blanco-y-negro|green|amber|cyberpunk|retro|dos|matrix>',
   'out.historyEmpty': '[!] The persistent history in localStorage is empty.',
   'out.historyMissing': '[!] Entry {entry} was not found in the persistent history (1..{max}).',
   'out.linkMissing': 'Link [{index}] does not exist. The current page has {count} numbered links (1-{count}).',

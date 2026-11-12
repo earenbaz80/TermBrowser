@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { ASSISTANT_TIPS, RetroAssistantEyes, WEB_ASSISTANT_TIPS } from './RetroAssistantEyes';
+import { ASSISTANT_TIP_KEYS, RetroAssistantEyes, WEB_ASSISTANT_TIP_KEYS } from './RetroAssistantEyes';
+import { MESSAGES } from '../i18n/messages';
+
+// Components rendered without the provider fall back to Spanish.
+const ASSISTANT_TIPS = ASSISTANT_TIP_KEYS.map((key) => MESSAGES.es[key]);
+const WEB_ASSISTANT_TIPS = WEB_ASSISTANT_TIP_KEYS.map((key) => MESSAGES.es[key]);
 
 const openBubble = () => {
   fireEvent.click(screen.getByTitle(/^DOSY: Asistente personal/));

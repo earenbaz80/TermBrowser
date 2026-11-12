@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { TerminusDesktopApi, ThemeConfig } from '../types';
+import { useI18n } from '../i18n';
 
 interface WindowControlsProps {
   theme: ThemeConfig;
@@ -35,11 +36,12 @@ const CloseIcon: React.FC = () => (
  * header so the shell does not need a second title bar above it.
  */
 export const WindowControls: React.FC<WindowControlsProps> = ({ theme }) => {
+  const { t } = useI18n();
   const [desktop] = useState<TerminusDesktopApi | null>(() =>
     typeof window !== 'undefined' ? window.terminusDesktop ?? null : null
   );
   const [isMaximized, setIsMaximized] = useState(false);
-  const desktopOnlyTitle = 'Disponible al abrir Terminus como aplicación de escritorio';
+  const desktopOnlyTitle = t('window.desktopOnly');
 
   useEffect(() => {
     if (!desktop) return;
@@ -71,7 +73,7 @@ export const WindowControls: React.FC<WindowControlsProps> = ({ theme }) => {
     <div
       className="tb-window-controls flex shrink-0 items-stretch self-stretch"
       role="group"
-      aria-label="Controles de ventana"
+      aria-label={t('window.controls')}
     >
       <button
         type="button"
@@ -79,8 +81,8 @@ export const WindowControls: React.FC<WindowControlsProps> = ({ theme }) => {
         style={{ borderColor: theme.border }}
         onClick={() => desktop?.minimize()}
         aria-disabled={!desktop}
-        aria-label="Minimizar ventana"
-        title={desktop ? 'Minimizar' : desktopOnlyTitle}
+        aria-label={t('window.minimize')}
+        title={desktop ? t('window.minimizeTitle') : desktopOnlyTitle}
       >
         <MinimizeIcon />
       </button>
@@ -91,8 +93,14 @@ export const WindowControls: React.FC<WindowControlsProps> = ({ theme }) => {
         style={{ borderColor: theme.border }}
         onClick={handleMaximize}
         aria-disabled={!desktop}
-        aria-label={isMaximized ? 'Restaurar ventana' : 'Maximizar ventana'}
-        title={desktop ? (isMaximized ? 'Restaurar' : 'Maximizar') : desktopOnlyTitle}
+        aria-label={isMaximized ? t('window.restore') : t('window.maximize')}
+        title={
+          desktop
+            ? isMaximized
+              ? t('window.restoreTitle')
+              : t('window.maximizeTitle')
+            : desktopOnlyTitle
+        }
       >
         {isMaximized ? <RestoreIcon /> : <MaximizeIcon />}
       </button>
@@ -103,8 +111,8 @@ export const WindowControls: React.FC<WindowControlsProps> = ({ theme }) => {
         style={{ borderColor: theme.border }}
         onClick={() => desktop?.close()}
         aria-disabled={!desktop}
-        aria-label="Cerrar ventana"
-        title={desktop ? 'Cerrar' : desktopOnlyTitle}
+        aria-label={t('window.close')}
+        title={desktop ? t('window.closeTitle') : desktopOnlyTitle}
       >
         <CloseIcon />
       </button>

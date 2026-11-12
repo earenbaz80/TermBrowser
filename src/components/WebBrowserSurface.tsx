@@ -30,7 +30,7 @@ import {
   Star,
   X,
 } from 'lucide-react';
-import { SUGGESTED_QUERIES, TerminusSearchPage } from './TerminusSearchPage';
+import { SUGGESTED_QUERY_KEYS, TerminusSearchPage } from './TerminusSearchPage';
 import { getTerminusSearchQuery, isTerminusSearchUrl } from '../utils/terminusSearch';
 import { isPrivateTargetUrl } from '../utils/networkPolicy';
 import { ContextMenu, ContextMenuItem } from './ContextMenu';
@@ -1079,7 +1079,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
             </form>
             <div className="flex flex-wrap items-center justify-center gap-2">
               <span className="text-[9px] uppercase tracking-[0.18em] opacity-45">{t('start.tryWith')}</span>
-              {SUGGESTED_QUERIES.map((suggestion) => (
+              {SUGGESTED_QUERY_KEYS.map((key) => t(key)).map((suggestion) => (
                 <button
                   key={suggestion}
                   type="button"

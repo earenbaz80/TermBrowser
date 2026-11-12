@@ -11,6 +11,7 @@ import {
 import { TerminusSearchState, ThemeConfig } from '../types';
 import { TERMINUS_SEARCH_PROVIDER } from '../utils/terminusSearch';
 import { soundEffects } from '../utils/soundEffects';
+import { useI18n } from '../i18n';
 
 interface TerminusSearchPageProps {
   theme: ThemeConfig;
@@ -20,11 +21,8 @@ interface TerminusSearchPageProps {
   onOpenResult: (url: string) => void;
 }
 
-export const SUGGESTED_QUERIES = [
-  'computación cuántica',
-  'noticias de tecnología',
-  'documentación de React',
-];
+/** Suggested queries are localized: the words also go to the search provider. */
+export const SUGGESTED_QUERY_KEYS = ['search.suggest1', 'search.suggest2', 'search.suggest3'] as const;
 
 const hostOf = (url: string): string => {
   try {
@@ -52,6 +50,8 @@ export const TerminusSearchPage: React.FC<TerminusSearchPageProps> = ({
   onSearch,
   onOpenResult,
 }) => {
+  const { t } = useI18n();
+  const suggestions = SUGGESTED_QUERY_KEYS.map((key) => t(key));
   const [draft, setDraft] = useState(query);
   const autoRunQuery = useRef('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -101,7 +101,7 @@ export const TerminusSearchPage: React.FC<TerminusSearchPageProps> = ({
     <form
       onSubmit={handleSubmit}
       role="search"
-      aria-label="Buscar en Terminus Search"
+      aria-label={t('search.formLabel')}
       className="mt-7 border p-1.5 sm:mt-8"
       style={{
         borderColor: theme.accent,
@@ -124,8 +124,8 @@ export const TerminusSearchPage: React.FC<TerminusSearchPageProps> = ({
               setDraft('');
             }
           }}
-          placeholder="Busca en la web desde Terminus…"
-          aria-label="Buscar en Terminus Search"
+          placeholder={t('search.placeholder')}
+          aria-label={t('search.formLabel')}
           autoComplete="off"
           autoCapitalize="none"
           autoCorrect="off"
@@ -138,12 +138,12 @@ export const TerminusSearchPage: React.FC<TerminusSearchPageProps> = ({
         <button
           type="submit"
           disabled={!draft.trim() || isLoading}
-          aria-label="Buscar"
+          aria-label={t('search.submit')}
           className="flex shrink-0 items-center gap-1.5 border px-2.5 py-2 text-[10px] font-bold cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 sm:px-3"
           style={{ borderColor: theme.accent, backgroundColor: theme.accent, color: theme.bg }}
         >
           {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-          <span className="hidden sm:inline">BUSCAR</span>
+          <span className="hidden sm:inline">{t('search.submit')}</span>
         </button>
       </div>
     </form>
@@ -164,21 +164,20 @@ export const TerminusSearchPage: React.FC<TerminusSearchPageProps> = ({
             <section className="max-w-3xl">
               <div className="flex items-center gap-2 text-[9px] uppercase tracking-[0.28em]" style={{ color: theme.accent }}>
                 <span className="h-px w-7" style={{ backgroundColor: theme.accent }} />
-                Buscador propio / proveedor actual
+                {t('search.eyebrow')}
               </div>
               <h1 className="mt-4 text-4xl font-bold leading-none tracking-tight sm:text-6xl">
                 TERMINUS <span style={{ color: theme.accent }}>SEARCH</span>
               </h1>
               <p className="mt-4 max-w-2xl text-[12px] leading-6 opacity-70 sm:text-[13px]">
-                Una puerta de entrada a la web con la estética de Terminus. La interfaz y la lectura son propias;
-                los resultados se consultan en DuckDuckGo y Wikipedia.
+                {t('search.intro')}
               </p>
 
               {searchForm}
 
               <div className="mt-5 flex flex-wrap items-center gap-2">
-                <span className="text-[9px] uppercase tracking-[0.18em] opacity-45">Prueba con</span>
-                {SUGGESTED_QUERIES.map((suggestion) => (
+                <span className="text-[9px] uppercase tracking-[0.18em] opacity-45">{t('search.try')}</span>
+                {suggestions.map((suggestion) => (
                   <button
                     key={suggestion}
                     type="button"
@@ -196,9 +195,9 @@ export const TerminusSearchPage: React.FC<TerminusSearchPageProps> = ({
                 style={{ borderColor: theme.border, backgroundColor: theme.border }}
               >
                 {[
-                  { label: 'FUENTES', value: provider, icon: Globe2 },
-                  { label: 'LECTURA', value: 'Resultados en pestaña', icon: ShieldCheck },
-                  { label: 'ATAJOS', value: 'Enter · Esc · Ctrl+L', icon: CornerDownLeft },
+                  { label: t('search.statSources'), value: provider, icon: Globe2 },
+                  { label: t('search.statReading'), value: t('search.statReadingValue'), icon: ShieldCheck },
+                  { label: t('search.statShortcuts'), value: 'Enter · Esc · Ctrl+L', icon: CornerDownLeft },
                 ].map(({ label, value, icon: Icon }) => (
                   <div key={label} className="p-3" style={{ backgroundColor: theme.cardBg }}>
                     <div className="flex items-center gap-1.5 text-[9px] uppercase tracking-[0.16em] opacity-45">
@@ -213,8 +212,7 @@ export const TerminusSearchPage: React.FC<TerminusSearchPageProps> = ({
               </div>
 
               <p className="mt-6 max-w-2xl text-[10px] leading-5 opacity-45">
-                Terminus Search es la capa de búsqueda del navegador. No mantiene un índice propio todavía:
-                consulta el proveedor actual y presenta los resultados con su propia interfaz.
+                {t('search.disclaimer')}
               </p>
             </section>
           ) : (
@@ -223,14 +221,20 @@ export const TerminusSearchPage: React.FC<TerminusSearchPageProps> = ({
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-[9px] uppercase tracking-[0.24em]" style={{ color: theme.accent }}>
                     <span className="h-px w-6" style={{ backgroundColor: theme.accent }} />
-                    Terminus Search / resultados
+                    {t('search.resultsEyebrow')}
                   </div>
                   <h1 className="mt-2 break-words text-xl font-bold leading-tight sm:text-3xl">
-                    Resultados para <span style={{ color: theme.accent }}>&quot;{query}&quot;</span>
+                    {t('search.resultsFor', { query: `"${query}"` })}
                   </h1>
                 </div>
                 <div className="shrink-0 text-right text-[9px] uppercase leading-5 tracking-[0.12em] opacity-55">
-                  <div>{isLoading ? 'CONSULTANDO' : searchError ? 'ERROR DE CONSULTA' : `${results.length} RESULTADOS`}</div>
+                  <div>
+                    {isLoading
+                      ? t('search.statusLoading')
+                      : searchError
+                        ? t('search.statusError')
+                        : t('search.statusCount', { count: results.length })}
+                  </div>
                   <div>{state && state.query === query && state.latencyMs > 0 ? `${state.latencyMs} MS` : provider}</div>
                 </div>
               </div>
@@ -241,7 +245,7 @@ export const TerminusSearchPage: React.FC<TerminusSearchPageProps> = ({
                 {isLoading ? (
                   <div className="space-y-3">
                     <div className="text-[10px] uppercase tracking-[0.16em] opacity-55">
-                      Consultando {provider}…
+                      {t('search.consulting', { provider })}
                     </div>
                     {[0, 1, 2].map((row) => (
                       <div
@@ -258,7 +262,7 @@ export const TerminusSearchPage: React.FC<TerminusSearchPageProps> = ({
                 ) : searchError ? (
                   <div className="border p-5" style={{ borderColor: theme.border, backgroundColor: theme.cardBg }}>
                     <div className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: theme.accent }}>
-                      No se pudo consultar el proveedor
+                      {t('search.errorTitle')}
                     </div>
                     <p className="mt-2 text-[12px] leading-5 opacity-70">{searchError}</p>
                     <button
@@ -268,16 +272,16 @@ export const TerminusSearchPage: React.FC<TerminusSearchPageProps> = ({
                       style={{ borderColor: theme.accent, color: theme.accent }}
                     >
                       <RotateCw className="h-3 w-3" />
-                      REINTENTAR
+                      {t('search.retry')}
                     </button>
                   </div>
                 ) : results.length === 0 ? (
                   <div className="border p-5" style={{ borderColor: theme.border, backgroundColor: theme.cardBg }}>
                     <div className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: theme.accent }}>
-                      Sin resultados
+                      {t('search.emptyTitle')}
                     </div>
                     <p className="mt-2 text-[12px] leading-5 opacity-70">
-                      El proveedor no devolvió resultados para esta consulta. Prueba con otras palabras.
+                      {t('search.emptyBody')}
                     </p>
                   </div>
                 ) : (
@@ -316,8 +320,8 @@ export const TerminusSearchPage: React.FC<TerminusSearchPageProps> = ({
               </div>
 
               <div className="mt-6 flex flex-wrap items-center justify-between gap-2 text-[9px] uppercase tracking-[0.12em] opacity-45">
-                <span>Proveedor: {provider}</span>
-                <span>Enter buscar · Esc limpiar · Ctrl+L barra</span>
+                <span>{t('search.footerProvider', { provider })}</span>
+                <span>{t('search.footerKeys')}</span>
               </div>
             </section>
           )}
@@ -327,8 +331,8 @@ export const TerminusSearchPage: React.FC<TerminusSearchPageProps> = ({
           className="mt-10 flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-[9px] uppercase tracking-[0.14em] opacity-40"
           style={{ borderColor: theme.border }}
         >
-          <span>Terminus Search · capa de búsqueda del navegador</span>
-          <span>Interfaz propia / resultados del proveedor actual</span>
+          <span>{t('search.footerBrand')}</span>
+          <span>{t('search.footerNote')}</span>
         </footer>
       </div>
     </div>

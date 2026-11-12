@@ -16,11 +16,23 @@ import {
   TerminusSearchState,
 } from '../types';
 import { THEMES } from './themes';
+
+const THEME_NAME_KEYS: Record<ThemeId, MessageKey> = {
+  'monochrome-green': 'themeName.monochromeGreen',
+  'amber-crt': 'themeName.amberCrt',
+  'cyberpunk-obsidian': 'themeName.cyberpunk',
+  'retro-futurista': 'themeName.retro',
+  'ms-dos': 'themeName.msdos',
+  'matrix-dark': 'themeName.matrix',
+  'black-and-white': 'themeName.bw',
+};
 import { formatAsciiBox } from './asciiBox';
 import { runPythonCode, VirtualFile } from './interpreter';
 import { computeSHA256 } from './crypto';
 import { COMMAND_DOCS } from '../components/HelpModal';
 import { localizeCommandDocs } from '../i18n/commandDocs';
+import { translate } from '../i18n';
+import type { MessageKey } from '../i18n/messages';
 import type { Locale } from '../i18n/locales';
 import { APP_VERSION } from './version';
 import {
@@ -1738,7 +1750,7 @@ Comandos de voz recomendados:
           timestamp,
           type: 'system',
           interactiveFiles,
-          output: `[✓] Carpeta local "${res.name}" montada en ${mountPath} mediante File System Access API (${vFiles.length} elementos cargados).\nAcceso local en modo lectura/escritura concedido.`,
+          output: ctx.tc('out.fsMount', { name: res.name, path: mountPath, count: vFiles.length }),
         };
       } catch (err: any) {
         return {
@@ -2059,7 +2071,7 @@ Tiempos aproximados de ida y vuelta en milisegundos:
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'system',
-      output: '[✓] Estilo visual cambiado a: Blanco y Negro (1-Bit Monocromo Puro).',
+      output: ctx.tc('out.themeBw'),
     };
   }
 
@@ -2093,14 +2105,17 @@ Tiempos aproximados de ida y vuelta en milisegundos:
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'system',
-        output: `[✓] Paleta cambiada a: ${THEMES[map[tName]].name} (${map[tName]})`,
+        output: ctx.tc('out.themeChanged', {
+          name: translate(ctx.locale, THEME_NAME_KEYS[map[tName]]),
+          id: map[tName],
+        }),
       };
     }
     return {
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'stderr',
-      output: 'Uso: theme <bw|blanco-y-negro|green|amber|cyberpunk|retro|dos|matrix>',
+      output: ctx.tc('out.themeUsage'),
     };
   }
 
