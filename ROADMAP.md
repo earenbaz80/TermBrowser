@@ -2,8 +2,8 @@
 
 Este documento es la fuente de verdad de lo que falta. El repositorio no usa issues ni milestones en GitHub, así que el estado se mantiene aquí y se actualiza al cerrar cada hito.
 
-- Última release publicada: `0.2.2`; el paquete ya está en `0.3.0` y el instalador está generado, pendiente de publicar.
-- Rama `main` en `a83f00c`: rediseño de interfaz (`4ca78bf`) e internacionalización (PR #11) ya mergeados.
+- Última release publicada: `0.3.0` (tag `v0.3.0`, 12 de noviembre de 2026), con instalador, `.blockmap`, ZIP y `SHA256SUMS.txt`.
+- Rama `main` en `9175b49`: rediseño de interfaz (`4ca78bf`), internacionalización (PR #11) y notas de release alineadas con los artefactos publicados.
 - Verificación actual: `npm run lint` correcto (tsc y eslint), `npm test` con 38 archivos y 160 pruebas, cliente y servidor compilados, instalador `0.3.0` generado y `NotSigned`.
 - No hay fechas comprometidas. Los hitos se ordenan por prioridad, no por calendario.
 
@@ -20,7 +20,7 @@ No son pendientes; están aquí para que no vuelvan a aparecer como deuda.
 
 ## Hitos
 
-### 1. Publicar la nueva interfaz (`0.3.0`) — código mergeado, pendiente de revisión manual y publicación
+### 1. Publicar la nueva interfaz (`0.3.0`) — publicada
 
 Trabajo ya hecho y commiteado (rediseño en `4ca78bf`, internacionalización mergeada en `a83f00c`):
 
@@ -31,16 +31,16 @@ Trabajo ya hecho y commiteado (rediseño en `4ca78bf`, internacionalización mer
 - Terminus Search sin cabecera interna propia.
 - Internacionalización completa (PR #11): interfaz, consola, fichas de ayuda, extensiones, temas, scripts de ejemplo y archivos de muestra en español, alemán, francés, italiano e inglés.
 
-Pendiente:
+Estado:
 
-- [ ] Revisión manual de la UI en Electron instalado: cabecera, menú, buscador desde el inicio, glitch a velocidad normal y con movimiento reducido.
+- [x] Revisión manual de la UI sobre la `0.3.0` instalada: cabecera única, menú de configuración con persistencia del tema, buscador desde la pantalla de inicio, glitch con movimiento normal y reducido, y Ctrl+F en REAL, OSCURO y TEXTO.
 - [x] Commit del rediseño y `package.json` a `0.3.0`, con la versión centralizada en `src/utils/version.ts` (versión visible y User-Agent incluidos).
 - [x] `docs/release-notes-v0.3.0.md` con cambios, verificación y SHA-256 del instalador.
 - [x] `main` con el PR #11 mergeado en `a83f00c` y el CI en verde sobre ese commit (lint, pruebas, cobertura y E2E opcional), sin anotaciones.
-- [ ] Publicar la release `0.3.0` con el instalador y `SHA256SUMS.txt`; la última release publicada sigue siendo `v0.2.2`.
+- [x] Release `0.3.0` publicada el 12 de noviembre de 2026 y marcada como última release, con instalador, `.blockmap`, ZIP y `SHA256SUMS.txt` (los tres hashes).
 - [x] README actualizado: arquitectura (`SettingsMenu`, `WindowControls`, `src/i18n`), flujo de búsqueda desde el inicio, idiomas y recuento de pruebas.
 
-Cierre: lint, pruebas y builds en verde; instalador generado, revisado a mano e instalado; release `0.3.0` publicada con hashes; la búsqueda funciona desde la pantalla de inicio sin pasar por otra vista.
+Cierre: lint, pruebas y builds en verde; instalador generado, revisado a mano e instalado; release `0.3.0` publicada con hashes; la búsqueda funciona desde la pantalla de inicio sin pasar por otra vista. Hito cerrado el 12 de noviembre de 2026.
 
 ### 2. E2E sobre la app instalada en CI — bloqueado por infraestructura
 
