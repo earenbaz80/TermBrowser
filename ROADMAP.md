@@ -4,7 +4,7 @@ Este documento es la fuente de verdad de lo que falta. El repositorio no usa iss
 
 - Última release publicada: `0.3.0` (tag `v0.3.0`, 12 de noviembre de 2026), con instalador, `.blockmap`, ZIP y `SHA256SUMS.txt`.
 - Estado del proyecto: rediseño de interfaz e internacionalización (PR #11) mergeados en `main`, notas de release y README alineados con los artefactos publicados, y el E2E instalado del hito 0.3.0 pasado.
-- Verificación actual: `npm run lint` correcto (tsc y eslint), `npm test` con 39 archivos y 171 pruebas, cliente y servidor compilados, instalador `0.3.0` generado y `NotSigned`.
+- Verificación actual: `npm run lint` correcto (tsc y eslint), `npm test` con 40 archivos y 175 pruebas, cliente y servidor compilados, instalador `0.3.0` generado y `NotSigned`.
 - No hay fechas comprometidas. Los hitos se ordenan por prioridad, no por calendario.
 
 ## Decisiones cerradas
@@ -61,7 +61,7 @@ Cierre: el log del job contiene los tres `PASS` (Ctrl+F en REAL instalado, búsq
 
 ### 3. Cobertura automatizada de la interfaz nueva — regresiones cubiertas en CI
 
-Las tres regresiones del cierre ya tienen prueba y corren en `npm test` (39 archivos, 171 pruebas), así que el CI las vigila sin depender del runner interactivo del hito 2.
+Las tres regresiones del cierre y la persistencia del tema ya tienen prueba, y corren en `npm test` (40 archivos, 175 pruebas): el CI las vigila sin depender del runner interactivo del hito 2.
 
 Pendiente:
 
@@ -69,9 +69,10 @@ Pendiente:
 - [x] `WindowControls` (`WindowControls.test.tsx`): los tres botones a través del puente, estado deshabilitado sin puente y cambio a «Restaurar ventana» cuando `onMaximizedChange` empuja el estado, sin pulsar nada.
 - [x] Búsqueda del inicio (`WebBrowserSurface.test.tsx`): un solo paso (`search <consulta>`, con espacios recortados y el campo vaciado), envío vacío que no navega y sugerencia clicable que busca su propio texto; falla si reaparece el botón «ABRIR TERMINUS SEARCH».
 - [x] Cabecera única (`HeaderBar.test.tsx`): un solo `<header>` con la marca, las pestañas y los controles de ventana dentro, sin barra de título duplicada.
-- [ ] Llevar los mismos casos al E2E instalado, incluida la persistencia del tema tras recargar: depende del runner interactivo que falta en el hito 2.
+- [x] Persistencia del tema (`App.theme.test.tsx`): monta la app entera, cambia el tema desde el menú, comprueba que queda en `localStorage` y que al desmontarla y volver a montarla arranca con el tema guardado aplicado; también cubre el tema por defecto y un valor guardado que ya no existe.
+- [ ] Llevar los mismos casos al E2E instalado sobre la app empaquetada: sigue dependiendo del runner interactivo que falta en el hito 2.
 
-Cierre: las pruebas fallan si se reintroduce el botón intermedio de búsqueda, una segunda cabecera o un menú que deja de avisar del cambio de tema. La persistencia del tema tras recargar aún no está cubierta: queda con el E2E instalado.
+Cierre: las pruebas fallan si se reintroduce el botón intermedio de búsqueda, una segunda cabecera o un menú que no guarda el tema; la persistencia se comprueba remontando la app completa, no recargando en un navegador.
 
 ### 4. Deuda técnica y de seguridad — abierta, sin fecha
 
