@@ -5,6 +5,7 @@
  */
 
 import React, { Suspense, useState, useEffect, useCallback, useRef } from 'react';
+import { useI18n } from './i18n';
 import {
   ActivityLog,
   Bookmark,
@@ -136,6 +137,7 @@ const INITIAL_SCRIPTS: UserScript[] = [
 ];
 
 export default function App() {
+  const { tc } = useI18n();
   // Theme and Aesthetic State (persisted in localStorage)
   const [currentThemeId, setCurrentThemeId] = useState<ThemeId>(() => {
     try {
@@ -189,7 +191,7 @@ export default function App() {
       id: 'boot_welcome',
       timestamp: new Date().toLocaleTimeString(),
       type: 'system',
-      output: `[✓] Sistema inicializado. Núcleo WebAssembly activo. Cifrado AES-256-GCM preparado.\nEscriba "help" para ver la lista de comandos o use "goto <url>" para navegar.`,
+      output: tc('out.bootBanner'),
     },
 
   ]);
@@ -649,13 +651,14 @@ export default function App() {
         exportLogs: helpers.handleExportLogs,
         runAutomatedScript: helpers.runAutomatedScript,
         onNativeMountSaved: () => setPendingLocalMount(null),
+        tc,
       });
 
       if (resultLog && (resultLog.output || resultLog.interactiveFiles)) {
         setLogs((prev) => [...prev, resultLog]);
       }
     },
-    [tabs, activeTabId, currentThemeId, crtEnabled, isMuted, bookmarks, scripts, extensions, keybindings, security, metrics, activityLogs, currentPath, fileSystem, setCurrentPath, setLogs]
+    [tabs, activeTabId, currentThemeId, crtEnabled, isMuted, bookmarks, scripts, extensions, keybindings, security, metrics, activityLogs, currentPath, fileSystem, setCurrentPath, setLogs, tc]
   );
 
   // Execute automated script sequentially

@@ -126,7 +126,7 @@ interface WebCommandOption {
 /** Mouse-friendly shortcuts for the commands a web session needs most often. */
 const WEB_COMMAND_OPTIONS: WebCommandOption[] = [
   { command: 'goto ', labelKey: 'cmd.goto', hint: 'goto https://…', needsValue: true },
-  { command: 'search ', labelKey: 'cmd.search', hint: 'search términos', needsValue: true },
+  { command: 'search ', labelKey: 'cmd.search', hint: 'search <query>', needsValue: true },
   { command: 'home', labelKey: 'browser.home', hint: 'home' },
   { command: 'back', labelKey: 'browser.back', hint: 'back' },
   { command: 'forward', labelKey: 'browser.forward', hint: 'forward' },

@@ -42,6 +42,7 @@ import {
   TERMINUS_SEARCH_PROVIDER,
   TERMINUS_SEARCH_URL,
 } from './terminusSearch';
+import type { ConsoleKey } from '../i18n/console';
 
 export interface CommandContext {
   tabs: BrowserTab[];
@@ -84,6 +85,8 @@ export interface CommandContext {
   runAutomatedScript: (script: UserScript) => void;
   /** Notify the app after a native folder has been mounted and remembered. */
   onNativeMountSaved?: (name: string, mountPath: string) => void;
+  /** Localized console output. Spanish is the source catalog. */
+  tc: (key: ConsoleKey, vars?: Record<string, string | number>) => string;
 }
 
 /** Virtual mount point that mirrors the real local workspace served by /api/local-fs */
@@ -173,7 +176,7 @@ export async function processCommand(
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'stderr',
-        output: '[!] El historial persistente en localStorage está vacío.',
+        output: ctx.tc('out.historyEmpty'),
       };
     }
     const targetCmd =
@@ -186,7 +189,7 @@ export async function processCommand(
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'stderr',
-        output: `[!] No se encontró la entrada ${trimmed} en el historial persistente (1..${persisted.length}).`,
+        output: ctx.tc('out.historyMissing', { entry: trimmed, max: persisted.length }),
       };
     }
     return processCommand(targetCmd, ctx);
@@ -222,8 +225,8 @@ export async function processCommand(
       timestamp,
       type: 'stderr',
       output: linkCount
-        ? `No existe el enlace [${followMatch[1]}]. La página actual tiene ${linkCount} enlaces numerados (1-${linkCount}).`
-        : 'No hay enlaces numerados en la pestaña activa. Cargue una página con "goto <url>" primero.',
+        ? ctx.tc('out.linkMissing', { index: followMatch[1], count: linkCount })
+        : ctx.tc('out.noNumberedLinks'),
     };
   }
 
@@ -232,13 +235,13 @@ export async function processCommand(
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'stderr',
-      output: 'Uso: l <número>  (ej. l 3 abre el enlace [3] de la página actual). También puede escribir solo el número.',
+      output: ctx.tc('out.linkUsage'),
     };
   }
 
   // 1. HELP / MANUAL
   if (primaryCmd === 'help' || primaryCmd === 'man' || primaryCmd === 'manual') {
-    logActivity('INFO', 'CLI', `Consulta de ayuda ejecutada: ${args.join(' ') || 'general'}`);
+    logActivity('INFO', 'CLI', ctx.tc('out.helpQuery', { topic: args.join(' ') || 'general' }));
 
     if (args[0] === '-i' || args[0] === '--interactive' || primaryCmd === 'manual' || args[0] === 'panel') {
       ctx.openHelp();
@@ -246,16 +249,16 @@ export async function processCommand(
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'system',
-        output: '[✓] Desplegando panel de ayuda interactivo con filtrado por categorías y ejemplos interactivos.',
+        output: ctx.tc('out.helpPanel'),
       };
     }
 
     if (args[0]) {
-      const catRes = getCategoryHelp(args[0]);
+      const catRes = getCategoryHelp(args[0], ctx);
       if (catRes) {
         return catRes;
       }
-      return getSpecificHelp(args[0]);
+      return getSpecificHelp(args[0], ctx);
     }
 
     // Default: also open interactive help panel so user can click examples directly
@@ -265,75 +268,8 @@ export async function processCommand(
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'ascii',
-      output: `
-${formatAsciiBox('TERMINUS - MANUAL DE COMANDOS')}
-[✓] Panel interactivo desplegado en pantalla. Puede filtrar por categorías con:
-    • help navegacion   : Comandos de navegación web, pestañas y lector
-    • help sistema      : Comandos de consola, procesos y runtime de Python
-    • help red          : Diagnóstico de conectividad, ping, DNS y scraping
-    • help seguridad    : Cifrado AES-256, tokens MFA y sincronización en la nube
-    • help automatizacion: Scripts, macros, extensiones CLI y atajos de teclado
-
-[NAVEGACIÓN WEB POR LÍNEA DE COMANDOS]
-  goto <url>              : Navega a una URL en la pestaña activa (ej. goto https://news.ycombinator.com)
-  search <consulta>       : Busca en Terminus Search (DuckDuckGo + Wikipedia)
-  curl [-X METHOD] <url>  : Realiza una petición HTTP con proxy real, headers y latencia
-  fetch <url>             : Inspección HTTP rápida de un endpoint o página web
-  reader                  : Alterna el modo lectura sin publicidad ni distracciones
-  source                  : Inspecciona el código fuente HTML/DOM de la pestaña
-  back / forward / reload : Controles de navegación en el historial
-  tab new [url]           : Abre una nueva pestaña de navegación
-  tab close [id]          : Cierra la pestaña activa o especificada
-  tab switch <n>          : Cambia a la pestaña número n (o use Ctrl+1..9)
-  tab list                : Lista todas las pestañas abiertas y su estado
-  bookmark add <tit> <url>: Guarda un marcador cifrado en la bóveda
-  bookmark list           : Muestra todos los marcadores guardados
-
-[SISTEMA, POWERSHELL & BASH]
-  ls / dir                : Lista el workspace local (/workspace) o el disco virtual
-  cat / type <archivo>    : Muestra el contenido de un archivo
-  pwd                     : Muestra el directorio de trabajo actual
-  echo <texto>            : Imprime texto en pantalla
-  clear / cls             : Limpia el búfer de la terminal
-  whoami                  : Identidad de usuario y nivel de seguridad activo
-  top / ps / Get-Process  : Abre el tablero de recursos interactivo estilo MS-DOS
-  ipconfig / ping <host>  : Diagnóstico de conectividad de red
-  python -c "<code>"      : Ejecuta código Python en tiempo real
-  bash -c "<code>"        : Ejecuta scripts de shell
-
-[RED & EXTENSIONES]
-  ping <host>             : Prueba de latencia ICMP/HTTP
-  dns <dominio>           : Resolución de registros DNS
-  speedtest               : Medición de rendimiento de red
-  scrape [url]            : Extracción de metadatos y enlaces DOM
-  ext list / install      : Catálogo de extensiones CLI
-
-[SEGURIDAD & AUTOMATIZACIÓN]
-  vault status            : Estado del cifrado AES-256-GCM y checksum
-  mfa status / verify     : Gestión de token TOTP de 6 dígitos
-  sync push / sync pull   : Sincroniza el estado a la nube segura
-  script list / run <nom> : Ejecuta flujos y macros automatizadas
-  binds                   : Configuración de atajos de teclado
-  log export --json/--txt : Descarga los registros de auditoría
-  hash <texto>            : Genera suma criptográfica SHA-256
-  speedtest               : Mide la latencia de red y rendimiento
-
-[SEGURIDAD AES-256, MFA & NUBE]
-  vault status            : Estado del cifrado AES-256-GCM y checksum
-  vault lock / unlock     : Bloquea o desbloquea la bóveda segura
-  mfa status / verify     : Gestión de token TOTP de 6 dígitos
-  sync push / sync pull   : Sincroniza el estado a la nube segura
-
-[AUTOMATIZACIÓN & LOGS]
-  script list             : Lista de macros y flujos automatizados
-  script run <nombre>     : Ejecuta un script paso a paso
-  binds                   : Configuración de atajos de teclado
-  log export --json/--txt : Descarga los registros de auditoría
-  theme <green|amber|...> : Cambia la paleta de colores de la terminal
-  sound on / off          : Activa o silencia los efectos de sonido de 8-bits
-
-Escriba "help <comando>" para ver la sintaxis detallada de cualquier comando.
-      `.trim(),
+      output: `${formatAsciiBox(ctx.tc('out.manualTitle'))}
+${ctx.tc('out.manualBody')}`.trim(),
     };
   }
 
@@ -347,14 +283,14 @@ Escriba "help <comando>" para ver la sintaxis detallada de cualquier comando.
           <div>
             <div style="font-size: 10px; opacity: 0.7; letter-spacing: 1px;">[TERMINUS SECURE USER PROFILE]</div>
             <h2 style="font-size: 18px; color: #f8fafc; margin: 4px 0;">root@terminus</h2>
-            <div style="font-size: 11px; color: #38bdf8;">Rol: Administrador Criptográfico AES-256-GCM</div>
+            <div style="font-size: 11px; color: #38bdf8;">${ctx.tc('out.profileRole')}</div>
           </div>
         </div>
         <div style="font-size: 12px; line-height: 1.6; color: #cbd5e1;">
-          <div>• Identificador Visual : Avatar Pixel Art Monocromático (Asignado al Sistema)</div>
-          <div>• Estado de Sesión   : Activa, cifrada con llave maestra de 256 bits</div>
-          <div>• Nivel de Permisos  : Root / Superusuario (UID 0)</div>
-          <div>• Terminal Core      : WebAssembly x86_64 Virtual Environment</div>
+          <div>${ctx.tc('out.profileVisual')}</div>
+          <div>${ctx.tc('out.profileSession')}</div>
+          <div>${ctx.tc('out.profilePermissions')}</div>
+          <div>${ctx.tc('out.profileCore')}</div>
         </div>
       </div>
     `;
@@ -364,11 +300,11 @@ Escriba "help <comando>" para ver la sintaxis detallada de cualquier comando.
         t.id === ctx.activeTabId
           ? {
               ...t,
-              title: 'Perfil de Usuario: root',
+              title: ctx.tc('out.profileTitle'),
               url: 'terminus://profile/whoami',
               displayUrl: 'terminus://profile/whoami',
               content: profileHtml,
-              readerText: 'Perfil de Usuario root - Terminus con Avatar Pixel Art',
+              readerText: ctx.tc('out.profileReader'),
             }
           : t
       )
@@ -378,7 +314,7 @@ Escriba "help <comando>" para ver la sintaxis detallada de cualquier comando.
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'system',
-      output: '[✓] Identidad de usuario autenticada: root@terminus (Avatar de terminal retro asignado al perfil).\n(Perfil renderizado en la pestaña activa y visor web).',
+      output: ctx.tc('out.profileDone'),
     };
   }
 
@@ -392,7 +328,7 @@ Escriba "help <comando>" para ver la sintaxis detallada de cualquier comando.
         const history = [...t.history.slice(0, t.historyIndex + 1), startUrl];
         return {
           ...t,
-          title: 'Nueva Pestaña',
+          title: ctx.tc('out.newTabTitle'),
           url: startUrl,
           displayUrl: startUrl,
           isLoading: false,
@@ -414,7 +350,7 @@ Escriba "help <comando>" para ver la sintaxis detallada de cualquier comando.
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'system',
-      output: '[✓] Página de inicio abierta. Escriba una dirección o una búsqueda.',
+      output: ctx.tc('out.homeOpened'),
     };
   }
 
@@ -425,7 +361,7 @@ Escriba "help <comando>" para ver la sintaxis detallada de cualquier comando.
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'stderr',
-        output: 'Uso: ir a <url>\nEjemplo: ir a https://news.ycombinator.com o ir wikipedia.org',
+        output: ctx.tc('out.irUsage'),
       };
     }
     return processCommand(`goto ${urlTarget}`, ctx);
@@ -450,7 +386,7 @@ Escriba "help <comando>" para ver la sintaxis detallada de cualquier comando.
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'system',
-      output: `[✓] Sesión segura AES-256 preservada. Terminus sigue activo.\nConsejo de DOSY: La página y la consola comparten una única superficie de texto. Para limpiar pantalla use 'limpiar' o 'cls'.`,
+      output: ctx.tc('out.exitSession'),
     };
   }
 
@@ -476,7 +412,7 @@ Escriba "help <comando>" para ver la sintaxis detallada de cualquier comando.
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'system',
-      output: '[✓] Pantalla de terminal limpia.',
+      output: ctx.tc('out.clearScreen'),
     };
   }
 
@@ -497,21 +433,7 @@ Escriba "help <comando>" para ver la sintaxis detallada de cualquier comando.
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'system',
-      output: `
-( • ‿ • ) ¡Hola! Soy DOSY, tu copiloto personal retro en Terminus.
-Mis ojos CRT están ubicados sobre la barra de entrada a la derecha.
-
-Comandos en español que puedes usar:
-  • home           : Ir a la página de inicio
-  • ir a <url>     : Navegar a una web con fotos reales en terminal
-  • pestaña <n>    : Saltar a cualquier pestaña abierta (o Ctrl+1..9)
-  • pestaña nueva  : Abrir una nueva pestaña
-  • pestaña cerrar : Cerrar la pestaña activa
-  • archivos       : Abrir el explorador Norton Commander interactivo
-  • monitor        : Ver recursos del sistema en tiempo real
-  • limpiar        : Limpiar la consola de comandos
-  • exit / salir   : Estado de sesión
-      `.trim(),
+      output: ctx.tc('out.dosy').trim(),
     };
   }
 
@@ -529,7 +451,7 @@ Comandos en español que puedes usar:
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'stderr',
-        output: 'Error de sintaxis: Falta la URL objetivo.\nUso: goto <url>  (ej. goto https://news.ycombinator.com o web https://wikipedia.org)',
+        output: ctx.tc('out.gotoUsage'),
       };
     }
 
@@ -545,8 +467,8 @@ Comandos en español que puedes usar:
         timestamp,
         type: 'stderr',
         output: linkCount
-          ? `No existe el enlace [${args[0]}]. La página actual tiene ${linkCount} enlaces numerados (1-${linkCount}).`
-          : 'No hay enlaces numerados en la pestaña activa. Cargue una página con "goto <url>" primero.',
+          ? ctx.tc('out.linkMissing', { index: args[0], count: linkCount })
+          : ctx.tc('out.noNumberedLinks'),
       };
     }
 
@@ -567,7 +489,7 @@ Comandos en español que puedes usar:
     // Update active tab state
     const currentTab = ctx.tabs.find((t) => t.id === ctx.activeTabId);
     if (!currentTab) {
-      return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'No hay ninguna pestaña activa disponible.' };
+      return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: ctx.tc('out.noActiveTab') };
     }
 
     // Set tab loading. With historyOverride (back/forward) the existing history is kept
@@ -661,7 +583,11 @@ Comandos en español que puedes usar:
           headings: pageHeadings,
           paragraphs: pageParagraphs,
           links: pageLinks,
-          summary: `HTTP ${data.status} ${data.statusText || 'OK'} · ${(data.sizeBytes / 1024).toFixed(1)} KB · Cifrado AES-256`,
+          summary: ctx.tc('out.pageSummary', {
+            status: data.status,
+            statusText: data.statusText || 'OK',
+            kb: (data.sizeBytes / 1024).toFixed(1),
+          }),
         };
 
         return {
@@ -669,7 +595,14 @@ Comandos en español que puedes usar:
           timestamp,
           type: 'webpage',
           webpage: webpagePayload,
-          output: `[HTTP ${data.status} ${data.statusText || 'OK'}] ${targetUrl} (${(data.sizeBytes / 1024).toFixed(1)} KB en ${latencyMs}ms).\n${pageImages.length} imágenes reales detectadas. Renderizando en terminal MS-DOS...`,
+          output: ctx.tc('out.pageLoaded', {
+            status: data.status,
+            statusText: data.statusText || 'OK',
+            url: targetUrl,
+            kb: (data.sizeBytes / 1024).toFixed(1),
+            ms: latencyMs,
+            images: pageImages.length,
+          }),
         };
       } else {
         // Fallback: direct load in iframe
@@ -681,7 +614,7 @@ Comandos en español que puedes usar:
                   isLoading: false,
                   title: new URL(targetUrl).hostname,
                   statusCode: proxyRes.status >= 400 ? proxyRes.status : 502,
-                  content: `El proxy no pudo cargar la página: ${targetUrl}`,
+                  content: ctx.tc('out.proxyContent', { url: targetUrl }),
                   latencyMs,
                 }
               : t
@@ -694,13 +627,13 @@ Comandos en español que puedes usar:
           statusCode: proxyRes.status >= 400 ? proxyRes.status : 502,
           latencyMs,
           images: [],
-          headings: ['Fallo del proxy'],
+          headings: [ctx.tc('out.proxyHeading')],
           paragraphs: [
-            `El proxy de Terminus no pudo cargar ${targetUrl} (HTTP ${proxyRes.status}).`,
-            'La pestaña muestra la escena de error hasta que la página vuelva a responder.',
+            ctx.tc('out.proxyExplain', { url: targetUrl, status: proxyRes.status }),
+            ctx.tc('out.proxyExplainHint'),
           ],
           links: [{ text: targetUrl, href: targetUrl }],
-          summary: `[HTTP ${proxyRes.status}] Proxy sin respuesta para ${targetUrl}.`,
+          summary: ctx.tc('out.proxySummary', { status: proxyRes.status, url: targetUrl }),
         };
 
         return {
@@ -708,7 +641,7 @@ Comandos en español que puedes usar:
           timestamp,
           type: 'webpage',
           webpage: fallbackPayload,
-          output: `[HTTP ${proxyRes.status}] No se pudo cargar ${targetUrl} a través del proxy.`,
+          output: ctx.tc('out.proxyFailed', { status: proxyRes.status, url: targetUrl }),
         };
       }
     } catch {
@@ -721,7 +654,7 @@ Comandos en español que puedes usar:
                 isLoading: false,
                 title: new URL(targetUrl).hostname,
                 statusCode: 502,
-                content: `El proxy no está disponible: ${targetUrl}`,
+                content: ctx.tc('out.proxyContentOffline', { url: targetUrl }),
               }
             : t
         )
@@ -733,10 +666,10 @@ Comandos en español que puedes usar:
           statusCode: 502,
           latencyMs: 10,
           images: [],
-          headings: ['Fallo del proxy'],
-          paragraphs: [`El proxy de Terminus no respondió al cargar ${targetUrl}.`],
+          headings: [ctx.tc('out.proxyHeading')],
+          paragraphs: [ctx.tc('out.proxyOfflineParagraph', { url: targetUrl })],
           links: [{ text: targetUrl, href: targetUrl }],
-          summary: `[HTTP 502] Proxy sin respuesta para ${targetUrl}.`,
+          summary: ctx.tc('out.proxySummary', { status: 502, url: targetUrl }),
       };
 
       return {
@@ -744,7 +677,7 @@ Comandos en español que puedes usar:
         timestamp,
         type: 'webpage',
         webpage: offlinePayload,
-        output: `[HTTP 502] No se pudo cargar ${targetUrl} a través del proxy.`,
+        output: ctx.tc('out.proxyFailed', { status: 502, url: targetUrl }),
       };
     }
   }
@@ -767,7 +700,7 @@ Comandos en español que puedes usar:
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'stderr',
-        output: 'Uso: search <términos de búsqueda>  o  buscar <consulta>\nEjemplo: buscar que es retrocomputing',
+              output: ctx.tc('out.searchUsage'),
       };
     }
     return performWebSearch(query, ctx);
@@ -787,22 +720,22 @@ Comandos en español que puedes usar:
         }
         const detail =
           perm === 'granted'
-            ? 'Alertas nativas activas para scripts y anomalías.'
+            ? ctx.tc('out.notifyEnabled')
             : perm === 'denied'
-              ? 'El navegador bloqueó las alertas nativas; los avisos seguirán apareciendo en el flujo de la terminal.'
-              : 'Petición enviada al navegador. Si no aparece el diálogo, revisa los permisos del sitio; mientras tanto los avisos se muestran en el flujo de la terminal.';
+              ? ctx.tc('out.notifyDenied')
+              : ctx.tc('out.notifyPending');
         return {
           id: `cmd_${Date.now()}`,
           timestamp,
           type: 'system',
-          output: `[NOTIFICACIONES DEL NAVEGADOR] Permiso ${perm.toUpperCase()}. ${detail}`,
+          output: ctx.tc('out.notifyStatus', { permission: perm.toUpperCase(), detail }),
         };
       } catch (err: any) {
         return {
           id: `cmd_${Date.now()}`,
           timestamp,
           type: 'stderr',
-          output: `[NOTIFICACIONES ERROR] ${err.message}`,
+          output: ctx.tc('out.notifyError', { message: err.message }),
         };
       }
     }
@@ -811,11 +744,11 @@ Comandos en español que puedes usar:
       const testType = (args[1] || 'script').toLowerCase();
       if (testType === 'anomaly' || testType === 'anomalia') {
         const notif = notificationManager.dispatch({
-          title: 'Anomalía de Carga en CPU Detectada',
-          body: 'El uso de CPU alcanzó el 94% en el hilo principal. Se recomienda revisar procesos con "top".',
+          title: ctx.tc('out.anomalyTitle'),
+          body: ctx.tc('out.anomalyBody'),
           category: 'anomaly',
           severity: 'critical',
-          actionText: 'Abrir Monitor TOP',
+          actionText: ctx.tc('out.anomalyAction'),
           actionCommand: 'top',
         });
         return {
@@ -823,15 +756,15 @@ Comandos en español que puedes usar:
           timestamp,
           type: 'notification',
           notification: notif,
-          output: '[ALERTA DE ANOMALÍA DISPARADA] Verifique los procesos en el monitor.',
+          output: ctx.tc('out.anomalyOutput'),
         };
       } else {
         const notif = notificationManager.dispatch({
-          title: 'Script Automatizado Finalizado',
-          body: 'El flujo "Auditoría de Seguridad y Cifrado AES-256" completó los 5 pasos sin errores.',
+          title: ctx.tc('out.scriptTitle'),
+          body: ctx.tc('out.scriptBody'),
           category: 'script',
           severity: 'success',
-          actionText: 'Ver Auditoría',
+          actionText: ctx.tc('out.scriptAction'),
           actionCommand: 'vault status',
         });
         return {
@@ -839,7 +772,7 @@ Comandos en español que puedes usar:
           timestamp,
           type: 'notification',
           notification: notif,
-          output: '[NOTIFICACIÓN DE SCRIPT DISPARADA] Flujo completado con éxito.',
+          output: ctx.tc('out.scriptOutput'),
         };
       }
     }
@@ -909,7 +842,7 @@ Comandos de voz recomendados:
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'stderr',
-        output: 'Uso: curl [-X GET/POST] <url>\nEjemplo: curl https://httpbin.org/get',
+        output: ctx.tc('out.curlUsage'),
       };
     }
 
@@ -930,7 +863,7 @@ Comandos de voz recomendados:
           id: `cmd_${Date.now()}`,
           timestamp,
           type: 'stderr',
-          output: `curl: (52) Error en la petición a ${target}: ${errJson.message || res.statusText}`,
+          output: ctx.tc('out.curlRequestError', { target, message: errJson.message || res.statusText }),
         };
       }
 
@@ -951,27 +884,29 @@ Comandos de voz recomendados:
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'stdout',
-        output: `
-* Conectado a ${new URL(target).hostname} en puerto 443
-* Negociación TLS 1.3 / Cifrado AES-256
-> ${method} ${new URL(target).pathname || '/'} HTTP/1.1
-> Host: ${new URL(target).hostname}
-> User-Agent: Terminus/${APP_VERSION}
-< HTTP/1.1 ${data.status} ${data.statusText}
-${headerDump}
-* Tamaño de respuesta: ${data.sizeBytes} bytes en ${latency}ms
-* Latencia de ida y vuelta: ${data.latencyMs}ms
-
---- CUERPO DE RESPUESTA ---
-${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncado a 3000 caracteres. Use `reader` para lectura completa ...]' : ''}
-        `.trim(),
+        output: ctx
+          .tc('out.curlConnected', {
+            host: new URL(target).hostname,
+            method,
+            path: new URL(target).pathname || '/',
+            version: APP_VERSION,
+            status: data.status,
+            statusText: data.statusText,
+            headers: headerDump,
+            size: data.sizeBytes,
+            ms: latency,
+            latency: data.latencyMs,
+            body: formattedBody.slice(0, 3000),
+            truncated: formattedBody.length > 3000 ? ctx.tc('out.curlTruncated') : '',
+          })
+          .trim(),
       };
     } catch (err: any) {
       return {
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'stderr',
-        output: `curl: Error de conexión hacia ${target}: ${err.message}`,
+        output: ctx.tc('out.curlConnectionError', { target, message: err.message }),
       };
     }
   }
@@ -984,7 +919,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'stderr',
-        output: 'No hay ninguna página web cargada en la pestaña activa para activar el modo lector.',
+        output: ctx.tc('out.noPageForReader'),
       };
     }
 
@@ -1012,7 +947,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
     }
 
     if (!cleanText) {
-      cleanText = currentTab.readerText || 'Sin contenido de texto limpio disponible para esta URL.';
+      cleanText = currentTab.readerText || ctx.tc('out.noCleanText');
     }
 
     ctx.setTabs((prev) =>
@@ -1027,7 +962,11 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'system',
-      output: `[MODO LECTOR ACTIVADO] Scripts, estilos y anuncios eliminados.\n\n=== TEXTO LIMPIO EXTRAÍDO (${currentTab.title || currentTab.url}) ===\n${cleanText.slice(0, 800)}${cleanText.length > 800 ? '\n\n[... (texto truncado en consola · ejecute "reader" otra vez para verlo completo)]' : ''}`,
+      output: ctx.tc('out.readerActivated', {
+        title: currentTab.title || currentTab.url,
+        text: cleanText.slice(0, 800),
+        truncated: cleanText.length > 800 ? ctx.tc('out.readerTruncated') : '',
+      }),
     };
   }
 
@@ -1039,7 +978,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'stderr',
-        output: 'No hay ninguna página activa cargada para inspeccionar su DOM.',
+        output: ctx.tc('out.noPageForDom'),
       };
     }
 
@@ -1047,7 +986,10 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'stdout',
-      output: `=== CÓDIGO FUENTE DOM: ${currentTab.url} ===\n${(currentTab.content || '').slice(0, 1500)}\n\n[Inspección completada. Para ver completo en split use el botón DOM en la barra superior]`,
+      output: ctx.tc('out.sourceHeader', {
+        url: currentTab.url,
+        source: (currentTab.content || '').slice(0, 1500),
+      }),
     };
   }
 
@@ -1075,7 +1017,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
 
       ctx.setTabs((prev) => [...prev, newTab]);
       ctx.setActiveTabId(newId);
-      logActivity('INFO', 'TABS', `Nueva pestaña ${kind} creada: ${newId}`);
+      logActivity('INFO', 'TABS', ctx.tc('out.newTabCreated', { kind, id: newId }));
 
       if (kind === 'web' && initialUrl !== 'about:blank') {
         return processCommand(`goto ${initialUrl}`, ctx);
@@ -1085,9 +1027,11 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'system',
-        output: `[✓] Nueva pestaña ${kind === 'terminal' ? 'de terminal' : 'web'} abierta (Pestaña ${
-          ctx.tabs.length + 1
-        }). ID: ${newId}`,
+        output: ctx.tc('out.newTabOpened', {
+          kind: kind === 'terminal' ? ctx.tc('out.kindTerminal') : 'web',
+          n: ctx.tabs.length + 1,
+          id: newId,
+        }),
       };
     }
 
@@ -1097,7 +1041,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
           id: `cmd_${Date.now()}`,
           timestamp,
           type: 'stderr',
-          output: 'No se puede cerrar la única pestaña activa del navegador.',
+          output: ctx.tc('out.cannotCloseLastTab'),
         };
       }
 
@@ -1105,13 +1049,13 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
       const filtered = ctx.tabs.filter((t) => t.id !== tabToClose);
       ctx.setTabs(filtered);
       ctx.setActiveTabId(filtered[filtered.length - 1].id);
-      logActivity('INFO', 'TABS', `Pestaña cerrada: ${tabToClose}`);
+      logActivity('INFO', 'TABS', ctx.tc('out.tabClosedLog', { id: tabToClose }));
 
       return {
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'system',
-        output: `[✓] Pestaña ${tabToClose} cerrada con éxito.`,
+        output: ctx.tc('out.tabClosed', { id: tabToClose }),
       };
     }
 
@@ -1122,7 +1066,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
           id: `cmd_${Date.now()}`,
           timestamp,
           type: 'stderr',
-          output: `Índice de pestaña inválido. Disponibles del 1 al ${ctx.tabs.length}.`,
+          output: ctx.tc('out.tabIndexInvalid', { max: ctx.tabs.length }),
         };
       }
       const targetTab = ctx.tabs[index - 1];
@@ -1132,7 +1076,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'system',
-        output: `[✓] Cambiado a Pestaña ${index}: "${targetTab.title || targetTab.url}"`,
+        output: ctx.tc('out.tabSwitched', { index, title: targetTab.title || targetTab.url }),
       };
     }
 
@@ -1141,7 +1085,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
       .map(
         (t, idx) =>
           `  [${idx + 1}] ${t.id === ctx.activeTabId ? '▶ ' : '  '}[${t.kind === 'terminal' ? 'TERM' : 'WEB'}] "${
-            t.title || 'En blanco'
+            t.title || ctx.tc('out.blankTab')
           }" — ${t.url} ${t.statusCode ? `(HTTP ${t.statusCode})` : ''}`
       )
       .join('\n');
@@ -1150,7 +1094,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'stdout',
-      output: `=== PESTAÑAS ACTIVAS EN TERMINUS (${ctx.tabs.length}) ===\n${tabList}\n\nUse: tab switch <n>  o  tab new [url]  o  tab close`,
+      output: ctx.tc('out.tabList', { count: ctx.tabs.length, list: tabList }),
     };
   }
 
@@ -1158,7 +1102,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
   if (primaryCmd === 'back') {
     const curTab = ctx.tabs.find((t) => t.id === ctx.activeTabId);
     if (!curTab || curTab.historyIndex <= 0) {
-      return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'No hay páginas anteriores en el historial de esta pestaña.' };
+      return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: ctx.tc('out.noPreviousPage') };
     }
     const prevUrl = curTab.history[curTab.historyIndex - 1];
 
@@ -1171,7 +1115,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
                 url: 'about:blank',
                 displayUrl: 'about:blank',
                 isLoading: false,
-                title: 'Nueva Pestaña',
+                title: ctx.tc('out.newTab'),
                 content: '',
                 readerText: '',
                 statusCode: undefined,
@@ -1182,7 +1126,12 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
             : t
         )
       );
-      return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: '⟵ Retrocediendo a: about:blank' };
+      return {
+        id: `cmd_${Date.now()}`,
+        timestamp,
+        type: 'system',
+        output: ctx.tc('out.backTo', { url: 'about:blank' }),
+      };
     }
 
     // Reload the previous entry so the pane shows that page, not the one we left
@@ -1192,14 +1141,14 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
     return {
       ...pageLog,
       id: `cmd_${Date.now()}`,
-      output: `⟵ Retrocediendo a: ${prevUrl}\n${pageLog.output || ''}`.trim(),
+      output: `${ctx.tc('out.backTo', { url: prevUrl })}\n${pageLog.output || ''}`.trim(),
     };
   }
 
   if (primaryCmd === 'forward') {
     const curTab = ctx.tabs.find((t) => t.id === ctx.activeTabId);
     if (!curTab || curTab.historyIndex >= curTab.history.length - 1) {
-      return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'No hay páginas posteriores en el historial de esta pestaña.' };
+      return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: ctx.tc('out.noNextPage') };
     }
     const nextUrl = curTab.history[curTab.historyIndex + 1];
 
@@ -1212,7 +1161,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
                 url: 'about:blank',
                 displayUrl: 'about:blank',
                 isLoading: false,
-                title: 'Nueva Pestaña',
+                title: ctx.tc('out.newTab'),
                 content: '',
                 readerText: '',
                 statusCode: undefined,
@@ -1223,7 +1172,12 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
             : t
         )
       );
-      return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: '⟶ Avanzando a: about:blank' };
+      return {
+        id: `cmd_${Date.now()}`,
+        timestamp,
+        type: 'system',
+        output: ctx.tc('out.forwardTo', { url: 'about:blank' }),
+      };
     }
 
     // Reload the next entry so the pane shows that page, not the one we left
@@ -1233,14 +1187,14 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
     return {
       ...pageLog,
       id: `cmd_${Date.now()}`,
-      output: `⟶ Avanzando a: ${nextUrl}\n${pageLog.output || ''}`.trim(),
+      output: `${ctx.tc('out.forwardTo', { url: nextUrl })}\n${pageLog.output || ''}`.trim(),
     };
   }
 
   if (primaryCmd === 'reload') {
     const curTab = ctx.tabs.find((t) => t.id === ctx.activeTabId);
     if (!curTab || !curTab.url || curTab.url === 'about:blank') {
-      return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'No hay ninguna página cargada para recargar.' };
+      return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: ctx.tc('out.nothingToReload') };
     }
     if (isTerminusSearchUrl(curTab.url)) {
       const searchQuery = getTerminusSearchQuery(curTab.url);
@@ -1255,7 +1209,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
   if (primaryCmd === 'bookmark' || primaryCmd === 'bookmarks') {
     const sub = (args[0] || 'list').toLowerCase();
     if (sub === 'add') {
-      const title = args[1] || 'Marcador sin título';
+      const title = args[1] || ctx.tc('out.bookmarkUntitled');
       const url = args[2] || ctx.tabs.find((t) => t.id === ctx.activeTabId)?.url || 'https://example.com';
       const newBm: Bookmark = {
         id: `bm_${Date.now()}`,
@@ -1265,12 +1219,12 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
         createdAt: new Date().toISOString().split('T')[0],
       };
       ctx.setBookmarks((prev) => [...prev, newBm]);
-      logActivity('SEC', 'VAULT', `Marcador añadido a bóveda AES-256: ${title}`);
+      logActivity('SEC', 'VAULT', ctx.tc('out.bookmarkAddedLog', { title }));
       return {
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'system',
-        output: `[✓] Marcador guardado y sellado en bóveda cifrada: "${title}" -> ${url}`,
+        output: ctx.tc('out.bookmarkSaved', { title, url }),
       };
     }
 
@@ -1281,7 +1235,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'system',
-        output: `[✓] Marcador eliminado.`,
+        output: ctx.tc('out.bookmarkRemoved'),
       };
     }
 
@@ -1293,7 +1247,10 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'stdout',
-      output: `=== MARCADORES CIFRADOS (${ctx.bookmarks.length}) ===\n${bms || '  (Bóveda vacía. Use: bookmark add <título> <url>)'}`,
+      output: ctx.tc('out.bookmarkList', {
+        count: ctx.bookmarks.length,
+        list: bms || ctx.tc('out.bookmarkEmpty'),
+      }),
     };
   }
 
@@ -1306,7 +1263,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'system',
-        output: '[✓] Historial persistente de comandos en localStorage vaciado con éxito.',
+        output: ctx.tc('out.historyCleared'),
       };
     }
 
@@ -1317,7 +1274,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'stdout',
-        output: 'El historial persistente de comandos (localStorage) está vacío.',
+        output: ctx.tc('out.historyEmptyStorage'),
       };
     }
 
@@ -1338,7 +1295,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'stdout',
-        output: `[!] No se encontraron comandos en el historial que coincidan con "${filterQuery}".`,
+        output: ctx.tc('out.historyNoMatch', { filter: filterQuery }),
       };
     }
 
@@ -1351,7 +1308,7 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'stdout',
-      output: `=== HISTORIAL PERSISTENTE EN LOCALSTORAGE (${histList.length} COMANDOS GUARDADOS) ===\n${lines}\n\n[Persistencia activa tras recargar página · Use ↑/↓, "!N" (ej. !1), "!!" o "history clear"]`,
+      output: ctx.tc('out.historyList', { count: histList.length, lines }),
     };
   }
 
@@ -1475,16 +1432,18 @@ ${formattedBody.slice(0, 3000)}${formattedBody.length > 3000 ? '\n\n[... truncad
         timestamp,
         type: 'stdout',
         interactiveFiles,
-        output: `
- El volumen en la unidad C es TERMINUS
- Directorio de C:${curPath.replace(/\//g, '\\').toUpperCase()}
-
-.                <DIR>          07-11-2026  00:00
-..               <DIR>          07-11-2026  00:00
-${dirLines || '               (directorio vacío)'}
-               ${files.filter((f) => f.type === 'file').length} archivos
-               ${files.filter((f) => f.type === 'dir').length} carpetas
-        `.trim(),
+        output: [
+          ctx.tc('out.dosVolume'),
+          ctx.tc('out.dosDir', { path: curPath.replace(/\//g, '\\').toUpperCase() }),
+          '',
+          '.                <DIR>          07-11-2026  00:00',
+          '..               <DIR>          07-11-2026  00:00',
+          dirLines || `               ${ctx.tc('out.emptyDir')}`,
+          `               ${ctx.tc('out.dosFiles', { n: files.filter((f) => f.type === 'file').length })}`,
+          `               ${ctx.tc('out.dosFolders', { n: files.filter((f) => f.type === 'dir').length })}`,
+        ]
+          .join('\n')
+          .trim(),
       };
     } else {
       const lsOutput = files
@@ -1495,7 +1454,7 @@ ${dirLines || '               (directorio vacío)'}
         timestamp,
         type: 'stdout',
         interactiveFiles,
-        output: `${curPath}:\n${lsOutput || '(directorio vacío)'}`,
+        output: `${curPath}:\n${lsOutput || ctx.tc('out.emptyDir')}`,
       };
     }
   }
@@ -1517,16 +1476,21 @@ ${dirLines || '               (directorio vacío)'}
           timestamp,
           type: 'system',
           interactiveFiles: files.map(workspaceInteractiveFile),
-          output: `[✓] Directorio actual: ${absTarget} — disco local real (${files.length} elementos).\nPulse un elemento para entrar o abrirlo, o escriba "cd <carpeta>" / "cat <archivo>".`,
+          output: ctx.tc('out.cwdLocalDisk', { path: absTarget, n: files.length }),
         };
       } catch (err: any) {
-        return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: `cd: ${err.message}` };
+        return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: ctx.tc('out.cdError', { message: err.message }) };
       }
     }
 
     if (absTarget === '/' || absTarget === '/home' || absTarget === '/home/user') {
       ctx.setCurrentPath(absTarget);
-      return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: `[✓] Directorio actual: ${absTarget}` };
+      return {
+        id: `cmd_${Date.now()}`,
+        timestamp,
+        type: 'system',
+        output: ctx.tc('out.cwd', { path: absTarget }),
+      };
     }
 
     if (ctx.fileSystem[absTarget] !== undefined) {
@@ -1535,7 +1499,7 @@ ${dirLines || '               (directorio vacío)'}
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'system',
-        output: `[✓] Cambiado al directorio: ${absTarget}`,
+        output: ctx.tc('out.changedDir', { path: absTarget }),
       };
     }
 
@@ -1557,10 +1521,10 @@ ${dirLines || '               (directorio vacío)'}
             timestamp,
             type: 'system',
             interactiveFiles: nativeFiles.map(workspaceInteractiveFile),
-            output: `[✓] Directorio actual: ${nextP} — carpeta local real (${nativeFiles.length} elementos).\nPulse un elemento para entrar o abrirlo, o escriba "cd <carpeta>" / "cat <archivo>".`,
+            output: ctx.tc('out.cwdLocalFolder', { path: nextP, n: nativeFiles.length }),
           };
         } catch (err: any) {
-          return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: `cd: ${err.message}` };
+          return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: ctx.tc('out.cdError', { message: err.message }) };
         }
       }
 
@@ -1569,7 +1533,7 @@ ${dirLines || '               (directorio vacío)'}
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'system',
-        output: `[✓] Cambiado al directorio: ${nextP}`,
+        output: ctx.tc('out.changedDir', { path: nextP }),
       };
     }
 
@@ -1577,7 +1541,7 @@ ${dirLines || '               (directorio vacío)'}
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'stderr',
-      output: `cd: no existe el directorio "${target}" en ${curPath}`,
+      output: ctx.tc('out.cdMissing', { target, path: curPath }),
     };
   }
 
@@ -1603,7 +1567,7 @@ ${dirLines || '               (directorio vacío)'}
       };
     });
 
-    return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: `[✓] Directorio "${dirName}" creado con éxito.` };
+    return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: `${ctx.tc('out.mkdirOk', { name: dirName })}` };
   }
 
   // TOUCH
@@ -1638,7 +1602,7 @@ ${dirLines || '               (directorio vacío)'}
       };
     });
 
-    return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: `[✓] "${targetName}" eliminado del sistema de archivos.` };
+    return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: `${ctx.tc('out.rmOk', { name: targetName })}` };
   }
 
   // MC / FILES / EXPLORER (INTERACTIVE FILE COMMANDER)
@@ -1648,7 +1612,7 @@ ${dirLines || '               (directorio vacío)'}
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'system',
-      output: '[✓] Desplegando explorador interactivo de archivos con atajos de teclado F3..F8 y selección táctil/ratón.',
+      output: ctx.tc('out.fileExplorer'),
     };
   }
 
@@ -1656,7 +1620,7 @@ ${dirLines || '               (directorio vacío)'}
   if (primaryCmd === 'cat' || primaryCmd === 'type') {
     const filename = args[0];
     if (!filename) {
-      return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'Uso: cat <nombre_archivo>' };
+      return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: ctx.tc('out.catUsage') };
     }
     const curPath = ctx.currentPath || '/home/user';
     const files = ctx.fileSystem[curPath] || [];
@@ -1675,7 +1639,7 @@ ${dirLines || '               (directorio vacío)'}
             description: 'Volver a ver o ejecutar',
           },
         ],
-        output: file.content || '(archivo vacío)',
+        output: file.content || ctx.tc('out.emptyFile'),
       };
     }
 
@@ -1703,9 +1667,9 @@ ${dirLines || '               (directorio vacío)'}
     }
 
     if (!file) {
-      return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: `cat: ${filename}: No existe el archivo en ${curPath}` };
+      return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: `${ctx.tc('out.catMissing', { file: filename, path: curPath })}` };
     }
-    return { id: `cmd_${Date.now()}`, timestamp, type: 'stdout', output: file.content || '(archivo vacío)' };
+    return { id: `cmd_${Date.now()}`, timestamp, type: 'stdout', output: file.content || ctx.tc('out.emptyFile') };
   }
 
   // FS / LOCALFS (REAL LOCAL DISK & WORKSPACE INTEGRATION)
@@ -1734,14 +1698,14 @@ ${dirLines || '               (directorio vacío)'}
           timestamp,
           type: 'system',
           interactiveFiles,
-          output: `[✓] Sistema de archivos local del servidor montado en /workspace (${rootItems.length} elementos detectados).\nDirectorio cambiado a: /workspace\n(Haga clic sobre cualquier archivo o carpeta a continuación para interactuar).`,
+          output: `${ctx.tc('out.workspaceMounted', { n: rootItems.length })}`,
         };
       } catch (err: any) {
         return {
           id: `cmd_${Date.now()}`,
           timestamp,
           type: 'stderr',
-          output: `Error al montar el espacio de trabajo local: ${err.message}`,
+          output: ctx.tc('out.mountError', { message: err.message }),
         };
       }
     }
@@ -1813,7 +1777,7 @@ ${dirLines || '               (directorio vacío)'}
       const targetFile = args[1];
       const content = args.slice(2).join(' ');
       if (!targetFile) {
-        return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'Uso: fs write <ruta_archivo> <contenido>' };
+        return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: ctx.tc('out.fsWriteUsage') };
       }
       try {
         const cleanPath = targetFile.replace(/^\/workspace\/?/, '');
@@ -1822,7 +1786,7 @@ ${dirLines || '               (directorio vacío)'}
           id: `cmd_${Date.now()}`,
           timestamp,
           type: 'system',
-          output: `[✓] Archivo "${cleanPath}" guardado con éxito en el sistema de archivos local.`,
+          output: `${ctx.tc('out.fileSaved', { path: cleanPath })}`,
         };
       } catch (err: any) {
         return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: `fs write: ${err.message}` };
@@ -1834,34 +1798,20 @@ ${dirLines || '               (directorio vacío)'}
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'stdout',
-      output: `
-${formatAsciiBox('TERMINUS - GESTOR DE SISTEMA DE ARCHIVOS LOCAL')}
-Directorio actual: ${ctx.currentPath || '/home/user'}
-
-Puntos de montaje disponibles:
-  • /home/user     : Espacio virtual local
-  • /workspace     : Repositorio y código fuente del servidor (disco local)
-  • /local         : Carpetas locales montadas por File System Access API
-
-Comandos de gestión:
-  • fs workspace           : Montar y explorar el espacio de trabajo local (/workspace)
-  • fs mount / fs local    : Montar carpeta física del equipo del usuario
-  • fs cat <archivo>       : Leer archivo del sistema local
-  • fs write <arch> <txt>  : Guardar cambios en archivo del disco local
-  • mc / files             : Abrir explorador Norton Commander interactivo
-      `.trim(),
+      output: `${formatAsciiBox(ctx.tc('out.fsStatusTitle'))}
+${ctx.tc('out.fsStatusBody', { path: ctx.currentPath || '/home/user' })}`.trim(),
     };
   }
 
   // 13. TOP / PS / GET-PROCESS (MS-DOS RESOURCE MONITOR)
   if (primaryCmd === 'top' || primaryCmd === 'ps' || primaryCmd === 'get-process' || primaryCmd === 'tasklist') {
     ctx.openMonitor();
-    logActivity('SYS', 'MONITOR', 'Tablero de recursos MS-DOS lanzado');
+    logActivity('SYS', 'MONITOR', ctx.tc('out.monitorLaunched'));
     return {
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'system',
-      output: '[✓] Tablero interactivo de monitorización MS-DOS desplegado en pantalla.',
+      output: ctx.tc('out.monitorDeployed'),
     };
   }
 
@@ -1919,28 +1869,28 @@ Tiempos aproximados de ida y vuelta en milisegundos:
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'stdout',
-        output: `=== EXTENSIONES DE CONSOLA REGISTRADAS ===\n${list}\n\nAbriendo catálogo interactivo de extensiones...`,
+        output: ctx.tc('out.extList', { list }),
       };
     }
     if (sub === 'install') {
       const name = args[1];
-      if (!name) return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'Uso: ext install <nombre>' };
+      if (!name) return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: ctx.tc('out.extInstallUsage') };
       ctx.setExtensions((prev) =>
         prev.map((e) => (e.id === name || e.name.toLowerCase().includes(name.toLowerCase()) ? { ...e, installed: true } : e))
       );
-      return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: `[✓] Extensión "${name}" activada correctamente.` };
+      return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: `${ctx.tc('out.extActivated', { name })}` };
     }
   }
 
   // Built-in extension: JSON PRETTY
   if (primaryCmd === 'json-pretty' || primaryCmd === 'jq') {
     const raw = args.join(' ');
-    if (!raw) return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'Uso: json-pretty \'{"key":"value"}\'' };
+    if (!raw) return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: ctx.tc('out.jsonPrettyUsage') };
     try {
       const parsed = JSON.parse(raw);
       return { id: `cmd_${Date.now()}`, timestamp, type: 'stdout', output: JSON.stringify(parsed, null, 2) };
     } catch (err: any) {
-      return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: `Error de sintaxis JSON: ${err.message}` };
+      return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: ctx.tc('out.jsonSyntaxError', { message: err.message }) };
     }
   }
 
@@ -1953,16 +1903,16 @@ Tiempos aproximados de ida y vuelta en milisegundos:
       try {
         return { id: `cmd_${Date.now()}`, timestamp, type: 'stdout', output: atob(args[1]) };
       } catch {
-        return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'Base64 inválido.' };
+        return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: ctx.tc('out.base64Invalid') };
       }
     }
-    return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'Uso: base64 -e "texto"  o  base64 -d "dGV4dG8="' };
+    return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: ctx.tc('out.base64Usage') };
   }
 
   // Built-in extension: HASH (SHA-256)
   if (primaryCmd === 'hash' || primaryCmd === 'sha256') {
     const text = args.join(' ');
-    if (!text) return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'Uso: hash <texto>' };
+    if (!text) return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: ctx.tc('out.hashUsage') };
     const hashVal = await computeSHA256(text);
     return {
       id: `cmd_${Date.now()}`,
@@ -1975,7 +1925,7 @@ Tiempos aproximados de ida y vuelta en milisegundos:
   // Built-in extension: DNS
   if (primaryCmd === 'dns') {
     const host = args[0];
-    if (!host) return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'Uso: dns <dominio> (ej. dns google.com)' };
+    if (!host) return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: ctx.tc('out.dnsUsage') };
     try {
       const res = await fetch(`/api/dns?host=${encodeURIComponent(host)}`);
       if (res.ok) {
@@ -1985,7 +1935,12 @@ Tiempos aproximados de ida y vuelta en milisegundos:
           id: `cmd_${Date.now()}`,
           timestamp,
           type: 'stdout',
-          output: `=== RESOLUCIÓN DNS PARA ${data.host} (${data.latencyMs}ms) ===\n${records || 'Sin registros'}\nTimestamp: ${data.timestamp}`,
+          output: ctx.tc('out.dnsHeader', {
+          host: data.host,
+          ms: data.latencyMs,
+          records: records || ctx.tc('out.dnsNoRecords'),
+          timestamp: data.timestamp,
+        }),
         };
       }
     } catch {}
@@ -1993,24 +1948,18 @@ Tiempos aproximados de ida y vuelta en milisegundos:
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'stdout',
-      output: `DNS (${host}): 142.250.190.46 (A), 2a00:1450:4001:830::200e (AAAA) [Resolución fallback]`,
+      output: ctx.tc('out.dnsFallback', { host }),
     };
   }
 
   // Built-in extension: SPEEDTEST
   if (primaryCmd === 'speedtest') {
-    logActivity('HTTP', 'NETWORK', 'Prueba de rendimiento de red iniciada');
+    logActivity('HTTP', 'NETWORK', ctx.tc('out.speedtestLog'));
     return {
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'stdout',
-      output: `
-Probando latencia y throughput de red...
-[1/3] Ping al gateway seguro: 14.2 ms (Jitter: 0.8 ms)
-[2/3] Velocidad de descarga: 482.50 Mbps (Canal HTTP/2 multiplexado)
-[3/3] Velocidad de subida:   194.20 Mbps (Cifrado AES-256 en vuelo)
-Calidad de conexión: ÓPTIMA / Cero pérdida de paquetes.
-      `.trim(),
+      output: ctx.tc('out.speedtest').trim(),
     };
   }
 
@@ -2018,21 +1967,13 @@ Calidad de conexión: ÓPTIMA / Cero pérdida de paquetes.
   if (primaryCmd === 'scrape') {
     const target = args[0] || ctx.tabs.find((t) => t.id === ctx.activeTabId)?.url;
     if (!target || target === 'about:blank') {
-      return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'Uso: scrape <url> o abra una página primero.' };
+      return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: ctx.tc('out.scrapeUsage') };
     }
     return {
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'stdout',
-      output: `
-[EXTRACTOR WEB DOM PARA ${target}]
-Metadatos:
-  • Título: Hacker News / Tech Portal
-  • Protocolo: HTTPS / TLS 1.3
-  • Enlaces detectados: 30 enlaces activos
-  • Recursos estáticos: 4 imágenes, 2 hojas de estilo
-  • Modo de extracción: Texto plano y metadatos limpios
-      `.trim(),
+      output: ctx.tc('out.scrape', { url: target }).trim(),
     };
   }
 
@@ -2041,26 +1982,26 @@ Metadatos:
     const sub = (args[0] || 'list').toLowerCase();
     if (sub === 'list') {
       ctx.openScripts();
-      const list = ctx.scripts.map((s) => `  • "${s.name}" (${s.steps.length} pasos)`).join('\n');
+      const list = ctx.scripts.map((s) => ctx.tc('out.scriptSteps', { name: s.name, n: s.steps.length })).join('\n');
       return {
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'stdout',
-        output: `=== SCRIPTS DE AUTOMATIZACIÓN DISPONIBLES ===\n${list}\n\nDesplegando editor de automatización...`,
+        output: ctx.tc('out.scriptList', { list }),
       };
     }
     if (sub === 'run') {
       const name = args.slice(1).join(' ');
       const found = ctx.scripts.find((s) => s.name.toLowerCase() === name.toLowerCase() || s.id === name);
       if (!found) {
-        return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: `Script no encontrado: "${name}". Use: script list` };
+        return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: ctx.tc('out.scriptNotFound', { name }) };
       }
       ctx.runAutomatedScript(found);
       return {
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'system',
-        output: `[✓] Iniciando ejecución secuencial de script: "${found.name}"...`,
+        output: ctx.tc('out.scriptStarting', { name: found.name }),
       };
     }
   }
@@ -2072,7 +2013,7 @@ Metadatos:
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'system',
-      output: '[✓] Desplegando gestor interactivo de atajos de teclado.',
+      output: ctx.tc('out.shortcutsDeploy'),
     };
   }
 
@@ -2083,7 +2024,7 @@ Metadatos:
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'system',
-      output: '[✓] Desplegando Centro de Seguridad AES-256, MFA y Sincronización en la Nube.',
+      output: ctx.tc('out.securityCenter'),
     };
   }
 
@@ -2096,7 +2037,7 @@ Metadatos:
         id: `cmd_${Date.now()}`,
         timestamp,
         type: 'system',
-        output: `[✓] Exportando registro de actividad en formato ${format.toUpperCase()}...`,
+        output: ctx.tc('out.logExporting', { format: format.toUpperCase() }),
       };
     }
     const recent = ctx.activityLogs.slice(-10).map((l) => `  [${l.timestamp.split('T')[1].slice(0, 8)}] [${l.level}] ${l.module}: ${l.message}`).join('\n');
@@ -2104,7 +2045,7 @@ Metadatos:
       id: `cmd_${Date.now()}`,
       timestamp,
       type: 'stdout',
-      output: `=== REGISTROS DE ACTIVIDAD RECIENTES ===\n${recent || 'Sin actividad registrada aún'}\n\nPara exportar use: log export --json  o  log export --txt`,
+      output: ctx.tc('out.activityLogs', { recent: recent || ctx.tc('out.logEmpty') }),
     };
   }
 
@@ -2164,11 +2105,11 @@ Metadatos:
     const state = args[0]?.toLowerCase();
     if (state === 'on') {
       ctx.setIsMuted(false);
-      return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: '[✓] Efectos de sonido de 8-bits ACTIVADOS.' };
+      return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: ctx.tc('out.soundOn') };
     }
     if (state === 'off') {
       ctx.setIsMuted(true);
-      return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: '[✓] Efectos de sonido SILENCIADOS.' };
+      return { id: `cmd_${Date.now()}`, timestamp, type: 'system', output: ctx.tc('out.soundOff') };
     }
     return { id: `cmd_${Date.now()}`, timestamp, type: 'stderr', output: 'Uso: sound <on|off>' };
   }
@@ -2221,7 +2162,7 @@ async function performWebSearch(
       id: `search_${Date.now()}`,
       timestamp,
       type: 'stderr',
-      output: 'Uso: search <términos de búsqueda>  o  buscar <consulta>',
+      output: ctx.tc('out.searchUsage'),
     };
   }
 
@@ -2232,7 +2173,7 @@ async function performWebSearch(
       id: `search_${Date.now()}`,
       timestamp,
       type: 'stderr',
-      output: 'No hay ninguna pestaña activa disponible para buscar.',
+      output: ctx.tc('out.searchNoTab'),
     };
   }
 
@@ -2346,7 +2287,12 @@ async function performWebSearch(
       headings: headings.slice(0, 8),
       paragraphs: results.slice(0, 8).map((result) => `${result.title}: ${result.snippet}`),
       links,
-      summary: `${results.length} resultados de ${provider} para "${cleanQuery}" en ${latencyMs}ms.`,
+      summary: ctx.tc('out.searchResults', {
+      n: results.length,
+      provider,
+      query: cleanQuery,
+      ms: latencyMs,
+    }),
     };
 
     return {
@@ -2357,7 +2303,7 @@ async function performWebSearch(
       output: `[TERMINUS SEARCH] "${cleanQuery}" · ${results.length} resultados en ${latencyMs}ms · ${provider}.`,
     };
   } catch (err: any) {
-    const message = err?.message || 'Proveedor de búsqueda no disponible.';
+    const message = err?.message || ctx.tc('out.searchProviderDown');
     const latencyMs = Date.now() - startTime;
 
     ctx.setTabs((prev) =>
@@ -2386,12 +2332,12 @@ async function performWebSearch(
       id: `search_${Date.now()}`,
       timestamp,
       type: 'stderr',
-      output: `[!] Terminus Search no pudo completar "${cleanQuery}": ${message}`,
+      output: ctx.tc('out.searchFailed', { query: cleanQuery, message }),
     };
   }
 }
 
-function getCategoryHelp(rawCategory: string): TerminalLogEntry | null {
+function getCategoryHelp(rawCategory: string, ctx: CommandContext): TerminalLogEntry | null {
   const timestamp = new Date().toLocaleTimeString();
   const cat = rawCategory.toLowerCase().trim();
 
@@ -2407,11 +2353,20 @@ function getCategoryHelp(rawCategory: string): TerminalLogEntry | null {
   const docs = COMMAND_DOCS.filter((d) => d.category === targetCategory);
   if (docs.length === 0) return null;
 
-  const header = `=== MANUAL DE COMANDOS: CATEGORÍA "${targetCategory.toUpperCase()}" (${docs.length} COMANDOS) ===`;
+  const header = ctx.tc('out.helpCategoryHeader', {
+    category: targetCategory.toUpperCase(),
+    count: docs.length,
+  });
   const body = docs
     .map((d) => {
-      const examplesStr = d.examples.map((ex) => `    → Ejemplo: ${ex.code}\n      (${ex.description})`).join('\n');
-      return `• [${d.command}] : ${d.summary}\n  Sintaxis : ${d.syntax}\n  Detalle  : ${d.description}\n${examplesStr}`;
+      const examplesStr = d.examples.map((ex) => ctx.tc('out.helpExample', { code: ex.code, description: ex.description })).join('\n');
+      return ctx.tc('out.helpDocEntry', {
+        command: d.command,
+        summary: d.summary,
+        syntax: d.syntax,
+        description: d.description,
+        examples: examplesStr,
+      });
     })
     .join('\n\n');
 
@@ -2419,11 +2374,11 @@ function getCategoryHelp(rawCategory: string): TerminalLogEntry | null {
     id: `help_cat_${Date.now()}`,
     timestamp,
     type: 'stdout',
-    output: `${header}\n\n${body}\n\n[Sugerencia: escriba "help" o "manual" para abrir el panel de ayuda interactivo]`,
+    output: `${header}\n\n${body}\n\n${ctx.tc('out.helpCategoryHint')}`,
   };
 }
 
-function getSpecificHelp(cmd: string): TerminalLogEntry {
+function getSpecificHelp(cmd: string, ctx: CommandContext): TerminalLogEntry {
   const timestamp = new Date().toLocaleTimeString();
   const c = cmd.toLowerCase().trim();
 
@@ -2432,20 +2387,23 @@ function getSpecificHelp(cmd: string): TerminalLogEntry {
   );
 
   if (found) {
-    const examplesStr = found.examples.map((ex) => `  → Ejemplo: ${ex.code}\n    (${ex.description})`).join('\n');
+    const examplesStr = found.examples.map((ex) => ctx.tc('out.helpExampleShort', { code: ex.code, description: ex.description })).join('\n');
     return {
       id: `help_${Date.now()}`,
       timestamp,
       type: 'stdout',
-      output: `
-=== AYUDA DE COMANDO: ${found.command.toUpperCase()} [${found.category.toUpperCase()}] ===
-Sintaxis : ${found.syntax}
-Resumen  : ${found.summary}
-Detalle  : ${found.description}
-
-EJEMPLOS DE USO:
-${examplesStr}
-      `.trim(),
+      output: [
+        ctx.tc('out.helpCommandHeader', {
+          command: found.command.toUpperCase(),
+          category: found.category.toUpperCase(),
+        }),
+        ctx.tc('out.helpSyntaxLine', { value: found.syntax }),
+        ctx.tc('out.helpSummaryLine', { value: found.summary }),
+        ctx.tc('out.helpDetailLine', { value: found.description }),
+        '',
+        ctx.tc('out.helpExamplesTitle'),
+        examplesStr,
+      ].join('\n'),
     };
   }
 
@@ -2453,6 +2411,6 @@ ${examplesStr}
     id: `help_${Date.now()}`,
     timestamp,
     type: 'stdout',
-    output: `No se encontró documentación para "${cmd}". Categorías disponibles: help navegacion, help sistema, help red, help seguridad, help automatizacion.`,
+    output: ctx.tc('out.helpNotFound', { cmd }),
   };
 }

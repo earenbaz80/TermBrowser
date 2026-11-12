@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BrowserTab } from '../types';
 import { processCommand, type CommandContext } from './commandProcessor';
+import { translateConsole } from '../i18n';
 
 const makeTab = () =>
   ({
@@ -28,6 +29,8 @@ const makeContext = (initialTabs: BrowserTab[] = [makeTab()]) => {
     security: {},
     fileSystem: {},
     currentPath: '/workspace',
+    tc: (key: Parameters<typeof translateConsole>[1], vars?: Record<string, string | number>) =>
+      translateConsole('es', key, vars),
   };
   const setTabs: CommandContext['setTabs'] = (next) => {
     const previous = tabs;
