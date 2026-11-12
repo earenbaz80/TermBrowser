@@ -1292,6 +1292,13 @@ export default function App() {
             globalHistory={browserHistoryUrls(browserHistory)}
             onClearHistory={() => setBrowserHistory(clearBrowserHistory())}
             onSetZoom={handleSetZoom}
+            onPageStatus={(status) =>
+              setTabs((prev) =>
+                prev.map((tab) =>
+                  tab.id === activeTabId ? { ...tab, statusCode: status, isLoading: false } : tab
+                )
+              )
+            }
             latencyMs={metrics.latencyMs}
           />
         ) : (

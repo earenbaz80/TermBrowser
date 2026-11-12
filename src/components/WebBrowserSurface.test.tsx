@@ -55,7 +55,11 @@ const searchTab: BrowserTab = {
 
 const renderSurface = (
   tab: BrowserTab = blankTab,
-  options: { globalHistory?: string[]; onSetZoom?: (zoom: number) => void } = {}
+  options: {
+    globalHistory?: string[];
+    onSetZoom?: (zoom: number) => void;
+    onPageStatus?: (status: number) => void;
+  } = {}
 ) => {
   const onCommand = vi.fn();
   render(
@@ -69,6 +73,7 @@ const renderSurface = (
       onSetViewMode={vi.fn()}
       globalHistory={options.globalHistory}
       onSetZoom={options.onSetZoom}
+      onPageStatus={options.onPageStatus}
       latencyMs={18}
     />
   );
@@ -352,6 +357,24 @@ describe('WebBrowserSurface', () => {
     } finally {
       delete (window.navigator as unknown as { onLine?: boolean }).onLine;
     }
+  });
+
+  it('deja que el visor del proxy pida la escena cuando falla dentro del marco', () => {
+    const onPageStatus = vi.fn();
+    renderSurface(pageTab, { onPageStatus });
+
+    const iframe = document.querySelector('iframe') as HTMLIFrameElement | null;
+    expect(iframe).not.toBeNull();
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { source: 'termbrowser-view-error', status: 413 },
+        origin: 'null',
+        source: iframe!.contentWindow,
+      })
+    );
+
+    expect(onPageStatus).toHaveBeenCalledWith(413);
   });
 
   it('shows the not-found variant for an error status', () => {

@@ -56,6 +56,8 @@ interface WebBrowserSurfaceProps {
   onClearHistory?: () => void;
   /** Persist this tab's page zoom. */
   onSetZoom?: (zoom: number) => void;
+  /** A framed proxy page reports its own failure so the surface can show the error scene. */
+  onPageStatus?: (status: number) => void;
   latencyMs?: number;
 }
 
@@ -234,6 +236,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
   globalHistory = [],
   onClearHistory,
   onSetZoom,
+  onPageStatus,
   latencyMs,
 }) => {
   const latencyLabel =
@@ -489,6 +492,22 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [onCommand, expectedFrameOrigin]);
+
+  // A page that fails inside /api/view reports its status here: the frame cannot read its
+  // own HTTP status, so the surface records it and swaps the frame for the error scene.
+  useEffect(() => {
+    const handleViewError = (event: MessageEvent) => {
+      if (expectedFrameOrigin !== 'null') return;
+      if (!isTrustedFrameMessage(event, iframeRef.current, expectedFrameOrigin)) return;
+      const data = event.data;
+      if (!data || data.source !== 'termbrowser-view-error') return;
+      const status = Number(data.status);
+      if (!Number.isFinite(status) || status < 400) return;
+      onPageStatus?.(status);
+    };
+    window.addEventListener('message', handleViewError);
+    return () => window.removeEventListener('message', handleViewError);
+  }, [expectedFrameOrigin, onPageStatus]);
 
   const selectSuggestion = (suggestion: AddressSuggestion) => {
     soundEffects.playKeyClick();

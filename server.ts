@@ -17,7 +17,7 @@ import {
   safeDownloadFilename,
   sanitizeProxiedHtml,
 } from './src/utils/serverSecurity';
-import { proxiedPage, rewriteProxiedImageSources, textOnlyPage } from './src/utils/proxiedPage';
+import { proxiedPage, rewriteProxiedImageSources, textOnlyPage, viewErrorPage } from './src/utils/proxiedPage';
 import { buildProxiedCsp } from './src/utils/proxiedCsp';
 import { decodeHtmlEntities } from './src/utils/htmlEntities';
 import { htmlToRetroMarkup } from './src/utils/retroHtml';
@@ -568,17 +568,37 @@ async function startServer() {
   // returns the readable text of the page (no site markup at all).
   app.get('/api/view', async (req, res) => {
     const targetUrl = String(req.query.url || '');
+    const requestOrigin = (() => {
+      try {
+        return new URL(`${req.protocol}://${req.get('host')}`).origin;
+      } catch {
+        return undefined;
+      }
+    })();
+
+    // The framed document cannot read its own HTTP status. A failed view answers with a
+    // tiny nonce-bound page that reports the status to the parent, which then shows the
+    // error scene instead of raw proxy text inside the frame.
+    const sendViewError = (status: number) => {
+      const nonce = crypto.randomBytes(16).toString('base64');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+      res.setHeader('Content-Security-Policy', buildProxiedCsp(nonce, undefined, requestOrigin));
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(status).send(viewErrorPage(status, nonce));
+    };
+
     if (!/^https?:\/\//i.test(targetUrl)) {
-      return res.status(400).send('Invalid url parameter');
+      return sendViewError(400);
     }
 
     try {
       const parsed = new URL(targetUrl);
       if (!['http:', 'https:'].includes(parsed.protocol)) {
-        return res.status(400).send('Invalid protocol. Only http and https supported.');
+        return sendViewError(400);
       }
       if (isForbiddenMetadataHost(parsed)) {
-        return res.status(403).send('Cloud metadata endpoints are blocked.');
+        return sendViewError(403);
       }
 
       const response = await fetchRemote(targetUrl, {
@@ -596,17 +616,10 @@ async function startServer() {
 
       const declaredSize = Number(response.headers.get('content-length') || 0);
       if (Number.isFinite(declaredSize) && declaredSize > MAX_REMOTE_TEXT_BYTES) {
-        return res.status(413).send('La página supera el límite de 4 MB.');
+        return sendViewError(413);
       }
 
       const mode = String(req.query.mode || 'real').toLowerCase();
-      const requestOrigin = (() => {
-        try {
-          return new URL(`${req.protocol}://${req.get('host')}`).origin;
-        } catch {
-          return undefined;
-        }
-      })();
       const { text: htmlSource, truncated } = await readTextWithLimit(response);
       let html = htmlSource;
       const nonce = crypto.randomBytes(16).toString('base64');
@@ -646,8 +659,8 @@ async function startServer() {
       res.setHeader('Cache-Control', 'no-store');
       if (truncated) res.setHeader('X-Terminus-Truncated', '1');
       return res.send(html);
-    } catch (err: any) {
-      return res.status(502).send(`No se pudo cargar la página original: ${err?.message || 'error de red'}`);
+    } catch {
+      return sendViewError(502);
     }
   });
 

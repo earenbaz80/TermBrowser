@@ -177,6 +177,19 @@ export function proxiedPage(html: string, url: string, nonce: string, dark: bool
   return injected + html;
 }
 
+/**
+ * Served by /api/view when the proxy itself fails. The framed document cannot read its own
+ * HTTP status, so it reports it to the parent, which swaps the frame for the error scene.
+ */
+export function viewErrorPage(status: number, nonce: string): string {
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terminus · error ${status}</title></head>
+<body><p>[TERMINUS] HTTP ${status} · la página no se pudo cargar a través del proxy.</p>
+<script nonce="${escapeHtmlAttribute(nonce)}">parent.postMessage({ source: 'termbrowser-view-error', status: ${status} }, '*');</script>
+</body></html>`;
+}
+
 /** Standalone text reading page used by /api/view?mode=text: no site markup, no page scripts. */
 export function textOnlyPage(url: string, text: string, nonce: string): string {
   // The extractor marks real images and numbered links with invisible characters; the reading
