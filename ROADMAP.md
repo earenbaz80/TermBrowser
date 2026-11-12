@@ -4,7 +4,7 @@ Este documento es la fuente de verdad de lo que falta. El repositorio no usa iss
 
 - Última release publicada: `0.3.0` (tag `v0.3.0`, 12 de noviembre de 2026), con instalador, `.blockmap`, ZIP y `SHA256SUMS.txt`.
 - Estado del proyecto: rediseño de interfaz e internacionalización (PR #11) mergeados en `main`, notas de release y README alineados con los artefactos publicados, y el E2E instalado del hito 0.3.0 pasado.
-- Verificación actual: `npm run lint` correcto (tsc y eslint), `npm test` con 38 archivos y 160 pruebas, cliente y servidor compilados, instalador `0.3.0` generado y `NotSigned`.
+- Verificación actual: `npm run lint` correcto (tsc y eslint), `npm test` con 39 archivos y 171 pruebas, cliente y servidor compilados, instalador `0.3.0` generado y `NotSigned`.
 - No hay fechas comprometidas. Los hitos se ordenan por prioridad, no por calendario.
 
 ## Decisiones cerradas
@@ -59,17 +59,19 @@ Pendiente:
 
 Cierre: el log del job contiene los tres `PASS` (Ctrl+F en REAL instalado, búsqueda en OSCURO y en TEXTO) y el artefacto `e2e-installed-logs` está disponible. Requisitos y diagnóstico en `docs/e2e-installed-windows.md`.
 
-### 3. Cobertura automatizada de la interfaz nueva — siguiente
+### 3. Cobertura automatizada de la interfaz nueva — regresiones cubiertas en CI
 
-Hoy `SettingsMenu`, `WindowControls` y la búsqueda del inicio solo tienen pruebas de unidad.
+Las tres regresiones del cierre ya tienen prueba y corren en `npm test` (39 archivos, 171 pruebas), así que el CI las vigila sin depender del runner interactivo del hito 2.
 
 Pendiente:
 
-- [ ] Cubrir en el E2E instalado: abrir el menú, cambiar de tema y verificar que persiste tras recargar.
-- [ ] Comprobar que la búsqueda del inicio lanza la pestaña de resultados sin pasos intermedios.
-- [ ] Regresión de cabecera única: fallar si vuelve a renderizarse una barra de título separada.
+- [x] `SettingsMenu` (`SettingsMenu.test.tsx`): abrir y cerrar el menú, `role="dialog"` con sus secciones, cambio de tema que avisa al padre y respeta el tema activo, silencio y CRT, e ida y vuelta de B&N.
+- [x] `WindowControls` (`WindowControls.test.tsx`): los tres botones a través del puente, estado deshabilitado sin puente y cambio a «Restaurar ventana» cuando `onMaximizedChange` empuja el estado, sin pulsar nada.
+- [x] Búsqueda del inicio (`WebBrowserSurface.test.tsx`): un solo paso (`search <consulta>`, con espacios recortados y el campo vaciado), envío vacío que no navega y sugerencia clicable que busca su propio texto; falla si reaparece el botón «ABRIR TERMINUS SEARCH».
+- [x] Cabecera única (`HeaderBar.test.tsx`): un solo `<header>` con la marca, las pestañas y los controles de ventana dentro, sin barra de título duplicada.
+- [ ] Llevar los mismos casos al E2E instalado, incluida la persistencia del tema tras recargar: depende del runner interactivo que falta en el hito 2.
 
-Cierre: las pruebas fallan si se reintroduce el botón intermedio de búsqueda, una segunda cabecera o un menú que no persiste el tema.
+Cierre: las pruebas fallan si se reintroduce el botón intermedio de búsqueda, una segunda cabecera o un menú que deja de avisar del cambio de tema. La persistencia del tema tras recargar aún no está cubierta: queda con el E2E instalado.
 
 ### 4. Deuda técnica y de seguridad — abierta, sin fecha
 
