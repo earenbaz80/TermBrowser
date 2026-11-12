@@ -25,6 +25,7 @@ import {
 import { THEMES } from './utils/themes';
 import { soundEffects } from './utils/soundEffects';
 import { BUILT_IN_EXTENSIONS } from './utils/extensions';
+import { useExampleScripts } from './utils/useExampleScripts';
 import { DEFAULT_KEYBINDINGS, ShortcutsModal } from './components/ShortcutsModal';
 import { HelpModal } from './components/HelpModal';
 const ResourceMonitorHUD = React.lazy(() =>
@@ -92,72 +93,6 @@ const titleForWebTab = (url: string, t: (key: MessageKey) => string): string => 
   } catch {
     return t('tabs.browser');
   }
-};
-
-const buildInitialScripts = (t: (key: MessageKey) => string): UserScript[] => [
-  {
-    id: 'script_audit',
-    name: t('exampleScripts.auditName'),
-    description: t('exampleScripts.auditDescription'),
-    steps: buildExampleSteps('script_audit', t),
-    createdAt: '2026-11-07',
-    runCount: 2,
-  },
-  {
-    id: 'script_morning_news',
-    name: t('exampleScripts.newsName'),
-    description: t('exampleScripts.newsDescription'),
-    steps: buildExampleSteps('script_morning_news', t),
-    createdAt: '2026-11-07',
-    runCount: 5,
-  },
-  {
-    id: 'script_benchmark',
-    name: t('exampleScripts.benchName'),
-    description: t('exampleScripts.benchDescription'),
-    steps: buildExampleSteps('script_benchmark', t),
-    createdAt: '2026-11-07',
-    runCount: 1,
-  },
-];
-
-/** Steps mix fixed commands with echo text, so each example rebuilds them per language. */
-const buildExampleSteps = (id: string, t: (key: MessageKey) => string): string[] => {
-  switch (id) {
-    case 'script_audit':
-      return [
-        `echo "${t('exampleScripts.auditStart')}"`,
-        'whoami',
-        'date',
-        'vault status',
-        `echo "${t('exampleScripts.auditVaultOk')}"`,
-      ];
-    case 'script_morning_news':
-      return [
-        `echo "${t('exampleScripts.newsFetching')}"`,
-        'goto https://news.ycombinator.com',
-        'reader',
-        `echo "${t('exampleScripts.newsReady')}"`,
-      ];
-    case 'script_benchmark':
-      return [
-        `echo "${t('exampleScripts.benchRunning')}"`,
-        `python -c "print('${t('exampleScripts.benchPrintLabel')}', sum([x**2 for x in range(100)]))"`,
-        'speedtest',
-        'top',
-      ];
-    default:
-      return [];
-  }
-};
-
-const EXAMPLE_SCRIPT_KEYS: Record<string, { name: MessageKey; description: MessageKey }> = {
-  script_audit: { name: 'exampleScripts.auditName', description: 'exampleScripts.auditDescription' },
-  script_morning_news: {
-    name: 'exampleScripts.newsName',
-    description: 'exampleScripts.newsDescription',
-  },
-  script_benchmark: { name: 'exampleScripts.benchName', description: 'exampleScripts.benchDescription' },
 };
 
 export default function App() {
@@ -292,25 +227,8 @@ export default function App() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => loadBookmarks());
   const [browserHistory, setBrowserHistory] = useState(() => loadBrowserHistory());
   const lastHistorySignatureRef = useRef('');
-  const [scripts, setScripts] = useState<UserScript[]>(() => buildInitialScripts(t));
-
   // Shipped examples follow the live language; user-edited ones keep their own text.
-  useEffect(() => {
-    setScripts((prev) =>
-      prev.map((script) => {
-        const keys = EXAMPLE_SCRIPT_KEYS[script.id];
-        if (!keys || script.custom) return script;
-        const name = t(keys.name);
-        const description = t(keys.description);
-        const steps = buildExampleSteps(script.id, t);
-        const stepsChanged =
-          steps.length !== script.steps.length || steps.some((step, i) => step !== script.steps[i]);
-        return name === script.name && description === script.description && !stepsChanged
-          ? script
-          : { ...script, name, description, steps };
-      })
-    );
-  }, [t]);
+  const [scripts, setScripts] = useExampleScripts(t);
   const [extensions, setExtensions] = useState<ExtensionManifest[]>(BUILT_IN_EXTENSIONS);
   const [keybindings, setKeybindings] = useState<KeyBinding[]>(DEFAULT_KEYBINDINGS);
 
@@ -706,7 +624,7 @@ export default function App() {
         setLogs((prev) => [...prev, resultLog]);
       }
     },
-          [tabs, activeTabId, currentThemeId, crtEnabled, isMuted, bookmarks, scripts, extensions, keybindings, security, metrics, activityLogs, currentPath, fileSystem, setCurrentPath, setLogs, tc, locale]
+          [tabs, activeTabId, currentThemeId, crtEnabled, isMuted, bookmarks, scripts, extensions, keybindings, security, metrics, activityLogs, currentPath, fileSystem, setCurrentPath, setLogs, setScripts, tc, locale]
   );
 
   // Execute automated script sequentially
