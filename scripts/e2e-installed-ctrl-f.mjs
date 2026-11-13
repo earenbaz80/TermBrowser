@@ -341,13 +341,25 @@ function sendNativeCtrlF(pid) {
   const script = [
     "$ErrorActionPreference = 'Stop'",
     'Add-Type -AssemblyName System.Windows.Forms',
+    'Add-Type @"',
+    'using System;',
+    'using System.Runtime.InteropServices;',
+    'public class TerminusForeground {',
+    '  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();',
+    '}',
+    '"@',
     `$process = Get-Process -Id ${pid}`,
     'for ($i = 0; $i -lt 40 -and $process.MainWindowHandle -eq 0; $i++) { Start-Sleep -Milliseconds 250; $process.Refresh() }',
     "if ($process.MainWindowHandle -eq 0) { throw 'La ventana principal no está disponible.' }",
     '$shell = New-Object -ComObject WScript.Shell',
-    '$activated = $shell.AppActivate($process.Id)',
-    "if (-not $activated) { throw 'No se pudo activar la ventana de Terminus.' }",
-    'Start-Sleep -Milliseconds 500',
+    '$handle = $process.MainWindowHandle',
+    '$inForeground = $false',
+    'for ($i = 0; $i -lt 5 -and -not $inForeground; $i++) {',
+    '  [void]$shell.AppActivate($process.Id)',
+    '  Start-Sleep -Milliseconds 400',
+    '  $inForeground = ([TerminusForeground]::GetForegroundWindow() -eq $handle)',
+    '}',
+    "if (-not $inForeground) { throw 'No se pudo poner Terminus en primer plano: la ventana activa es otra.' }",
     "[System.Windows.Forms.SendKeys]::SendWait('^f')",
     "Write-Output 'sent'",
   ].join('\r\n');
@@ -367,6 +379,29 @@ function sendNativeCtrlF(pid) {
     const stderr = error && typeof error === 'object' && 'stderr' in error ? String(error.stderr) : '';
     throw new Error(
       `No se pudo enviar Ctrl+F con entrada nativa: ${stderr.trim() || (error instanceof Error ? error.message : String(error))}`,
+    );
+  }
+}
+
+/**
+ * La ventana puede estar en primer plano y aun así perder la tecla (el foco de teclado
+ * de WebView2 no siempre sigue a la activación). Si el buscador no se abre enseguida, el
+ * problema es el envío nativo, no la espera del buscador: se dice con su propio mensaje.
+ */
+async function assertShortcutArrived(client) {
+  const opened = await waitForExpression(
+    client,
+    `${FIND_BAR_EXPRESSION}.open`,
+    Boolean,
+    'que Ctrl+F abriera el buscador',
+    3000,
+  )
+    .then(() => true)
+    .catch(() => false);
+
+  if (!opened) {
+    throw new Error(
+      'Ctrl+F se envió con Terminus en primer plano, pero la app no abrió el buscador: la tecla no llegó al contenido web.',
     );
   }
 }
@@ -556,6 +591,7 @@ async function main() {
   assert.equal(focused.findDialog, false, 'El buscador no debe estar abierto antes de enviar Ctrl+F.');
 
   sendNativeCtrlF(app.pid);
+  await assertShortcutArrived(cdp);
 
   const findState = await waitForExpression(
     cdp,
