@@ -5,8 +5,8 @@
  * Cubre lo que el hito 3 dejaba pendiente en la app empaquetada, sin mocks:
  *   - cabecera única (un `<header>` con marca, pestañas y controles de ventana),
  *   - menú de configuración abierto, cambio de tema y persistencia tras recargar,
- *   - búsqueda del inicio en un solo paso (escribir y Enter), sin el botón
- *     intermedio «ABRIR TERMINUS SEARCH».
+ *   - búsqueda del inicio en un solo paso (escribir y Enter) con un único botón
+ *     de envío en el formulario.
  *
  * Arranca el ejecutable instalado con un perfil temporal y habla con él por CDP.
  * No usa `electron .` ni `example.com`.
@@ -19,8 +19,8 @@
  * Si el ejecutable está en otra ruta:
  *   TERMINUS_INSTALLED_EXE="C:\ruta\Terminus.exe" npm run test:e2e:installed:ui
  *
- * Para comprobar que la prueba no depende del idioma, con la interfaz en inglés:
- *   TERMINUS_E2E_LOCALE=en npm run test:e2e:installed:ui
+ * Para comprobar que la prueba no depende del idioma, con la interfaz en otro idioma:
+ *   TERMINUS_E2E_LOCALE=de npm run test:e2e:installed:ui
  */
 
 import assert from 'node:assert/strict';
@@ -65,22 +65,9 @@ const ROOT_STATE_EXPRESSION = `(() => {
 
 /** Presses Enter through CDP so the renderer handles it as a real key press. */
 async function pressEnter(client) {
-  await client.send('Input.dispatchKeyEvent', {
-    type: 'keyDown',
-    key: 'Enter',
-    code: 'Enter',
-    text: '\r',
-    unmodifiedText: '\r',
-    windowsVirtualKeyCode: 13,
-    nativeVirtualKeyCode: 13,
-  });
-  await client.send('Input.dispatchKeyEvent', {
-    type: 'keyUp',
-    key: 'Enter',
-    code: 'Enter',
-    windowsVirtualKeyCode: 13,
-    nativeVirtualKeyCode: 13,
-  });
+  const key = { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 };
+  await client.send('Input.dispatchKeyEvent', { type: 'keyDown', ...key, text: '\r', unmodifiedText: '\r' });
+  await client.send('Input.dispatchKeyEvent', { type: 'keyUp', ...key });
 }
 
 /** Runs a terminal command through the address bar of the browser surface. */
@@ -118,7 +105,6 @@ const HEADER_STATE_EXPRESSION = `(() => {
     windowButtons: header ? header.querySelectorAll('.tb-window-controls .tb-window-button').length : 0,
     windowControlGroups: document.querySelectorAll('.tb-window-controls').length,
     menuInsideHeader: Boolean(header && trigger && header.contains(trigger)),
-    text: header?.textContent?.trim().slice(0, 60) ?? '',
   };
 })()`;
 
@@ -210,7 +196,7 @@ async function applyE2ELocale(client) {
       state.stored === e2eLocale &&
       state.lang === e2eLocale &&
       state.address !== null &&
-      (beforeLabel === null || state.address !== beforeLabel),
+      (current.locale === e2eLocale || state.address !== beforeLabel),
     `la interfaz en ${e2eLocale}`,
     10000,
   );
@@ -286,7 +272,7 @@ async function main() {
 
   const applied = await waitForExpression(
     cdp,
-    `${ROOT_STATE_EXPRESSION}`,
+    ROOT_STATE_EXPRESSION,
     (state) => state.theme === chosen.id && state.bg === chosen.rgb,
     `el tema ${chosen.id} aplicado y guardado`,
     10000,
@@ -329,26 +315,26 @@ async function main() {
     cdp,
     `(() => {
       const form = document.querySelector(${JSON.stringify(START_FORM)});
-      const input = form?.querySelector('input') ?? null;
-      const legacy = [...document.querySelectorAll('button')].some((button) =>
-        /(abrir|open|öffnen|ouvrir|apri)\\s+terminus\\s+search/i.test(button.textContent ?? ''),
-      );
+      const input = form?.querySelector('input[type="search"]') ?? null;
       return {
         forms: document.querySelectorAll(${JSON.stringify(START_FORM)}).length,
         hasInput: Boolean(input),
         iframe: Boolean(document.querySelector('iframe')),
-        legacy,
+        formButtons: form ? form.querySelectorAll('button').length : 0,
+        submitButtons: form ? form.querySelectorAll('button[type="submit"]').length : 0,
       };
     })()`,
-    (state) => state.forms === 1 && state.hasInput && !state.iframe && !state.legacy,
+    (state) => state.forms === 1 && state.hasInput && !state.iframe,
     'la página de inicio con su formulario de búsqueda',
     20000,
   );
-  assert.equal(startPage.legacy, false, 'Reapareció el botón intermedio «ABRIR TERMINUS SEARCH».');
+  // Sin mirar textos: el formulario de inicio solo debe tener su botón de envío.
+  assert.equal(startPage.formButtons, 1, 'El formulario de inicio tiene botones de más: ¿volvió el botón intermedio?');
+  assert.equal(startPage.submitButtons, 1, 'El único botón del formulario de inicio no es el de envío.');
 
   const typed = await cdp.evaluate(`(() => {
     const form = document.querySelector(${JSON.stringify(START_FORM)});
-    const input = form?.querySelector('input');
+    const input = form?.querySelector('input[type="search"]');
     if (!input) return false;
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
     setter.call(input, ${JSON.stringify(SEARCH_QUERY)});
@@ -364,7 +350,7 @@ async function main() {
     cdp,
     `(() => {
       const form = document.querySelector(${JSON.stringify(START_FORM)});
-      const input = form?.querySelector('input') ?? null;
+      const input = form?.querySelector('input[type="search"]') ?? null;
       let history = [];
       try {
         history = JSON.parse(localStorage.getItem(${JSON.stringify(HISTORY_KEY)}) ?? '[]');
@@ -374,17 +360,13 @@ async function main() {
         inputValue: input?.value ?? null,
         address: document.querySelector(${JSON.stringify(ADDRESS_SELECTOR)})?.value ?? null,
         commandLogged: Array.isArray(history) && history.includes('search ' + ${JSON.stringify(SEARCH_QUERY)}),
-        legacy: [...document.querySelectorAll('button')].some((button) =>
-          /(abrir|open|öffnen|ouvrir|apri)\\s+terminus\\s+search/i.test(button.textContent ?? ''),
-        ),
       };
     })()`,
     (state) =>
       state.forms === 1 &&
       state.inputValue === SEARCH_QUERY &&
       /\bterminus:\/\/search\b/.test(state.address ?? '') &&
-      state.commandLogged &&
-      !state.legacy,
+      state.commandLogged,
     'la búsqueda del inicio en un solo paso',
     25000,
   );
