@@ -77,7 +77,7 @@ Recomendación: deja `TERMINUS_RUN_INSTALLED_E2E` sin definir y lanza el E2E sol
 runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'windows-latest' || vars.TERMINUS_CI_RUNNER || 'windows-latest' }}
 ```
 
-Si la variable no existe, el job usa `windows-latest`; allí el E2E se omite porque no hay escritorio interactivo. Los pasos de instalación y del E2E también se omiten en PRs desde forks, incluso si `TERMINUS_RUN_INSTALLED_E2E` está activo.
+Si la variable no existe, el job usa `windows-latest`, donde el escritorio interactivo no está garantizado pero puede existir: al lanzarlo con `workflow_dispatch`, el preflight decide y la corrida 43384471680 ejecutó los tres guiones en verde en ese runner (Ctrl+F, UI y UI en alemán). Para ejecuciones repetidas sigue siendo preferible el runner autoalojado con `TERMINUS_CI_RUNNER`. Los pasos de instalación y del E2E se omiten en PRs desde forks, incluso si `TERMINUS_RUN_INSTALLED_E2E` está activo.
 
 > **Seguridad:** al definir `TERMINUS_CI_RUNNER`, los jobs de `push`, `workflow_dispatch` y PRs del mismo repositorio se ejecutan en ese runner, no solo el E2E. El workflow fuerza `windows-latest` para PRs desde forks, pero un runner autoalojado sigue siendo una superficie de riesgo. No lo configures para un repositorio público que acepte PRs de desconocidos; usa un runner dedicado y, preferiblemente, una VM desechable o una instantánea restaurable.
 
