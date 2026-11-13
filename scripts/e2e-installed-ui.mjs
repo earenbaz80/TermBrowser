@@ -41,7 +41,6 @@ const UI_MARKER = 'terminus-theme-select';
 const ADDRESS_SELECTOR = 'input[aria-controls="terminus-address-suggestions"]';
 const SEARCH_QUERY = 'terminus e2e ui';
 const LOCALE_KEY = 'terminus_locale_v1';
-const EN_ADDRESS_LABEL = 'Address and search bar';
 // Opcional: cambia el idioma de la app desde el menú antes de comprobarla.
 const e2eLocale = (process.env.TERMINUS_E2E_LOCALE ?? '').trim();
 const START_FORM = 'form[role="search"]';
@@ -178,6 +177,11 @@ async function applyE2ELocale(client) {
 
   const current = await openSettingsMenu(client);
   assert.ok(current.locale, 'El menú de configuración no expone el selector de idioma.');
+  // El nombre accesible de la barra está traducido: se guarda para comprobar que la
+  // interfaz se vuelve a pintar, nunca para compararlo con un idioma concreto.
+  const beforeLabel = await client.evaluate(
+    `document.querySelector(${JSON.stringify(ADDRESS_SELECTOR)})?.getAttribute('aria-label') ?? null`,
+  );
 
   if (current.locale !== e2eLocale) {
     const changed = await client.evaluate(`(() => {
@@ -191,23 +195,30 @@ async function applyE2ELocale(client) {
     assert.equal(changed, true, 'No se pudo cambiar el idioma desde el menú.');
   }
 
-  await waitForExpression(
+  // El idioma se comprueba con el atributo `lang` que pone la app y con que la barra
+  // cambie de nombre accesible; ninguna cadena traducida del guion.
+  const applied = await waitForExpression(
     client,
     `(() => ({
       locale: document.getElementById('terminus-locale-select')?.value ?? null,
       stored: localStorage.getItem(${JSON.stringify(LOCALE_KEY)}),
+      lang: document.documentElement.lang || null,
       address: document.querySelector(${JSON.stringify(ADDRESS_SELECTOR)})?.getAttribute('aria-label') ?? null,
     }))()`,
     (state) =>
       state.locale === e2eLocale &&
       state.stored === e2eLocale &&
-      state.address === EN_ADDRESS_LABEL,
+      state.lang === e2eLocale &&
+      state.address !== null &&
+      (beforeLabel === null || state.address !== beforeLabel),
     `la interfaz en ${e2eLocale}`,
     10000,
   );
 
   await closeSettingsMenu(client);
-  console.log(`${LOG} Idioma de la app: ${e2eLocale} (barra: «${EN_ADDRESS_LABEL}»).`);
+  console.log(
+    `${LOG} Idioma de la app: ${e2eLocale} (html lang=${applied.lang}, barra: «${applied.address}»).`,
+  );
 }
 
 async function main() {
