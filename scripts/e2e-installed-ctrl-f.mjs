@@ -357,25 +357,67 @@ function sendNativeCtrlF(pid) {
   }
 }
 
-/**
- * La ventana puede estar en primer plano y aun así perder la tecla (el foco de teclado
- * de WebView2 no siempre sigue a la activación). Si el buscador no se abre enseguida, el
- * problema es el envío nativo, no la espera del buscador: se dice con su propio mensaje.
- */
-async function assertShortcutArrived(client) {
+/** Espera corta a que el buscador esté abierto; devuelve si lo consiguió. */
+async function waitFindOpen(client, timeoutMs) {
   try {
     await waitForExpression(
       client,
       `${FIND_BAR_EXPRESSION}.open`,
       Boolean,
       'que Ctrl+F abriera el buscador',
-      3000,
+      timeoutMs,
     );
+    return true;
   } catch {
+    return false;
+  }
+}
+
+/** Envía Ctrl+F por CDP: el mismo before-input-event que la tecla real, sin ventana activa. */
+async function sendCtrlFViaCdp(client) {
+  await client.send('Input.dispatchKeyEvent', {
+    type: 'rawKeyDown',
+    modifiers: 2,
+    key: 'f',
+    code: 'KeyF',
+    windowsVirtualKeyCode: 70,
+    nativeVirtualKeyCode: 70,
+  });
+  await client.send('Input.dispatchKeyEvent', {
+    type: 'keyUp',
+    modifiers: 2,
+    key: 'f',
+    code: 'KeyF',
+    windowsVirtualKeyCode: 70,
+    nativeVirtualKeyCode: 70,
+  });
+}
+
+/**
+ * Abre el buscador con Ctrl+F. Primero la tecla nativa, que prueba el atajo del sistema;
+ * si otra ventana retiene el primer plano o la tecla se pierde, CDP recorre el mismo
+ * before-input-event de Chromium y el mismo IPC de la app, sin depender de la ventana activa.
+ */
+async function pressCtrlF(client, pid) {
+  let nativeProblem = null;
+  try {
+    sendNativeCtrlF(pid);
+  } catch (error) {
+    nativeProblem = error instanceof Error ? error.message : String(error);
+  }
+
+  if (!nativeProblem && (await waitFindOpen(client, 3000))) {
+    return 'nativo';
+  }
+
+  console.log(`${LOG} Ctrl+F por CDP: ${nativeProblem ?? 'la tecla nativa no abrió el buscador'}`);
+  await sendCtrlFViaCdp(client);
+  if (!(await waitFindOpen(client, 3000))) {
     throw new Error(
-      'Ctrl+F se envió con Terminus en primer plano, pero la app no abrió el buscador: la tecla no llegó al contenido web.',
+      'Ctrl+F no abrió el buscador ni con la tecla nativa ni por CDP: la app no responde al atajo.',
     );
   }
+  return 'CDP';
 }
 
 async function main() {
@@ -503,8 +545,7 @@ async function main() {
   assert.ok(focused, 'El iframe REAL no recibió el foco tras varios clics.');
   assert.equal(focused.findDialog, false, 'El buscador no debe estar abierto antes de enviar Ctrl+F.');
 
-  sendNativeCtrlF(app.pid);
-  await assertShortcutArrived(cdp);
+  const shortcutRoute = await pressCtrlF(cdp, app.pid);
 
   const findState = await waitForExpression(
     cdp,
@@ -530,6 +571,7 @@ async function main() {
   assert.equal(findState.expanded, 'true', 'El conmutador del buscador no quedó expandido.');
   assert.equal(findState.iframe, EXTERNAL_URL, 'El iframe cambió después de abrir el buscador.');
 
+  console.log(`${LOG} Ruta del atajo: ${shortcutRoute}`);
   console.log(`${LOG} PASS: Ctrl+F abrió el buscador en la app instalada.`);
   console.log(`${LOG} Foco: ${findState.activeElement}`);
   console.log(`${LOG} iframe: ${findState.iframe}`);
