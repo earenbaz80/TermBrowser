@@ -55,31 +55,35 @@ const searchTab: BrowserTab = {
   search: searchState,
 };
 
-const renderSurface = (
-  tab: BrowserTab = blankTab,
-  options: {
-    globalHistory?: string[];
-    onSetZoom?: (zoom: number) => void;
-    onPageStatus?: (status: number) => void;
-  } = {}
-) => {
+type SurfaceOptions = {
+  globalHistory?: string[];
+  onSetZoom?: (zoom: number) => void;
+  onPageStatus?: (status: number) => void;
+};
+
+const surfaceElement = (tab: BrowserTab, onCommand: (command: string) => void, options: SurfaceOptions) => (
+  <WebBrowserSurface
+    theme={theme}
+    tab={tab}
+    onCommand={onCommand}
+    bookmarks={[]}
+    onAddBookmark={vi.fn()}
+    onRemoveBookmark={vi.fn()}
+    onSetViewMode={vi.fn()}
+    globalHistory={options.globalHistory}
+    onSetZoom={options.onSetZoom}
+    onPageStatus={options.onPageStatus}
+    latencyMs={18}
+  />
+);
+
+const renderSurface = (tab: BrowserTab = blankTab, options: SurfaceOptions = {}) => {
   const onCommand = vi.fn();
-  render(
-    <WebBrowserSurface
-      theme={theme}
-      tab={tab}
-      onCommand={onCommand}
-      bookmarks={[]}
-      onAddBookmark={vi.fn()}
-      onRemoveBookmark={vi.fn()}
-      onSetViewMode={vi.fn()}
-      globalHistory={options.globalHistory}
-      onSetZoom={options.onSetZoom}
-      onPageStatus={options.onPageStatus}
-      latencyMs={18}
-    />
-  );
-  return { onCommand };
+  const view = render(surfaceElement(tab, onCommand, options));
+  return {
+    onCommand,
+    rerender: (next: BrowserTab) => view.rerender(surfaceElement(next, onCommand, options)),
+  };
 };
 
 describe('WebBrowserSurface', () => {
@@ -500,6 +504,25 @@ describe('búsquedas recientes bajo el campo de inicio', () => {
     // Las fijas nunca se ocultan; la etiqueta sí desaparece en estrecho.
     fixed.forEach((chip) => expect(classes(chip)).not.toContain('hidden'));
     expect(classes(screen.getByText('Prueba con'))).toContain('hidden');
+  });
+});
+
+describe('foco del campo del inicio', () => {
+  const startInput = () => screen.getByRole('searchbox', { name: 'Buscar en Terminus Search' });
+
+  it('enfoca el campo al abrir la app en la pantalla de inicio', () => {
+    renderSurface();
+
+    expect(document.activeElement).toBe(startInput());
+  });
+
+  it('recupera el foco al volver al inicio desde una página', () => {
+    const { rerender } = renderSurface(pageTab);
+    expect(screen.queryByRole('searchbox', { name: 'Buscar en Terminus Search' })).toBeNull();
+
+    rerender(blankTab);
+
+    expect(document.activeElement).toBe(startInput());
   });
 });
 
