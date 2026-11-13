@@ -33,6 +33,7 @@ import {
 import { SUGGESTED_QUERY_KEYS, TerminusSearchPage } from './TerminusSearchPage';
 import { getTerminusSearchQuery, isTerminusSearchUrl } from '../utils/terminusSearch';
 import { isPrivateTargetUrl } from '../utils/networkPolicy';
+import { loadRecentSearches, recordRecentSearch } from '../utils/recentSearches';
 import { ContextMenu, ContextMenuItem } from './ContextMenu';
 import { useI18n } from '../i18n';
 import type { MessageKey } from '../i18n/messages';
@@ -107,6 +108,25 @@ const MODE_LABELS: Record<PageMode, MessageKey> = {
   real: 'browser.modeReal',
   dark: 'browser.modeDark',
   text: 'browser.modeText',
+};
+
+/**
+ * Recent searches go first and the fixed suggestions that are still new follow,
+ * so the start page keeps a single row of chips.
+ */
+const mergeStartChips = (
+  recent: string[],
+  fixed: string[]
+): { query: string; recent: boolean }[] => {
+  const seen = new Set(recent.map((query) => query.toLowerCase()));
+  const chips = recent.map((query) => ({ query, recent: true }));
+  for (const suggestion of fixed) {
+    const key = suggestion.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    chips.push({ query: suggestion, recent: false });
+  }
+  return chips.slice(0, 6);
 };
 
 const START_LINKS = [
@@ -251,6 +271,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
   const online = useNetworkStatus();
   const [address, setAddress] = useState('');
   const [startQuery, setStartQuery] = useState('');
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => loadRecentSearches());
   const [commandHistory, setCommandHistory] = useState<string[]>(() => getPersistedCommandHistory());
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [draftCommand, setDraftCommand] = useState('');
@@ -1034,6 +1055,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                 const clean = startQuery.trim();
                 if (!clean) return;
                 soundEffects.playKeyClick();
+                setRecentSearches(recordRecentSearch(clean));
                 setStartQuery('');
                 go(`search ${clean}`);
               }}
@@ -1080,20 +1102,25 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
             </form>
             <div className="flex flex-wrap items-center justify-center gap-2">
               <span className="text-[9px] uppercase tracking-[0.18em] opacity-45">{t('start.tryWith')}</span>
-              {SUGGESTED_QUERY_KEYS.map((key) => t(key)).map((suggestion) => (
+              {mergeStartChips(
+                recentSearches,
+                SUGGESTED_QUERY_KEYS.map((key) => t(key))
+              ).map((chip) => (
                 <button
-                  key={suggestion}
+                  key={chip.query}
                   type="button"
+                  data-e2e={chip.recent ? 'recent-search' : undefined}
                   onClick={() => {
                     soundEffects.playKeyClick();
-                    setStartQuery(suggestion);
-                    go(`search ${suggestion}`);
+                    setRecentSearches(recordRecentSearch(chip.query));
+                    setStartQuery(chip.query);
+                    go(`search ${chip.query}`);
                   }}
                   className="border px-2.5 py-1 text-[10px] cursor-pointer transition-opacity hover:opacity-70"
                   style={{ borderColor: theme.border, color: theme.text }}
-                  title={t('start.searchFor', { query: suggestion })}
+                  title={t('start.searchFor', { query: chip.query })}
                 >
-                  {suggestion}
+                  {chip.query}
                 </button>
               ))}
             </div>            <p className="max-w-md text-[11px] opacity-70">

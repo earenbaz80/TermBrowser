@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { FOCUS_ADDRESS_EVENT, WebBrowserSurface } from './WebBrowserSurface';
 import { THEMES } from '../utils/themes';
+import { RECENT_SEARCHES_STORAGE_KEY } from '../utils/recentSearches';
 import type { BrowserTab, TerminusDesktopApi, TerminusSearchState } from '../types';
 
 const theme = THEMES['cyberpunk-obsidian'];
@@ -425,6 +426,59 @@ describe('búsqueda desde la pantalla de inicio', () => {
 
     expect(onCommand).toHaveBeenCalledTimes(1);
     expect(onCommand).toHaveBeenCalledWith(`search ${query}`);
+  });
+});
+
+describe('búsquedas recientes bajo el campo de inicio', () => {
+  const startForm = () => screen.getByRole('search', { name: 'Buscar en Terminus Search' });
+
+  const submitSearch = (query: string) => {
+    const form = startForm();
+    const input = within(form).getByRole('searchbox') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: query } });
+    fireEvent.submit(form);
+  };
+
+  const chipTexts = () =>
+    [...document.querySelectorAll('[data-e2e="recent-search"]')].map((node) => (node.textContent ?? '').trim());
+
+  it('recuerda la búsqueda enviada y la coloca delante de las fijas', () => {
+    renderSurface();
+    expect(chipTexts()).toEqual([]);
+
+    submitSearch('  arquitectura de software  ');
+
+    expect(chipTexts()).toEqual(['arquitectura de software']);
+    expect(JSON.parse(localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY) ?? '[]')).toEqual([
+      'arquitectura de software',
+    ]);
+  });
+
+  it('recupera las búsquedas guardadas al abrir la app', () => {
+    localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(['ciencia', 'electron']));
+
+    renderSurface();
+
+    expect(chipTexts()).toEqual(['ciencia', 'electron']);
+  });
+
+  it('no duplica una sugerencia fija que ya está entre las recientes', () => {
+    renderSurface();
+    const suggestions = screen.getAllByTitle(/^Buscar «/);
+    const fixedCount = suggestions.length;
+
+    fireEvent.click(suggestions[0]);
+
+    expect(chipTexts()).toHaveLength(1);
+    expect(screen.getAllByTitle(/^Buscar «/)).toHaveLength(fixedCount);
+  });
+
+  it('no guarda un envío vacío', () => {
+    renderSurface();
+
+    submitSearch('   ');
+
+    expect(localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY)).toBeNull();
   });
 });
 
