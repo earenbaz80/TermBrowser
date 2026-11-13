@@ -138,7 +138,10 @@ Al terminar, el resumen del workflow debe indicar:
 ```text
 E2E: PASS
 Código de salida del E2E: 0
+Runner del E2E: <runner.name> (alojado por GitHub | autoalojado)
 ```
+
+La línea del runner es la que deja claro dónde corrió el E2E: el preflight solo demuestra que hay escritorio interactivo, no que el runner sea autoalojado, y de hecho la corrida 43384471680 pasó en `windows-latest`.
 
 El log debe contener líneas equivalentes a:
 

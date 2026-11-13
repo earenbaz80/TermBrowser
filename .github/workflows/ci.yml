@@ -303,6 +303,8 @@ jobs:
           E2E_RESULT: ${{ steps.e2e.outputs.result }}
           E2E_EXIT_CODE: ${{ steps.e2e.outputs.exit_code }}
           E2E_OUTCOME: ${{ steps.e2e.outcome }}
+          RUNNER_NAME: ${{ runner.name }}
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
           RUN_NUMBER: ${{ github.run_number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           INSTALLER_NAME: terminus-installer-${{ steps.version.outputs.version }}-run-${{ github.run_number }}-windows
@@ -346,6 +348,18 @@ jobs:
           } else {
             $durationText = 'desconocida'
           }
+          # El preflight solo prueba que hay escritorio, no de qué runner se trata.
+          $runnerName = if ($env:RUNNER_NAME) { $env:RUNNER_NAME } else { 'desconocido' }
+          $runnerEnvironmentText = switch ($env:RUNNER_ENVIRONMENT) {
+            'github-hosted' { 'alojado por GitHub' }
+            'self-hosted' { 'autoalojado' }
+            default { 'sin identificar' }
+          }
+          $e2eRunnerText = if ($env:E2E_OUTCOME -eq 'skipped') {
+            "No ejecutado (job en $runnerName, $runnerEnvironmentText)"
+          } else {
+            "$runnerName ($runnerEnvironmentText)"
+          }
           $runNumber = $env:RUN_NUMBER
           $runUrl = $env:RUN_URL
           $installerName = $env:INSTALLER_NAME
@@ -361,6 +375,7 @@ jobs:
             "- **Estado:** $statusLabel",
             "- **E2E:** $e2eResult",
             "- **Código de salida del E2E:** $e2eExitCodeText",
+            "- **Runner del E2E:** $e2eRunnerText",
             "- **Duración:** $durationText",
             "- **Ejecución:** [$runNumber]($runUrl)",
             "- **Instalador:** $installerName - $installerLink",
