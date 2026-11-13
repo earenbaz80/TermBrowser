@@ -44,18 +44,21 @@ Estado:
 
 Cierre: lint, pruebas y builds en verde; instalador generado, revisado e instalado; release `0.3.0` publicada con hashes; la búsqueda funciona desde la pantalla de inicio sin pasar por otra vista. Hito cerrado el 12 de noviembre de 2026.
 
-### 2. E2E sobre la app instalada en CI — nunca se disparó; falta el runner interactivo
+### 2. E2E sobre la app instalada en CI — ejecutado y en verde
 
-El script y los pasos existen (`npm run test:e2e:installed`, `.github/workflows/ci.yml`), pero en CI no se han ejecutado nunca: el repositorio tiene **0 ejecuciones `workflow_dispatch`** y **0 variables de Actions**, que son los dos únicos disparadores de los pasos (`workflow_dispatch` con `run_installed_e2e=true`, o `TERMINUS_RUN_INSTALLED_E2E=true`). Ningún run lleva el artefacto `e2e-installed-logs`; los que sí se publican son `coverage-lcov` y `terminus-installer-…`. El E2E sí pasó el 12 de noviembre de 2026, pero en local, sobre la `0.3.0` instalada (tres `PASS`, `EXIT=0`).
+El script y los pasos existen (`npm run test:e2e:installed`, `.github/workflows/ci.yml`) y el 13 de noviembre de 2026 se dispararon por primera vez con `workflow_dispatch` (`run_installed_e2e=true`). El E2E pasó en el runner alojado `windows-latest`: el preflight interactivo (`SessionId != 0`, `[Environment]::UserInteractive`) se cumple allí, así que la etiqueta del runner no decide nada. Corridas en verde: 43384471680 (07:15 UTC, la primera), 43394890760 (08:39), 43397410888 (08:58) y 43413835372 (11:02, run #228, ya con el resumen simplificado); las cuatro `success`, con el paso «E2E en la app instalada» ejecutado y el artefacto `e2e-installed-logs` publicado con `e2e-installed.log`, `e2e-installed-ui.log` y `e2e-installed-ui-de.log`.
 
-El runner es el requisito que falta, y no el único: `runs-on` usa `vars.TERMINUS_CI_RUNNER` y cae a `windows-latest` cuando no existe, donde el E2E se omite; además el paso «Preflight de sesión interactiva» aborta si `SessionId = 0` o `[Environment]::UserInteractive` es falso, así que hace falta un runner arrancado con `run.cmd` en una sesión de escritorio, no un runner alojado ni un servicio.
+El resumen del job dice dónde corrió la prueba y se escribe también en la salida del paso, para leerlo en el log sin sesión de GitHub: `- **Runner del E2E:** GitHub Actions 1000002614 (alojado por GitHub)`.
 
-Pendiente:
+Sigue pendiente el runner autoalojado, que solo hace falta para ejecutar el E2E en cada push. Hoy el repositorio tiene **0 runners** y **0 variables** de Actions. El orden importa: definir `TERMINUS_CI_RUNNER` antes de registrar un runner con esa etiqueta deja todos los jobs en cola, porque `runs-on` no encontraría dónde ejecutarlos.
 
-- [ ] Runner Windows con sesión interactiva (`run.cmd`, no servicio; `SessionId != 0`) y etiqueta `terminus-e2e`.
-- [ ] Variable de repositorio `TERMINUS_CI_RUNNER=terminus-e2e` (hoy no hay ninguna variable definida).
-- [ ] Primera ejecución por `workflow_dispatch` con `run_installed_e2e=true`; la guía desaconseja dejar `TERMINUS_RUN_INSTALLED_E2E` activo para no correrlo en cada push.
-- [ ] Comprobar que el run publica el artefacto `e2e-installed-logs` con el log del job.
+Pendiente (opcional):
+
+- [ ] Registrar un runner Windows con sesión interactiva (`run.cmd`, no servicio; `SessionId != 0`) con la etiqueta `terminus-e2e`.
+- [ ] Solo después, definir la variable `TERMINUS_CI_RUNNER=terminus-e2e`; la guía desaconseja dejar `TERMINUS_RUN_INSTALLED_E2E` activo para no correr el E2E en cada push.
+- [x] Primera ejecución por `workflow_dispatch` con `run_installed_e2e=true` (43384471680).
+- [x] Artefacto `e2e-installed-logs` con los tres logs del job.
+- [x] El guion de UI se ejecuta también con `TERMINUS_E2E_LOCALE=de` dentro del paso opcional.
 
 Estado del guion de Ctrl+F (13 de noviembre de 2026):
 
@@ -65,7 +68,7 @@ Estado del guion de Ctrl+F (13 de noviembre de 2026):
 - [x] Paso nativo con verificación de primer plano: la activación se reintenta hasta cinco veces y se confirma con `GetForegroundWindow` contra `MainWindowHandle` antes de enviar la tecla. Si el primer plano no llega o la tecla se pierde, el guion repite el atajo por CDP (mismo `before-input-event` de Chromium y mismo IPC, sin depender de la ventana activa), lo anota en el log como «Ctrl+F por CDP» y continúa; solo falla si tampoco así se abre el buscador.
 - [x] Resultado real de la última tanda, con el build de hoy instalado (instalador `0.3.0` generado e instalado; `app.asar` contiene `find-bar`, `find-next` y `view-mode-`): siete corridas seguidas de `npm run test:e2e:installed` cerraron con los tres `PASS` y `EXIT=0`, ya por la ruta `data-e2e`; las siete avisaron «Ctrl+F por CDP» porque otra ventana retenía el primer plano, y ninguna dependió de reintentos. El respaldo estructural se comprobó aparte con las mismas tres comprobaciones contra la `0.3.0` anterior.
 
-Cierre: el log del job contiene los tres `PASS` (Ctrl+F en REAL instalado, búsqueda en OSCURO y en TEXTO) y el artefacto `e2e-installed-logs` está disponible. Requisitos y diagnóstico en `docs/e2e-installed-windows.md`.
+Cierre (13 de noviembre de 2026): las corridas dejan el log con los tres `PASS` de Ctrl+F, los cuatro de la UI y los cuatro de la UI en alemán, y el artefacto `e2e-installed-logs` disponible. Requisitos y diagnóstico en `docs/e2e-installed-windows.md`.
 
 ### 3. Cobertura automatizada de la interfaz nueva — regresiones cubiertas en CI
 
@@ -78,7 +81,7 @@ Pendiente:
 - [x] Búsqueda del inicio (`WebBrowserSurface.test.tsx`): un solo paso (`search <consulta>`, con espacios recortados y el campo vaciado), envío vacío que no navega y sugerencia clicable que busca su propio texto; falla si reaparece el botón «ABRIR TERMINUS SEARCH».
 - [x] Cabecera única (`HeaderBar.test.tsx`): un solo `<header>` con la marca, las pestañas y los controles de ventana dentro, sin barra de título duplicada.
 - [x] Persistencia del tema (`App.theme.test.tsx`): monta la app entera, cambia el tema desde el menú, comprueba que queda en `localStorage` y que al desmontarla y volver a montarla arranca con el tema guardado aplicado; también cubre el tema por defecto y un valor guardado que ya no existe.
-- [x] Los mismos casos en el E2E instalado (`scripts/e2e-installed-ui.mjs`, `npm run test:e2e:installed:ui`): sobre la 0.3.0 instalada comprueba la cabecera única (1 `<header>` con pestañas y los 3 controles de ventana dentro), abre el menú, cambia el tema y lo ve guardado en `localStorage` y aplicado tras recargar el renderer, y hace la búsqueda del inicio escribiendo y pulsando Enter, sin botón intermedio. Resultado: cuatro `PASS`. Ya está en el paso opcional del E2E instalado, junto al de Ctrl+F: correrá en CI en cuanto exista el runner interactivo del hito 2.
+- [x] Los mismos casos en el E2E instalado (`scripts/e2e-installed-ui.mjs`, `npm run test:e2e:installed:ui`): sobre la 0.3.0 instalada comprueba la cabecera única (1 `<header>` con pestañas y los 3 controles de ventana dentro), abre el menú, cambia el tema y lo ve guardado en `localStorage` y aplicado tras recargar el renderer, y hace la búsqueda del inicio escribiendo y pulsando Enter, sin botón intermedio. Resultado: cuatro `PASS`. Ya está en el paso opcional del E2E instalado, junto al de Ctrl+F, y corre en CI con `workflow_dispatch` (`run_installed_e2e=true`).
 
 Cierre: las pruebas fallan si se reintroduce el botón intermedio de búsqueda, una segunda cabecera o un menú que no guarda el tema. La persistencia se comprueba de dos formas: remontando la app completa en Vitest y recargando el renderer de la app instalada, que arranca con el tema guardado seleccionado en el menú.
 
