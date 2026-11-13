@@ -190,6 +190,35 @@ TERMINUS_INSTALLED_EXE="C:\ruta\Terminus.exe" npm run test:e2e:installed
 
 `npm run test:e2e:installed:ui` comparte requisitos y aislamiento, y añade las comprobaciones de interfaz: cabecera única, cambio de tema persistido tras recargar y búsqueda del inicio en un paso. Ambos guiones comparten `scripts/lib/installed-app.mjs`: arranque del ejecutable con perfil temporal, cliente CDP, esperas y limpieza. El script crea su propio servidor de fixture, perfil temporal y puerto CDP, y limpia todo al terminar. No requiere que la app esté abierta; de hecho, conviene cerrar instancias previas. Debe ejecutarse en la misma sesión interactiva y sobre el build recién instalado: el script comprueba que `app.asar` contiene el marcador del atajo global y falla si la instalación está desactualizada.
 
+## Anclas del E2E de Ctrl+F
+
+`scripts/e2e-installed-ctrl-f.mjs` no busca texto en español ni `aria-label` traducidos: se ancla en atributos del DOM y en el orden del JSX. Esta es la lista de lo que asume, para que quien toque `WebBrowserSurface.tsx` (o la barra de direcciones) sepa qué puede romper.
+
+### Anclas por atributo
+
+| Ancla | Selector o regla | Qué asume | Si cambia… |
+| --- | --- | --- | --- |
+| Barra de direcciones | `input[aria-controls="terminus-address-suggestions"]` | Que el id de la lista de sugerencias no cambia y que ese `input` es único. | Renombrar el id rompe el guion en el primer paso. |
+| Conmutador del buscador | `button[aria-keyshortcuts="Control+F"]` | Que sigue siendo un `<button>` con esa cadena exacta y que `aria-expanded` refleja el estado abierto (`"true"` tras abrir). | Cambiar el atajo mostrado o el elemento rompe la apertura y la comprobación de expansión. |
+| Conmutadores de vista | `button[aria-pressed]` fuera de `[role="dialog"]` | Que son exactamente **3** y que no hay otros botones con `aria-pressed` fuera de diálogos. | Un chip, filtro o favorito con `aria-pressed` hace fallar la comprobación de recuento, aunque la vista funcione. |
+| Buscador | `[role="dialog"]` que contiene `[aria-live="polite"]` | Que es el **único** diálogo con una región `aria-live`; gana la primera coincidencia del DOM. | Si el menú de configuración u otro modal añade un `aria-live`, el guion puede localizar el diálogo equivocado. |
+| Campo de consulta | primer `input` dentro de ese diálogo | Que el buscador sigue siendo un `<input>` controlado por React. | El guion escribe con el setter nativo de `HTMLInputElement` y un evento `input`; un `<textarea>`, un campo con máscara o un `input` extra antes en el JSX rompen la escritura. |
+| Estado de la búsqueda | texto de `[aria-live="polite"]` del diálogo | Que el texto puede estar traducido: nunca se compara con un literal. | Solo hay que mantener que el estado cambie al cambiar la consulta y se estabilice. |
+| Iframe proxificado | primer `iframe` del documento y el parámetro `mode` de su `src` | Que el `src` proxificado lleva `?mode=real\|dark\|text` y que no hay otro `iframe` antes en el DOM. | Sin el parámetro `mode` fallan las esperas de `OSCURO` y `TEXTO`. |
+
+### Supuestos posicionales
+
+Son los más frágiles, porque no los protege ningún atributo:
+
+1. **Orden de los conmutadores de vista.** `MODE_INDEX = { real: 0, dark: 1, text: 2 }` se aplica al array de `button[aria-pressed]` fuera de diálogos. Reordenar `PAGE_MODES` o añadir o quitar una vista obliga a actualizar el mapa y el recuento esperado de 3.
+2. **Orden de los botones del buscador.** `clickFindControl(index)` pulsa por posición dentro del diálogo: **0 = anterior, 1 = siguiente, 2 = cerrar**. Mover el botón de cerrar o añadir uno nuevo (por ejemplo, opciones del buscador) rompe el cierre y el avance de coincidencias.
+3. **Un solo `input` en el diálogo.** El campo se toma como el primer `input`; cualquier `input` adicional anterior en el JSX desvía la escritura.
+4. **Un solo diálogo con `aria-live`.** El buscador se localiza por `[role="dialog"]` más `[aria-live="polite"]`, sin más señas.
+5. **El conmutador refleja la vista activa.** Tras el clic, el guion exige `aria-pressed="true"` en el botón pulsado y el `mode` esperado en el `src` del iframe.
+6. **Texto del fixture.** Las vistas se validan con `Fixture cross-origin` en el HTML proxificado y con las consultas `Fixture` y `buscador`, que viven en el fixture del propio guion, no en la app.
+7. **`Ctrl+F` funciona con el foco dentro del iframe cross-origin.** El paso nativo se envía a propósito con el foco en el iframe REAL. Si el atajo dejara de responder en ese escenario (por ejemplo, al mover el listener de teclado o al aislar el iframe), la prueba falla antes de buscar nada.
+8. **Loopback accesible desde el proxy.** El fixture escucha en `127.0.0.1` y la app arranca con `TERMINUS_BLOCK_PRIVATE=0` y `TERMINUS_NETWORK_POLICY=local`; no depende de la configuración del usuario, pero sí de que el proxy alcance loopback.
+
 ## Diagnóstico
 
 | Síntoma | Causa probable | Acción |
