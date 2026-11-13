@@ -57,11 +57,19 @@ Pendiente:
 - [ ] Primera ejecución por `workflow_dispatch` con `run_installed_e2e=true`; la guía desaconseja dejar `TERMINUS_RUN_INSTALLED_E2E` activo para no correrlo en cada push.
 - [ ] Comprobar que el run publica el artefacto `e2e-installed-logs` con el log del job.
 
+Estado del guion de Ctrl+F (13 de noviembre de 2026):
+
+- [x] Anclas `data-e2e` en `WebBrowserSurface.tsx`: `find-bar`, `find-input`, `find-status`, `find-prev`, `find-next`, `find-close` y `view-mode-real|dark|text`. El guion resuelve buscador, campo, estado, botones y conmutadores por esos atributos, en vez de por orden del JSX o `aria-pressed`.
+- [x] Respaldo para la versión instalada anterior: un build sin `data-e2e` (la `0.3.0` del 12 de noviembre) sigue pasando por el camino estructural (único `[role="dialog"]` con `aria-live`, primer `input`, botones por posición y `aria-pressed` fuera de diálogos). Verificado con tres `PASS` contra ese ejecutable.
+- [x] Prueba que protege las anclas: dos casos en `WebBrowserSurface.test.tsx` ("anclas data-e2e del E2E instalado") fallan si desaparecen los atributos del buscador o de los conmutadores de vista. `npm test` queda en 40 archivos y 177 pruebas.
+- [x] Paso nativo con verificación de primer plano: la activación se reintenta hasta cinco veces y se confirma con `GetForegroundWindow` contra `MainWindowHandle` antes de enviar la tecla; si la ventana no llega al frente el error es propio, y si llega pero la tecla no abre el buscador hay un segundo mensaje distinto, sin agotar la espera del buscador.
+- [x] Resultado real de la última tanda, con el build de hoy instalado (instalador `0.3.0` generado e instalado; `app.asar` contiene `find-bar`, `find-next` y `view-mode-`): `npm run test:e2e:installed` cerró con los tres `PASS` y `EXIT=0`, ya por la ruta `data-e2e`. Hizo falta reintentar: cinco intentos seguidos fallaron con «No se pudo poner Terminus en primer plano: la ventana activa es otra» y el siguiente pasó. El respaldo estructural se comprobó aparte con las mismas tres comprobaciones contra la `0.3.0` anterior.
+
 Cierre: el log del job contiene los tres `PASS` (Ctrl+F en REAL instalado, búsqueda en OSCURO y en TEXTO) y el artefacto `e2e-installed-logs` está disponible. Requisitos y diagnóstico en `docs/e2e-installed-windows.md`.
 
 ### 3. Cobertura automatizada de la interfaz nueva — regresiones cubiertas en CI
 
-Las tres regresiones del cierre y la persistencia del tema tienen prueba en `npm test` (40 archivos, 175 pruebas), que el CI ejecuta siempre, y además en la app empaquetada: `npm run test:e2e:installed:ui` cerró con cuatro `PASS` sobre la 0.3.0 instalada (12 de noviembre de 2026).
+Las tres regresiones del cierre y la persistencia del tema tienen prueba en `npm test` (40 archivos, 177 pruebas), que el CI ejecuta siempre, y además en la app empaquetada: `npm run test:e2e:installed:ui` cerró con cuatro `PASS` sobre la 0.3.0 instalada (12 de noviembre de 2026).
 
 Pendiente:
 
