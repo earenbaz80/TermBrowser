@@ -472,4 +472,17 @@ describe('anclas data-e2e del E2E instalado', () => {
     expect(input).not.toBeNull();
     expect(input).toBe(within(form).getByRole('searchbox'));
   });
+
+  // El E2E de UI cuenta los botones del formulario para descartar el botón intermedio
+  // sin leer ningún texto traducido; este test avisa si aparece uno de más.
+  it('mantiene un único botón de envío en el formulario del inicio', () => {
+    renderSurface(blankTab);
+
+    const form = screen.getByRole('search', { name: 'Buscar en Terminus Search' });
+    const buttons = [...form.querySelectorAll('button')];
+
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0].getAttribute('type')).toBe('submit');
+    expect(buttons[0]).toBe(within(form).getByRole('button', { name: 'Buscar en Terminus Search' }));
+  });
 });
