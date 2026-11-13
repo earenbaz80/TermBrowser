@@ -1016,7 +1016,6 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center font-mono">
             <div className="ascii-boot" style={glowStyle}>
-              {/* The full ANSI Shadow sign is the sign in every window size: CSS scales it down. */}
               <pre
                 className="ascii-sign ascii-sign-start select-none font-mono"
                 aria-hidden="true"
