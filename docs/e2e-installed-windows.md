@@ -67,7 +67,7 @@ En **Settings → Secrets and variables → Actions → Variables** crea:
 | Variable | Valor | Uso |
 | --- | --- | --- |
 | `TERMINUS_CI_RUNNER` | `terminus-e2e` | Etiqueta del runner interactivo. |
-| `TERMINUS_RUN_INSTALLED_E2E` | `true` | Opcional: ejecutar el E2E también en cada push/PR. |
+| `TERMINUS_RUN_INSTALLED_E2E` | `true` | Opcional: ejecutar el E2E en cada push y en PRs del mismo repositorio. |
 
 Recomendación: deja `TERMINUS_RUN_INSTALLED_E2E` sin definir y lanza el E2E solo con `workflow_dispatch`. Así el runner interactivo no ejecuta la prueba en cada cambio.
 
@@ -77,7 +77,7 @@ Recomendación: deja `TERMINUS_RUN_INSTALLED_E2E` sin definir y lanza el E2E sol
 runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'windows-latest' || vars.TERMINUS_CI_RUNNER || 'windows-latest' }}
 ```
 
-Si la variable no existe, el job usa `windows-latest`, donde el escritorio interactivo no está garantizado pero puede existir: al lanzarlo con `workflow_dispatch`, el preflight decide y la corrida 43384471680 ejecutó los tres guiones en verde en ese runner (Ctrl+F, UI y UI en alemán). Para ejecuciones repetidas sigue siendo preferible el runner autoalojado con `TERMINUS_CI_RUNNER`. Los pasos de instalación y del E2E se omiten en PRs desde forks, incluso si `TERMINUS_RUN_INSTALLED_E2E` está activo.
+Sin la variable el job usa `windows-latest`: allí el escritorio no está garantizado, pero el preflight decide y la corrida 43384471680 ejecutó los tres guiones en verde (Ctrl+F, UI y UI en alemán). Para ejecuciones repetidas conviene un runner propio con `TERMINUS_CI_RUNNER`. En PRs desde forks se omiten la instalación y el E2E, aunque `TERMINUS_RUN_INSTALLED_E2E` esté activo.
 
 > **Seguridad:** al definir `TERMINUS_CI_RUNNER`, los jobs de `push`, `workflow_dispatch` y PRs del mismo repositorio se ejecutan en ese runner, no solo el E2E. El workflow fuerza `windows-latest` para PRs desde forks, pero un runner autoalojado sigue siendo una superficie de riesgo. No lo configures para un repositorio público que acepte PRs de desconocidos; usa un runner dedicado y, preferiblemente, una VM desechable o una instantánea restaurable.
 
@@ -127,7 +127,7 @@ El job `windows` ejecuta, en orden:
 El E2E solo se ejecuta si se cumple una de estas condiciones:
 
 - `workflow_dispatch` con `run_installed_e2e = true`;
-- variable `TERMINUS_RUN_INSTALLED_E2E = true`.
+- variable `TERMINUS_RUN_INSTALLED_E2E = true`, salvo en PRs desde forks.
 
 En cualquier otro caso se omite, pero el build y el instalador sí se generan.
 
