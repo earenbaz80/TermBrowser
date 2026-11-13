@@ -262,14 +262,18 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force artifacts/e2e | Out-Null
-          # Los dos guiones corren siempre; el paso falla con el primer código distinto de cero.
+          # Los guiones corren siempre; el de UI dos veces (sin locale y en alemán) para
+          # ejercer la ruta multiidioma. El paso falla con el primer código distinto de cero.
           $e2eExitCode = 0
           foreach ($suite in @(
-            @{ script = 'test:e2e:installed'; log = 'e2e-installed.log' },
-            @{ script = 'test:e2e:installed:ui'; log = 'e2e-installed-ui.log' }
+            @{ script = 'test:e2e:installed'; log = 'e2e-installed.log'; locale = '' },
+            @{ script = 'test:e2e:installed:ui'; log = 'e2e-installed-ui.log'; locale = '' },
+            @{ script = 'test:e2e:installed:ui'; log = 'e2e-installed-ui-de.log'; locale = 'de' }
           )) {
+            $env:TERMINUS_E2E_LOCALE = $suite.locale
             npm run $suite.script 2>&1 | Tee-Object -FilePath "artifacts/e2e/$($suite.log)"
             if ($LASTEXITCODE -ne 0) { $e2eExitCode = $LASTEXITCODE }
+            Remove-Item Env:\TERMINUS_E2E_LOCALE -ErrorAction SilentlyContinue
           }
           $e2eResult = if ($e2eExitCode -eq 0) { 'PASS' } else { 'FAIL' }
           "result=$e2eResult" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
@@ -285,6 +289,7 @@ jobs:
           path: |
             artifacts/e2e/e2e-installed.log
             artifacts/e2e/e2e-installed-ui.log
+            artifacts/e2e/e2e-installed-ui-de.log
           # El E2E instalado es opcional: sin log no hay nada que subir y no debe avisar.
           if-no-files-found: ignore
 
