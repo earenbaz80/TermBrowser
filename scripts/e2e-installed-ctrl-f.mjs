@@ -39,21 +39,21 @@ const EXTERNAL_URL = 'https://example.com/';
 // --- Anclas del DOM (ninguna depende del idioma activo) ---
 // Conmutador del buscador: atributo fijo de teclado, no la etiqueta traducida.
 const FIND_TOGGLE = 'button[aria-keyshortcuts="Control+F"]';
-// Conmutadores de vista: la app actual expone `data-e2e="view-mode-<id>"`. El respaldo
-// para la 0.3.0 instalada son los únicos `aria-pressed` fuera de un diálogo, en el orden
-// en que PAGE_MODES los pinta: REAL, OSCURO y TEXTO.
-const MODE_INDEX = { real: 0, dark: 1, text: 2 };
-// El buscador y sus controles se localizan por `data-e2e`; la 0.3.0 instalada todavía
-// no los lleva, así que se mantiene el respaldo estructural (único diálogo con
-// `aria-live`, y botones en orden anterior, siguiente y cerrar).
+// Buscador: `data-e2e` es la ancla; lo que va tras la coma o el `??` es el respaldo
+// para la 0.3.0 instalada, que todavía no lleva los atributos.
 const FIND_DIALOG_EXPRESSION = `document.querySelector('[data-e2e="find-bar"]')
     ?? [...document.querySelectorAll('[role="dialog"]')]
       .find((item) => item.querySelector('[aria-live="polite"]'))`;
+const FIND_INPUT_SELECTOR = '[data-e2e="find-input"], input';
+const FIND_STATUS_SELECTOR = '[data-e2e="find-status"], [aria-live="polite"]';
+// Conmutadores de vista: `data-e2e="view-mode-<id>"`; el respaldo son los únicos
+// `aria-pressed` fuera de un diálogo, en el orden en que PAGE_MODES los pinta.
+const MODE_INDEX = { real: 0, dark: 1, text: 2 };
 // La consulta, el estado y el modo del iframe salen de una sola lectura.
 const FIND_BAR_EXPRESSION = `(() => {
   const dialog = ${FIND_DIALOG_EXPRESSION};
-  const input = dialog?.querySelector('[data-e2e="find-input"], input') ?? null;
-  const status = dialog?.querySelector('[data-e2e="find-status"], [aria-live="polite"]');
+  const input = dialog?.querySelector('${FIND_INPUT_SELECTOR}') ?? null;
+  const status = dialog?.querySelector('${FIND_STATUS_SELECTOR}');
   const frame = document.querySelector('iframe');
   let frameMode = null;
   try { frameMode = frame ? new URL(frame.src).searchParams.get('mode') : null; } catch {}
@@ -149,7 +149,7 @@ async function selectViewMode(client, mode) {
     const exact = document.querySelector('[data-e2e="view-mode-${mode}"]');
     if (exact) {
       exact.click();
-      return { clicked: true, exact: true, count: null };
+      return { clicked: true, exact: true };
     }
     const buttons = [...document.querySelectorAll('button[aria-pressed]')]
       .filter((button) => !button.closest('[role="dialog"]'));
@@ -170,14 +170,9 @@ async function selectViewMode(client, mode) {
       const frame = document.querySelector('iframe');
       let frameMode = null;
       try { frameMode = frame ? new URL(frame.src).searchParams.get('mode') : null; } catch {}
-      const exact = document.querySelector('[data-e2e="view-mode-${mode}"]');
-      const pressed = exact
-        ? null
-        : ([...document.querySelectorAll('button[aria-pressed]')]
-            .filter((button) => !button.closest('[role="dialog"]'))[${MODE_INDEX[mode]}]?.getAttribute('aria-pressed') ?? null);
-      return { iframe: frame?.src ?? null, frameMode, pressed };
+      return { iframe: frame?.src ?? null, frameMode };
     })()`,
-    (value) => value.frameMode === mode && (value.pressed === null || value.pressed === 'true'),
+    (value) => value.frameMode === mode,
     `la vista ${mode}`,
     15000,
   );
@@ -271,7 +266,7 @@ async function openFindBar(client) {
 async function setFindQuery(client, text) {
   const changed = await client.evaluate(`(() => {
     const dialog = ${FIND_DIALOG_EXPRESSION};
-    const input = dialog?.querySelector('[data-e2e="find-input"], input');
+    const input = dialog?.querySelector('${FIND_INPUT_SELECTOR}');
     if (!input) return false;
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
     setter.call(input, ${JSON.stringify(text)});
@@ -514,11 +509,14 @@ async function main() {
     20000,
   );
 
+  // La vista REAL usa un iframe directo (sin `?mode`), así que no pasa por searchInView:
+  // aquí solo se comprueba que el conmutador existe y deja la página cross-origin.
   const realClicked = await cdp.evaluate(`(() => {
-    const buttons = [...document.querySelectorAll('button[aria-pressed]')]
-      .filter((button) => !button.closest('[role="dialog"]'));
-    if (!buttons[${MODE_INDEX.real}]) return false;
-    buttons[${MODE_INDEX.real}].click();
+    const button = document.querySelector('[data-e2e="view-mode-real"]')
+      ?? [...document.querySelectorAll('button[aria-pressed]')]
+        .filter((item) => !item.closest('[role="dialog"]'))[${MODE_INDEX.real}];
+    if (!button) return false;
+    button.click();
     return true;
   })()`);
   assert.equal(realClicked, true, 'No se encontró el conmutador de la vista REAL.');
@@ -528,16 +526,13 @@ async function main() {
     `(() => {
       const frame = document.querySelector('iframe');
       const rect = frame?.getBoundingClientRect();
-      const modes = [...document.querySelectorAll('button[aria-pressed]')]
-        .filter((button) => !button.closest('[role="dialog"]'));
       return {
         appUrl: location.href,
         iframe: frame?.src ?? null,
-        realPressed: modes[${MODE_INDEX.real}]?.getAttribute('aria-pressed') ?? null,
         rect: rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null,
       };
     })()`,
-    (state) => state.iframe === EXTERNAL_URL && state.realPressed === 'true' && Boolean(state.rect),
+    (state) => state.iframe === EXTERNAL_URL && Boolean(state.rect),
     'el iframe REAL directo',
     15000,
   );

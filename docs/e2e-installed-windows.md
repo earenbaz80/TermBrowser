@@ -215,7 +215,7 @@ Solo aplican al **respaldo**, es decir, a un build instalado anterior a los `dat
 2. **Orden de los botones del buscador.** El respaldo pulsa por posición dentro del diálogo: **0 = anterior, 1 = siguiente, 2 = cerrar**.
 3. **Un solo `input` en el diálogo.** El respaldo toma el primer `input`; cualquier `input` adicional anterior en el JSX desvía la escritura.
 4. **Un solo diálogo con `aria-live`.** El respaldo localiza el buscador por `[role="dialog"]` más `[aria-live="polite"]`.
-5. **El conmutador refleja la vista activa.** Tras el clic, el guion exige `aria-pressed="true"` en el botón pulsado y el `mode` esperado en el `src` del iframe.
+5. **El conmutador cambia la vista.** Tras el clic, el guion exige el `mode` esperado en el `src` del iframe y el texto proxificado; el estado `aria-pressed` lo cubre `npm test`, no este guion.
 6. **Texto del fixture.** Las vistas se validan con `Fixture cross-origin` en el HTML proxificado y con las consultas `Fixture` y `buscador`, que viven en el fixture del propio guion, no en la app.
 7. **`Ctrl+F` funciona con el foco dentro del iframe cross-origin.** El paso nativo se envía a propósito con el foco en el iframe REAL. Si el atajo dejara de responder en ese escenario (por ejemplo, al mover el listener de teclado o al aislar el iframe), la prueba falla antes de buscar nada.
 8. **Loopback accesible desde el proxy.** El fixture escucha en `127.0.0.1` y la app arranca con `TERMINUS_BLOCK_PRIVATE=0` y `TERMINUS_NETWORK_POLICY=local`; no depende de la configuración del usuario, pero sí de que el proxy alcance loopback.
