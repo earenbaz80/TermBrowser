@@ -4,7 +4,7 @@ Este documento es la fuente de verdad de lo que falta. El repositorio no usa iss
 
 - Última release publicada: `0.3.0` (tag `v0.3.0`, 12 de noviembre de 2026), con instalador, `.blockmap`, ZIP y `SHA256SUMS.txt`.
 - Estado del proyecto: rediseño de interfaz e internacionalización (PR #11) mergeados en `main`, notas de release y README alineados con los artefactos publicados, y el E2E instalado del hito 0.3.0 pasado.
-- Verificación actual: `npm run lint` correcto (tsc y eslint), `npm test` con 40 archivos y 175 pruebas, cliente y servidor compilados, instalador `0.3.0` generado y `NotSigned`.
+- Verificación actual: `npm run lint` correcto (tsc y eslint), `npm test` con 40 archivos y 177 pruebas, cliente y servidor compilados, instalador `0.3.0` generado y `NotSigned`.
 - No hay fechas comprometidas. Los hitos se ordenan por prioridad, no por calendario.
 
 ## Decisiones cerradas

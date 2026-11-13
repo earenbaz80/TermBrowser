@@ -427,3 +427,37 @@ describe('búsqueda desde la pantalla de inicio', () => {
     expect(onCommand).toHaveBeenCalledWith(`search ${query}`);
   });
 });
+
+// Las anclas las usa `scripts/e2e-installed-ctrl-f.mjs`: si desaparecen, el E2E sigue
+// pasando por el camino posicional y nadie se entera hasta que cambia el orden del JSX.
+describe('anclas data-e2e del E2E instalado', () => {
+  it('conserva los conmutadores de vista con su atributo y en orden', () => {
+    renderSurface(pageTab);
+
+    const modes = [...document.querySelectorAll('[data-e2e^="view-mode-"]')];
+    expect(modes.map((node) => node.getAttribute('data-e2e'))).toEqual([
+      'view-mode-real',
+      'view-mode-dark',
+      'view-mode-text',
+    ]);
+  });
+
+  it('conserva el diálogo del buscador y sus controles', () => {
+    renderSurface(pageTab);
+
+    const toggle = document.querySelector('button[aria-keyshortcuts="Control+F"]');
+    expect(toggle).not.toBeNull();
+    fireEvent.click(toggle!);
+
+    const bar = document.querySelector('[data-e2e="find-bar"]');
+    expect(bar).not.toBeNull();
+    expect(bar!.getAttribute('role')).toBe('dialog');
+
+    for (const anchor of ['find-input', 'find-status', 'find-prev', 'find-next', 'find-close']) {
+      expect(bar!.querySelector(`[data-e2e="${anchor}"]`)).not.toBeNull();
+    }
+
+    // El respaldo posicional del E2E cuenta con tres botones: anterior, siguiente y cerrar.
+    expect(bar!.querySelectorAll('button')).toHaveLength(3);
+  });
+});
