@@ -176,9 +176,7 @@
   text-shadow: 0 0 6px currentColor;
 }
 
-/* The boot sign is 99 monospace columns wide. Scale it down on narrow screens
-   instead of creating a horizontal scrollbar; 70 accounts for the measured glyph
-   advance plus a safety margin for container padding and scrollbars. */
+/* The boot sign scales with its container instead of forcing a horizontal scrollbar. */
 .ascii-boot {
   display: flex;
   flex-direction: column;
@@ -194,7 +192,6 @@
 
 .ascii-sign {
   position: relative;
-  font-size: min(10px, calc((100vw - 2rem) / 70));
   line-height: 1.05;
   max-width: 100%;
   overflow: hidden;
@@ -354,19 +351,21 @@
   74%, 76%, 78% { opacity: 0.45; }
 }
 
+/* The console keeps its historical scale; it only differs from the cap between
+   720 px and about 732 px wide, where the sign is still visible. */
 .ascii-sign-wide {
   display: block;
+  font-size: min(10px, calc((100vw - 2rem) / 70));
 }
 
 .ascii-sign-compact {
   display: none;
 }
 
-/* The web start page keeps the full 79-column sign in every window size: it
-   scales with the viewport instead of swapping to the compact lettering. The
-   divisor leaves room for the glyph advance (about 0.6em) plus the padding. */
+/* The start page keeps the full sign at every width instead of swapping to the
+   compact lettering. 79 columns at about 0.62em, plus 2rem of padding per side,
+   give the divisor; the 10px cap is the size used on desktop. */
 .ascii-sign-start {
-  display: block;
   font-size: min(10px, calc((100vw - 4rem) / 52));
 }
 
@@ -422,7 +421,7 @@
 }
 
 
-/* Below tablet width, the 99-column wordmark is replaced by a readable compact sign. */
+/* Below tablet width, the console replaces the full wordmark with a readable compact sign. */
 @media (max-width: 719px) {
   .ascii-sign-wide {
     display: none;
