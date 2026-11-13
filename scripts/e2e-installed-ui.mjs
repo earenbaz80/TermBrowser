@@ -18,6 +18,9 @@
  *
  * Si el ejecutable está en otra ruta:
  *   TERMINUS_INSTALLED_EXE="C:\ruta\Terminus.exe" npm run test:e2e:installed:ui
+ *
+ * Para comprobar que la prueba no depende del idioma, con la interfaz en inglés:
+ *   TERMINUS_E2E_LOCALE=en npm run test:e2e:installed:ui
  */
 
 import assert from 'node:assert/strict';
@@ -35,6 +38,10 @@ const UI_MARKER = 'terminus-theme-select';
 // (atributos del DOM, no el aria-label del idioma activo), así la prueba sirve en cualquier idioma.
 const ADDRESS_SELECTOR = 'input[aria-controls="terminus-address-suggestions"]';
 const SEARCH_QUERY = 'terminus e2e ui';
+const LOCALE_KEY = 'terminus_locale_v1';
+const EN_ADDRESS_LABEL = 'Address and search bar';
+// Opcional: cambia el idioma de la app desde el menú antes de comprobarla.
+const e2eLocale = (process.env.TERMINUS_E2E_LOCALE ?? '').trim();
 const START_FORM = 'form[role="search"]';
 const THEMES = {
   msdos: { id: 'ms-dos', bg: '#000080', rgb: 'rgb(0, 0, 128)' },
@@ -285,6 +292,7 @@ const MENU_STATE_EXPRESSION = `(() => {
     open: Boolean(dialog),
     theme: select?.value ?? null,
     options: select ? select.options.length : 0,
+    locale: document.getElementById('terminus-locale-select')?.value ?? null,
   };
 })()`;
 
@@ -317,6 +325,50 @@ async function closeSettingsMenu(client) {
     'el cierre del menú de configuración',
     5000,
   );
+}
+
+/** Cambia el idioma desde el menú real y espera a que la interfaz lo aplique. */
+async function applyE2ELocale(client) {
+  await waitForExpression(
+    client,
+    "Boolean(document.querySelector('button[aria-haspopup=\"dialog\"]'))",
+    Boolean,
+    'la cabecera antes de cambiar el idioma',
+    20000,
+  );
+
+  const current = await openSettingsMenu(client);
+  assert.ok(current.locale, 'El menú de configuración no expone el selector de idioma.');
+
+  if (current.locale !== e2eLocale) {
+    const changed = await client.evaluate(`(() => {
+      const select = document.getElementById('terminus-locale-select');
+      if (!select) return false;
+      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+      setter.call(select, ${JSON.stringify(e2eLocale)});
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()`);
+    assert.equal(changed, true, 'No se pudo cambiar el idioma desde el menú.');
+  }
+
+  await waitForExpression(
+    client,
+    `(() => ({
+      locale: document.getElementById('terminus-locale-select')?.value ?? null,
+      stored: localStorage.getItem(${JSON.stringify(LOCALE_KEY)}),
+      address: document.querySelector(${JSON.stringify(ADDRESS_SELECTOR)})?.getAttribute('aria-label') ?? null,
+    }))()`,
+    (state) =>
+      state.locale === e2eLocale &&
+      state.stored === e2eLocale &&
+      state.address === EN_ADDRESS_LABEL,
+    `la interfaz en ${e2eLocale}`,
+    10000,
+  );
+
+  await closeSettingsMenu(client);
+  console.log(`${LOG} Idioma de la app: ${e2eLocale} (barra: «${EN_ADDRESS_LABEL}»).`);
 }
 
 async function main() {
@@ -361,6 +413,8 @@ async function main() {
   const target = await waitForCdpPage(cdpPort);
   cdp = await connectCdp(target.webSocketDebuggerUrl);
   await cdp.send('Runtime.enable');
+
+  if (e2eLocale) await applyE2ELocale(cdp);
 
   // 1. Cabecera única: un solo <header>, con las pestañas y los controles de ventana dentro.
   const header = await waitForExpression(

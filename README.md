@@ -77,6 +77,8 @@ Estado esperado: typecheck limpio, pruebas de unidad en verde y ambos builds cor
 
 `test:e2e:installed:ui` usa el mismo arranque aislado (perfil temporal y CDP) contra la app empaquetada y cubre la interfaz: un solo `<header>` con las pestañas y los controles de ventana dentro, el menú de configuración abierto y un cambio de tema que queda en `localStorage` y se aplica tras recargar el renderer, y la búsqueda del inicio en un paso (escribir y Enter, sin botón intermedio). Falla si el build instalado no es el actual.
 
+Con `TERMINUS_E2E_LOCALE=en npm run test:e2e:installed:ui` la prueba cambia el idioma desde el menú antes de comprobar nada, así se verifica que no depende de las etiquetas en español.
+
 Para preparar un runner de GitHub Actions con escritorio interactivo, configurar las etiquetas y lanzar el E2E manualmente, consulta [docs/e2e-installed-windows.md](docs/e2e-installed-windows.md).
 
 ### Verificar el instalador de un run de CI
