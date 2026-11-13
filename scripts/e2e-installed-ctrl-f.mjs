@@ -3,9 +3,9 @@
  * E2E Windows: Ctrl+F en la app Electron instalada, con el foco dentro de un
  * iframe REAL cross-origin, y búsqueda real en las vistas OSCURO y TEXTO.
  *
- * La prueba no usa `electron .` ni `example.com`: arranca el ejecutable
- * instalado con un perfil temporal, sirve un fixture HTTP local en otro puerto
- * (por tanto, otro origen) y envía Ctrl+F mediante SendKeys de Windows.
+ * La prueba no usa `electron .`: arranca el ejecutable instalado con un perfil
+ * temporal, carga `https://example.com/` para el iframe REAL, sirve un fixture
+ * HTTP local en otro puerto (por tanto, otro origen) y envía Ctrl+F con SendKeys.
  * Después cambia a OSCURO y TEXTO y comprueba que el buscador encuentra texto
  * dentro de cada iframe proxied.
  *
@@ -89,7 +89,7 @@ function startFixtureServer() {
     <main>
       <h1>Fixture cross-origin</h1>
       <p>Esta página se sirve en un puerto distinto al de Terminus para que el iframe REAL sea cross-origin.</p>
-      <p data-e2e="fixture">La prueba debe abrir el buscador desde aquí con Ctrl+F.</p>
+      <p>La prueba debe abrir el buscador desde aquí con Ctrl+F.</p>
     </main>
   </body>
 </html>`;
@@ -116,35 +116,8 @@ function startFixtureServer() {
   });
 }
 
-/** Confirms that the server is already serving the selected proxied view. */
-async function waitForProxiedPage(client, mode, expectedText, timeoutMs = 15000) {
-  return waitForExpression(
-    client,
-    `(async () => {
-      const frame = document.querySelector('iframe');
-      if (!frame) return { error: 'sin iframe' };
-      let frameMode = null;
-      try { frameMode = new URL(frame.src).searchParams.get('mode'); } catch {}
-      if (frameMode !== ${JSON.stringify(mode)}) return { error: 'iframe en modo ' + frameMode };
-      try {
-        const response = await fetch(frame.src, { cache: 'no-store' });
-        const html = await response.text();
-        return {
-          status: response.status,
-          hasText: html.includes(${JSON.stringify(expectedText)}),
-          sample: html.slice(0, 240),
-        };
-      } catch (error) {
-        return { error: String(error) };
-      }
-    })()`,
-    (state) => Boolean(state && state.hasText),
-    `el HTML proxied de la vista ${mode}`,
-    timeoutMs,
-  );
-}
-
-async function selectViewMode(client, mode) {
+/** Pulsa el conmutador de la vista y espera a que el proxy sirva el fixture en ese modo. */
+async function selectProxiedView(client, mode, expectedText) {
   const clicked = await client.evaluate(`(() => {
     const exact = document.querySelector('[data-e2e="view-mode-${mode}"]');
     if (exact) {
@@ -164,20 +137,27 @@ async function selectViewMode(client, mode) {
     assert.equal(clicked.count, 3, `Se esperaban 3 conmutadores de vista y hay ${clicked.count}.`);
   }
 
+  // Una sola espera: el iframe cambia de modo y el proxy sirve el fixture con su texto.
   const state = await waitForExpression(
     client,
-    `(() => {
+    `(async () => {
       const frame = document.querySelector('iframe');
       let frameMode = null;
       try { frameMode = frame ? new URL(frame.src).searchParams.get('mode') : null; } catch {}
-      return { iframe: frame?.src ?? null, frameMode };
+      if (!frame || frameMode !== ${JSON.stringify(mode)}) return { frameMode };
+      try {
+        const response = await fetch(frame.src, { cache: 'no-store' });
+        const html = await response.text();
+        return { iframe: frame.src, hasText: html.includes(${JSON.stringify(expectedText)}) };
+      } catch (error) {
+        return { iframe: frame.src, hasText: false, error: String(error) };
+      }
     })()`,
-    (value) => value.frameMode === mode,
-    `la vista ${mode}`,
+    (value) => Boolean(value && value.hasText),
+    `la vista ${mode} con el fixture servido`,
     15000,
   );
 
-  assert.ok(state.iframe, `La vista ${mode} no creó un iframe.`);
   return state;
 }
 
@@ -313,10 +293,9 @@ async function waitForSettledStatus(client, query, mode, previousStatus) {
   );
 }
 
-/** Selects a proxied view, waits for its content and verifies a real window.find() match. */
+/** Selecciona la vista, comprueba que el proxy sirve el fixture y busca texto real en ella. */
 async function searchInView(client, mode, query) {
-  await selectViewMode(client, mode);
-  await waitForProxiedPage(client, mode, 'Fixture cross-origin');
+  await selectProxiedView(client, mode, 'Fixture cross-origin');
 
   await closeFindBar(client);
   const bar = await openFindBar(client);
@@ -384,17 +363,15 @@ function sendNativeCtrlF(pid) {
  * problema es el envío nativo, no la espera del buscador: se dice con su propio mensaje.
  */
 async function assertShortcutArrived(client) {
-  const opened = await waitForExpression(
-    client,
-    `${FIND_BAR_EXPRESSION}.open`,
-    Boolean,
-    'que Ctrl+F abriera el buscador',
-    3000,
-  )
-    .then(() => true)
-    .catch(() => false);
-
-  if (!opened) {
+  try {
+    await waitForExpression(
+      client,
+      `${FIND_BAR_EXPRESSION}.open`,
+      Boolean,
+      'que Ctrl+F abriera el buscador',
+      3000,
+    );
+  } catch {
     throw new Error(
       'Ctrl+F se envió con Terminus en primer plano, pero la app no abrió el buscador: la tecla no llegó al contenido web.',
     );
@@ -435,79 +412,20 @@ async function main() {
   });
   const cdp = app.client;
 
-  const address = JSON.stringify(ADDRESS_SELECTOR);
-  await waitForExpression(
-    cdp,
-    `Boolean(document.querySelector(${address}))`,
-    Boolean,
-    'la barra de direcciones',
-    10000,
-  );
-
-  const addressRect = await cdp.evaluate(`(() => {
-    const input = document.querySelector(${address});
-    const rect = input.getBoundingClientRect();
-    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
-  })()`);
-  assert.ok(addressRect.width > 100 && addressRect.height > 0, 'La barra de direcciones no es visible.');
-
-  const addressX = addressRect.x + addressRect.width / 2;
-  const addressY = addressRect.y + addressRect.height / 2;
-  await cdp.send('Input.dispatchMouseEvent', {
-    type: 'mousePressed',
-    x: addressX,
-    y: addressY,
-    button: 'left',
-    clickCount: 1,
-    buttons: 1,
-  });
-  await cdp.send('Input.dispatchMouseEvent', {
-    type: 'mouseReleased',
-    x: addressX,
-    y: addressY,
-    button: 'left',
-    clickCount: 1,
-    buttons: 0,
-  });
-  await cdp.evaluate(`document.querySelector(${address}).select()`);
-  await cdp.send('Input.insertText', { text: EXTERNAL_URL });
-  await waitForExpression(
-    cdp,
-    `document.querySelector(${address})?.value`,
-    (value) => value === EXTERNAL_URL,
-    'la URL pública en la barra de direcciones',
-    5000,
-  );
-  // Deja que React aplique el valor antes de enviar Enter; el DOM puede actualizarse antes.
-  await sleep(200);
-
-  await cdp.send('Input.dispatchKeyEvent', {
-    type: 'keyDown',
-    key: 'Enter',
-    code: 'Enter',
-    text: '\r',
-    unmodifiedText: '\r',
-    windowsVirtualKeyCode: 13,
-    nativeVirtualKeyCode: 13,
-  });
-  await cdp.send('Input.dispatchKeyEvent', {
-    type: 'keyUp',
-    key: 'Enter',
-    code: 'Enter',
-    windowsVirtualKeyCode: 13,
-    nativeVirtualKeyCode: 13,
-  });
-
+  // La barra de direcciones tiene que estar visible antes de escribir en ella.
   await waitForExpression(
     cdp,
     `(() => {
-      const frame = document.querySelector('iframe');
-      return { src: frame?.src ?? null, address: document.querySelector(${address})?.value ?? null };
+      const input = document.querySelector('${ADDRESS_SELECTOR}');
+      const rect = input?.getBoundingClientRect();
+      return rect ? { width: rect.width, height: rect.height } : null;
     })()`,
-    (state) => Boolean(state.src),
-    'el iframe de la página',
-    20000,
+    (rect) => Boolean(rect && rect.width > 100 && rect.height > 0),
+    'la barra de direcciones visible',
+    10000,
   );
+
+  await navigateToPage(cdp, EXTERNAL_URL, 'example.com');
 
   // La vista REAL usa un iframe directo (sin `?mode`), así que no pasa por searchInView:
   // aquí solo se comprueba que el conmutador existe y deja la página cross-origin.
@@ -616,8 +534,9 @@ async function main() {
   console.log(`${LOG} Foco: ${findState.activeElement}`);
   console.log(`${LOG} iframe: ${findState.iframe}`);
 
-  // The local fixture is intentionally private: REAL must keep it on /api/view.
-  // Navigate back to the fixture for the deterministic proxied find tests.
+  // El fixture local es privado a propósito: REAL debe mantenerlo en /api/view.
+  // Se cierra el buscador para no arrastrarlo a la navegación, y se vuelve al fixture
+  // para las búsquedas deterministas en las vistas proxied.
   await closeFindBar(cdp);
   await navigateToPage(cdp, fixture.url, '/api/view');
 
