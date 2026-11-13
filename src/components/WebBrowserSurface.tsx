@@ -1126,6 +1126,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
             style={{ backgroundColor: theme.cardBg, borderColor: theme.accent, color: theme.text }}
             role="dialog"
             aria-label={t('browser.findDialog')}
+            data-e2e="find-bar"
           >
             <Search className="h-3 w-3 shrink-0" style={{ color: theme.accent }} />
             <input
@@ -1142,9 +1143,10 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
               style={{ color: theme.text }}
               placeholder={t('browser.findPlaceholder')}
               aria-label={t('browser.findInput')}
+              data-e2e="find-input"
               spellCheck={false}
             />
-            <span className="max-w-32 truncate opacity-55" aria-live="polite">
+            <span className="max-w-32 truncate opacity-55" aria-live="polite" data-e2e="find-status">
               {findStatus}
             </span>
             <button
@@ -1153,6 +1155,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
               className="shrink-0 cursor-pointer p-0.5 opacity-65 hover:opacity-100"
               title={t('browser.findPrevTitle')}
               aria-label={t('browser.findPrev')}
+              data-e2e="find-prev"
             >
               <ChevronUp className="h-3 w-3" />
             </button>
@@ -1162,6 +1165,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
               className="shrink-0 cursor-pointer p-0.5 opacity-65 hover:opacity-100"
               title={t('browser.findNextTitle')}
               aria-label={t('browser.findNext')}
+              data-e2e="find-next"
             >
               <ChevronDown className="h-3 w-3" />
             </button>
@@ -1175,6 +1179,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
               className="shrink-0 cursor-pointer p-0.5 opacity-65 hover:opacity-100"
               title={t('browser.findCloseTitle')}
               aria-label={t('browser.findClose')}
+              data-e2e="find-close"
             >
               <X className="h-3 w-3" />
             </button>
@@ -1604,6 +1609,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                 }}
                 title={t(option.titleKey)}
                 aria-pressed={mode === option.id}
+                data-e2e={`view-mode-${option.id}`}
               >
                 {t(option.labelKey)}
               </button>

@@ -200,20 +200,21 @@ TERMINUS_INSTALLED_EXE="C:\ruta\Terminus.exe" npm run test:e2e:installed
 | --- | --- | --- | --- |
 | Barra de direcciones | `input[aria-controls="terminus-address-suggestions"]` | Que el id de la lista de sugerencias no cambia y que ese `input` es único. | Renombrar el id rompe el guion en el primer paso. |
 | Conmutador del buscador | `button[aria-keyshortcuts="Control+F"]` | Que sigue siendo un `<button>` con esa cadena exacta y que `aria-expanded` refleja el estado abierto (`"true"` tras abrir). | Cambiar el atajo mostrado o el elemento rompe la apertura y la comprobación de expansión. |
-| Conmutadores de vista | `button[aria-pressed]` fuera de `[role="dialog"]` | Que son exactamente **3** y que no hay otros botones con `aria-pressed` fuera de diálogos. | Un chip, filtro o favorito con `aria-pressed` hace fallar la comprobación de recuento, aunque la vista funcione. |
-| Buscador | `[role="dialog"]` que contiene `[aria-live="polite"]` | Que es el **único** diálogo con una región `aria-live`; gana la primera coincidencia del DOM. | Si el menú de configuración u otro modal añade un `aria-live`, el guion puede localizar el diálogo equivocado. |
-| Campo de consulta | primer `input` dentro de ese diálogo | Que el buscador sigue siendo un `<input>` controlado por React. | El guion escribe con el setter nativo de `HTMLInputElement` y un evento `input`; un `<textarea>`, un campo con máscara o un `input` extra antes en el JSX rompen la escritura. |
-| Estado de la búsqueda | texto de `[aria-live="polite"]` del diálogo | Que el texto puede estar traducido: nunca se compara con un literal. | Solo hay que mantener que el estado cambie al cambiar la consulta y se estabilice. |
+| Conmutadores de vista | `button[data-e2e="view-mode-real|dark|text"]` | Que cada vista conserva su `data-e2e`. Sin ellos (build 0.3.0 instalado) se cae a los `button[aria-pressed]` fuera de diálogos, que deben ser exactamente **3** y en el orden de `PAGE_MODES`. | Quitar un `data-e2e` devuelve la prueba al camino posicional; un `aria-pressed` nuevo fuera de diálogos rompe solo el respaldo. |
+| Buscador | `[data-e2e="find-bar"]` | Que el diálogo conserva ese atributo. Sin él se usa el respaldo: el **único** `[role="dialog"]` con una región `aria-live`. | Quitar el atributo devuelve la prueba al respaldo; si otro modal añade un `aria-live`, el respaldo puede coger el diálogo equivocado. |
+| Campo de consulta | `[data-e2e="find-input"]` | Que el buscador sigue siendo un `<input>` controlado por React. Sin el atributo se toma el primer `input` del diálogo. | El guion escribe con el setter nativo de `HTMLInputElement` y un evento `input`; un `<textarea>` o un campo con máscara rompen la escritura. |
+| Botones del buscador | `[data-e2e="find-prev"]`, `[data-e2e="find-next"]` y `[data-e2e="find-close"]` | Que cada control conserva su `data-e2e`. Sin ellos se pulsa por posición (0 anterior, 1 siguiente, 2 cerrar). | Añadir o mover botones solo afecta al respaldo posicional. |
+| Estado de la búsqueda | texto de `[data-e2e="find-status"]` (o del `[aria-live="polite"]` del diálogo) | Que el texto puede estar traducido: nunca se compara con un literal. | Solo hay que mantener que el estado cambie al cambiar la consulta y se estabilice. |
 | Iframe proxificado | primer `iframe` del documento y el parámetro `mode` de su `src` | Que el `src` proxificado lleva `?mode=real\|dark\|text` y que no hay otro `iframe` antes en el DOM. | Sin el parámetro `mode` fallan las esperas de `OSCURO` y `TEXTO`. |
 
 ### Supuestos posicionales
 
-Son los más frágiles, porque no los protege ningún atributo:
+Solo aplican al **respaldo**, es decir, a un build instalado anterior a los `data-e2e` (la 0.3.0 actual). En el build nuevo la prueba usa los atributos y el orden del JSX deja de importar:
 
-1. **Orden de los conmutadores de vista.** `MODE_INDEX = { real: 0, dark: 1, text: 2 }` se aplica al array de `button[aria-pressed]` fuera de diálogos. Reordenar `PAGE_MODES` o añadir o quitar una vista obliga a actualizar el mapa y el recuento esperado de 3.
-2. **Orden de los botones del buscador.** `clickFindControl(index)` pulsa por posición dentro del diálogo: **0 = anterior, 1 = siguiente, 2 = cerrar**. Mover el botón de cerrar o añadir uno nuevo (por ejemplo, opciones del buscador) rompe el cierre y el avance de coincidencias.
-3. **Un solo `input` en el diálogo.** El campo se toma como el primer `input`; cualquier `input` adicional anterior en el JSX desvía la escritura.
-4. **Un solo diálogo con `aria-live`.** El buscador se localiza por `[role="dialog"]` más `[aria-live="polite"]`, sin más señas.
+1. **Orden de los conmutadores de vista.** El respaldo usa `MODE_INDEX = { real: 0, dark: 1, text: 2 }` sobre el array de `button[aria-pressed]` fuera de diálogos y exige que sean 3.
+2. **Orden de los botones del buscador.** El respaldo pulsa por posición dentro del diálogo: **0 = anterior, 1 = siguiente, 2 = cerrar**.
+3. **Un solo `input` en el diálogo.** El respaldo toma el primer `input`; cualquier `input` adicional anterior en el JSX desvía la escritura.
+4. **Un solo diálogo con `aria-live`.** El respaldo localiza el buscador por `[role="dialog"]` más `[aria-live="polite"]`.
 5. **El conmutador refleja la vista activa.** Tras el clic, el guion exige `aria-pressed="true"` en el botón pulsado y el `mode` esperado en el `src` del iframe.
 6. **Texto del fixture.** Las vistas se validan con `Fixture cross-origin` en el HTML proxificado y con las consultas `Fixture` y `buscador`, que viven en el fixture del propio guion, no en la app.
 7. **`Ctrl+F` funciona con el foco dentro del iframe cross-origin.** El paso nativo se envía a propósito con el foco en el iframe REAL. Si el atajo dejara de responder en ese escenario (por ejemplo, al mover el listener de teclado o al aislar el iframe), la prueba falla antes de buscar nada.
