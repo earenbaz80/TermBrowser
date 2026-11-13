@@ -34,6 +34,10 @@ import {
 } from './lib/installed-app.mjs';
 
 const LOG = '[e2e-installed-ui]';
+// Los pasos se cuentan: el guion cierra con «STEPS: ejecutados/esperados» y el paso
+// del E2E en CI compara ese número con el total, para que un paso perdido no pase.
+const TOTAL_STEPS = 5;
+let stepsRun = 0;
 const THEME_KEY = 'termbrowser_theme_v1';
 const HISTORY_KEY = 'termbrowser_cmd_history_v1';
 const UI_MARKER = 'terminus-theme-select';
@@ -53,6 +57,12 @@ const THEMES = {
   msdos: { id: 'ms-dos', bg: '#000080', rgb: 'rgb(0, 0, 128)' },
   matrix: { id: 'matrix-dark', bg: '#020402', rgb: 'rgb(2, 4, 2)' },
 };
+
+/** Anota un paso superado y lo numera sobre el total esperado. */
+function pass(message) {
+  stepsRun += 1;
+  console.log(LOG + ' PASS ' + stepsRun + '/' + TOTAL_STEPS + ': ' + message);
+}
 
 const installedExe = process.env.TERMINUS_INSTALLED_EXE
   ? path.resolve(process.env.TERMINUS_INSTALLED_EXE)
@@ -245,7 +255,7 @@ async function main() {
     20000,
   );
   assert.equal(header.windowControlGroups, 1, 'Los controles de ventana están duplicados.');
-  console.log(`${LOG} PASS: cabecera única (1 header, pestañas y controles de ventana dentro).`);
+  pass(`cabecera única (1 header, pestañas y controles de ventana dentro).`);
 
   // 2. Menú de configuración y cambio de tema.
   const menu = await openSettingsMenu(cdp);
@@ -271,9 +281,7 @@ async function main() {
     10000,
   );
   assert.notEqual(applied.bg, before.bg, 'El fondo no cambió al cambiar de tema.');
-  console.log(
-    `${LOG} PASS: menú abierto y tema ${before.theme} -> ${chosen.id} guardado en ${THEME_KEY}.`,
-  );
+  pass(`menú abierto y tema ${before.theme} -> ${chosen.id} guardado en ${THEME_KEY}.`);
 
   // 3. Persistencia: recarga real del renderer y el tema guardado se aplica al arrancar.
   await cdp.send('Page.enable');
@@ -297,9 +305,7 @@ async function main() {
   const reopened = await openSettingsMenu(cdp);
   assert.equal(reopened.theme, chosen.id, 'El menú no refleja el tema guardado tras recargar.');
   await closeSettingsMenu(cdp);
-  console.log(
-    `${LOG} PASS: tras recargar, el tema ${restored.theme} sigue aplicado y seleccionado en el menú.`,
-  );
+  pass(`tras recargar, el tema ${restored.theme} sigue aplicado y seleccionado en el menú.`);
 
   // 4. Búsqueda del inicio en un paso: escribir, Enter y resultados; sin botón intermedio.
   await runCommand(cdp, 'home');
@@ -365,9 +371,7 @@ async function main() {
     25000,
   );
 
-  console.log(
-    `${LOG} PASS: búsqueda del inicio en un paso («search ${SEARCH_QUERY}» registrado, resultados en ${searched.address}).`,
-  );
+  pass(`búsqueda del inicio en un paso («search ${SEARCH_QUERY}» registrado, resultados en ${searched.address}).`);
   // 5. La búsqueda lanzada arriba queda como chip reciente del inicio.
   await runCommand(cdp, 'home');
   const recent = await waitForExpression(
@@ -393,9 +397,16 @@ async function main() {
     'la búsqueda reciente como chip del inicio y el campo enfocado',
     20000,
   );
-  console.log(
-    `${LOG} PASS: la búsqueda del inicio queda como chip reciente (${recent.chips.length} guardada(s), ancla ${RECENT_CHIP}) y el campo recupera el foco al volver con "home".`,
+  pass(
+    `la búsqueda del inicio queda como chip reciente (${recent.chips.length} guardada(s), ancla ${RECENT_CHIP}) y el campo recupera el foco al volver con "home".`,
   );
+
+  assert.equal(
+    stepsRun,
+    TOTAL_STEPS,
+    'pasos ejecutados: ' + stepsRun + '/' + TOTAL_STEPS,
+  );
+
 }
 
 try {
@@ -411,5 +422,7 @@ try {
   }
   process.exitCode = 1;
 } finally {
+  // El paso del E2E en CI lee esta línea para comparar con el total esperado.
+  console.log(LOG + ' STEPS: ' + stepsRun + '/' + TOTAL_STEPS);
   await app?.cleanup();
 }
