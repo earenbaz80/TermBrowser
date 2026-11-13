@@ -121,7 +121,7 @@ El job `windows` ejecuta, en orden:
 10. Instala el instalador más reciente con `/S`.
 11. Detiene cualquier instancia de Terminus que el instalador haya abierto.
 12. Define `TERMINUS_INSTALLED_EXE` apuntando a `%LOCALAPPDATA%\Programs\Terminus\Terminus.exe`.
-13. Ejecuta `npm run test:e2e:installed` y `npm run test:e2e:installed:ui`, guardando la salida en `artifacts/e2e/e2e-installed.log`.
+13. Ejecuta `npm run test:e2e:installed` y `npm run test:e2e:installed:ui`, guardando la salida en `artifacts/e2e/e2e-installed.log` y `artifacts/e2e/e2e-installed-ui.log`.
 14. Publica el log del E2E y un resumen del job.
 
 El E2E solo se ejecuta si se cumple una de estas condiciones:
