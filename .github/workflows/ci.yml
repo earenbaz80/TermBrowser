@@ -265,19 +265,41 @@ jobs:
           # Los guiones corren siempre; el de UI dos veces (sin locale y en alemán) para
           # ejercer la ruta multiidioma. El paso falla con el primer código distinto de cero.
           $e2eExitCode = 0
+          $stepReports = @()
           foreach ($suite in @(
-            @{ script = 'test:e2e:installed'; log = 'e2e-installed.log'; locale = '' },
-            @{ script = 'test:e2e:installed:ui'; log = 'e2e-installed-ui.log'; locale = '' },
-            @{ script = 'test:e2e:installed:ui'; log = 'e2e-installed-ui-de.log'; locale = 'de' }
+            @{ script = 'test:e2e:installed'; log = 'e2e-installed.log'; locale = ''; steps = $null },
+            @{ script = 'test:e2e:installed:ui'; log = 'e2e-installed-ui.log'; locale = ''; steps = 5 },
+            @{ script = 'test:e2e:installed:ui'; log = 'e2e-installed-ui-de.log'; locale = 'de'; steps = 5 }
           )) {
             $env:TERMINUS_E2E_LOCALE = $suite.locale
             npm run $suite.script 2>&1 | Tee-Object -FilePath "artifacts/e2e/$($suite.log)"
             if ($LASTEXITCODE -ne 0) { $e2eExitCode = $LASTEXITCODE }
             Remove-Item Env:\TERMINUS_E2E_LOCALE -ErrorAction SilentlyContinue
+            # Un paso saltado no puede salir verde: el guion imprime «STEPS: ejecutados/esperados»
+            # y aquí se compara con el total que se espera de esa suite.
+            if ($null -ne $suite.steps) {
+              $logPath = "artifacts/e2e/$($suite.log)"
+              $logText = if (Test-Path -LiteralPath $logPath) { Get-Content -Raw -LiteralPath $logPath } else { '' }
+              $stepMatch = [regex]::Match($logText, 'STEPS: (\d+)/(\d+)')
+              if (-not $stepMatch.Success) {
+                Write-Host "::error::El guion $($suite.log) no informó de los pasos ejecutados."
+                $stepReports += "$($suite.log): sin recuento"
+                $e2eExitCode = 1
+              } else {
+                $ran = [int]$stepMatch.Groups[1].Value
+                $reported = [int]$stepMatch.Groups[2].Value
+                $stepReports += "$($suite.log): $ran/$reported (esperados $($suite.steps))"
+                if ($ran -ne $suite.steps -or $reported -ne $suite.steps) {
+                  Write-Host "::error::$($suite.log) ejecutó $ran de $reported pasos; se esperaban $($suite.steps)."
+                  $e2eExitCode = 1
+                }
+              }
+            }
           }
           $e2eResult = if ($e2eExitCode -eq 0) { 'PASS' } else { 'FAIL' }
           "result=$e2eResult" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "exit_code=$e2eExitCode" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "steps=$($stepReports -join '; ')" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           exit $e2eExitCode
 
       - name: Publicar logs del E2E
@@ -303,6 +325,7 @@ jobs:
           E2E_RESULT: ${{ steps.e2e.outputs.result }}
           E2E_EXIT_CODE: ${{ steps.e2e.outputs.exit_code }}
           E2E_OUTCOME: ${{ steps.e2e.outcome }}
+          E2E_STEPS: ${{ steps.e2e.outputs.steps }}
           RUNNER_NAME: ${{ runner.name }}
           RUNNER_ENVIRONMENT: ${{ runner.environment }}
           RUN_NUMBER: ${{ github.run_number }}
@@ -328,6 +351,7 @@ jobs:
           } else {
             'FAIL'
           }
+          $e2eStepsText = if ($env:E2E_STEPS) { $env:E2E_STEPS } else { 'No disponible' }
           $startedAtRaw = $env:JOB_STARTED_AT
           if ($startedAtRaw) {
             $startedAt = [datetime]::Parse(
@@ -359,6 +383,7 @@ jobs:
             "- **Estado:** $statusLabel",
             "- **E2E:** $e2eText",
             "- **Runner del E2E:** $e2eRunnerText",
+            "- **Pasos del E2E:** $e2eStepsText",
             "- **Duración:** $durationText",
             "- **Ejecución:** [$env:RUN_NUMBER]($env:RUN_URL)",
             "- **Instalador:** $env:INSTALLER_NAME - $installerLink",
