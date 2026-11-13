@@ -138,7 +138,7 @@ Al terminar, el resumen del workflow debe indicar:
 ```text
 E2E: PASS
 Código de salida del E2E: 0
-Runner del E2E: <runner.name> (alojado por GitHub | autoalojado)
+Runner del E2E: GitHub Actions 1000002614 (alojado por GitHub)
 ```
 
 La línea del runner deja claro dónde corrió el E2E: el preflight solo comprueba que hay escritorio, no el tipo de runner.
