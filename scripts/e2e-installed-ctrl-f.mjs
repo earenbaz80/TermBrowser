@@ -36,6 +36,27 @@ const FIND_SHORTCUT_MARKER = 'terminus:find:shortcut';
 const ADDRESS_SELECTOR = 'input[aria-controls="terminus-address-suggestions"]';
 const EXTERNAL_URL = 'https://example.com/';
 
+// --- Anclas del DOM (ninguna depende del idioma activo) ---
+// Conmutador del buscador: atributo fijo de teclado, no la etiqueta traducida.
+const FIND_TOGGLE = 'button[aria-keyshortcuts="Control+F"]';
+// Los tres conmutadores de vista son los únicos `aria-pressed` fuera de un diálogo
+// (el menú de configuración también usa `aria-pressed`, pero vive dentro de [role="dialog"]).
+// PAGE_MODES los pinta en orden: REAL, OSCURO y TEXTO.
+const MODE_INDEX = { real: 0, dark: 1, text: 2 };
+// El buscador es el único diálogo con una región `aria-live` (el estado de la búsqueda),
+// y sus botones van en orden: anterior, siguiente y cerrar.
+const FIND_BAR_EXPRESSION = `(() => {
+  const dialog = [...document.querySelectorAll('[role="dialog"]')]
+    .find((item) => item.querySelector('[aria-live="polite"]'));
+  const input = dialog?.querySelector('input') ?? null;
+  return {
+    open: Boolean(dialog),
+    value: input?.value ?? null,
+    status: dialog?.querySelector('[aria-live="polite"]')?.textContent?.trim() ?? '',
+    focused: document.activeElement === input,
+  };
+})()`;
+
 const installedExe = process.env.TERMINUS_INSTALLED_EXE
   ? path.resolve(process.env.TERMINUS_INSTALLED_EXE)
   : path.join(process.env.LOCALAPPDATA ?? '', 'Programs', 'Terminus', 'Terminus.exe');
@@ -115,14 +136,16 @@ async function waitForProxiedPage(client, mode, expectedText, timeoutMs = 15000)
 }
 
 async function selectViewMode(client, mode) {
-  const label = mode === 'dark' ? 'OSCURO' : 'TEXTO';
   const clicked = await client.evaluate(`(() => {
-    const button = [...document.querySelectorAll('button')].find((item) => item.textContent.trim() === ${JSON.stringify(label)});
-    if (!button) return false;
+    const buttons = [...document.querySelectorAll('button[aria-pressed]')]
+      .filter((button) => !button.closest('[role="dialog"]'));
+    const button = buttons[${MODE_INDEX[mode]}];
+    if (!button) return { clicked: false, count: buttons.length };
     button.click();
-    return true;
+    return { clicked: true, count: buttons.length };
   })()`);
-  assert.equal(clicked, true, `No se encontró el control ${label}.`);
+  assert.equal(clicked.count, 3, `Se esperaban 3 conmutadores de vista y hay ${clicked.count}.`);
+  assert.equal(clicked.clicked, true, `No se encontró el conmutador de la vista ${mode}.`);
 
   const state = await waitForExpression(
     client,
@@ -130,19 +153,20 @@ async function selectViewMode(client, mode) {
       const frame = document.querySelector('iframe');
       let frameMode = null;
       try { frameMode = frame ? new URL(frame.src).searchParams.get('mode') : null; } catch {}
-      const button = [...document.querySelectorAll('button')].find((item) => item.textContent.trim() === ${JSON.stringify(label)});
+      const buttons = [...document.querySelectorAll('button[aria-pressed]')]
+        .filter((button) => !button.closest('[role="dialog"]'));
       return {
         iframe: frame?.src ?? null,
         frameMode,
-        pressed: button?.getAttribute('aria-pressed') ?? null,
+        pressed: buttons[${MODE_INDEX[mode]}]?.getAttribute('aria-pressed') ?? null,
       };
     })()`,
     (value) => value.frameMode === mode && value.pressed === 'true',
-    `la vista ${label}`,
+    `la vista ${mode}`,
     15000,
   );
 
-  assert.ok(state.iframe, `La vista ${label} no creó un iframe.`);
+  assert.ok(state.iframe, `La vista ${mode} no creó un iframe.`);
   return state;
 }
 
@@ -189,39 +213,94 @@ async function navigateToPage(client, url, expectedFramePart) {
   );
 }
 
-async function closeFindBar(client) {
-  const closed = await client.evaluate(`(() => {
-    const button = document.querySelector('button[aria-label="Cerrar búsqueda en la página"]');
+/** Pulsa un botón del buscador por su posición: 0 anterior, 1 siguiente, 2 cerrar. */
+async function clickFindControl(client, index) {
+  return client.evaluate(`(() => {
+    const dialog = [...document.querySelectorAll('[role="dialog"]')]
+      .find((item) => item.querySelector('[aria-live="polite"]'));
+    if (!dialog) return false;
+    const button = [...dialog.querySelectorAll('button')][${index}];
     if (!button) return false;
     button.click();
     return true;
   })()`);
-  if (!closed) return;
+}
 
-  await waitForExpression(
-    client,
-    `!document.querySelector('[role="dialog"][aria-label="Buscar en la página"]')`,
-    Boolean,
-    'el cierre del buscador',
-    5000,
-  );
+async function closeFindBar(client) {
+  await clickFindControl(client, 2);
+  await waitForExpression(client, FIND_BAR_EXPRESSION, (state) => !state.open, 'el cierre del buscador', 5000);
 }
 
 async function openFindBar(client) {
   const opened = await client.evaluate(`(() => {
-    const button = document.querySelector('button[aria-label="Buscar en la página"]');
-    if (!button) return false;
-    button.click();
+    const toggle = document.querySelector('${FIND_TOGGLE}');
+    if (!toggle) return false;
+    toggle.click();
     return true;
   })()`);
-  assert.equal(opened, true, 'No se encontró el botón «Buscar en la página».');
+  assert.equal(opened, true, `No se encontró el conmutador del buscador (${FIND_TOGGLE}).`);
 
   await waitForExpression(
     client,
-    `document.activeElement === document.querySelector('input[aria-label="Texto a buscar en la página"]')`,
-    Boolean,
-    'el foco en el campo de búsqueda',
+    FIND_BAR_EXPRESSION,
+    (state) => state.open && state.focused,
+    'el buscador abierto con su campo enfocado',
     5000,
+  );
+}
+
+async function setFindQuery(client, text) {
+  const changed = await client.evaluate(`(() => {
+    const dialog = [...document.querySelectorAll('[role="dialog"]')]
+      .find((item) => item.querySelector('[aria-live="polite"]'));
+    const input = dialog?.querySelector('input');
+    if (!input) return false;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    setter.call(input, ${JSON.stringify(text)});
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  })()`);
+  assert.equal(changed, true, 'No se encontró el campo del buscador.');
+
+  await waitForExpression(
+    client,
+    FIND_BAR_EXPRESSION,
+    (state) => state.value === text,
+    `el texto «${text}» en el buscador`,
+    5000,
+  );
+}
+
+/**
+ * Espera a que el estado del buscador se estabilice para la consulta actual.
+ * El texto del estado está traducido, así que aquí solo se exige que exista,
+ * que no cambie entre dos lecturas y que la vista no haya cambiado.
+ */
+async function waitForSettledStatus(client, query, mode) {
+  const deadline = Date.now() + 20000;
+  let previous = null;
+
+  while (Date.now() < deadline) {
+    const state = await client.evaluate(FIND_BAR_EXPRESSION);
+    if (state.value !== query) {
+      throw new Error(`El buscador perdió el texto «${query}»: ahora tiene «${state.value}».`);
+    }
+    if (state.status && previous && previous.status === state.status) {
+      const frameMode = await client.evaluate(`(() => {
+        const frame = document.querySelector('iframe');
+        try { return frame ? new URL(frame.src).searchParams.get('mode') : null; } catch { return null; }
+      })()`);
+      assert.equal(frameMode, mode, `La búsqueda cambió la vista ${mode} por otra.`);
+      return state;
+    }
+    previous = state;
+    // Reintenta mientras el iframe proxied termina de cargar o window.find necesita otra pasada.
+    await clickFindControl(client, 1);
+    await sleep(350);
+  }
+
+  throw new Error(
+    `El estado del buscador no se estabilizó para «${query}». Último estado: ${JSON.stringify(previous)}`,
   );
 }
 
@@ -232,48 +311,25 @@ async function searchInView(client, mode, query) {
 
   await closeFindBar(client);
   await openFindBar(client);
-  await client.send('Input.insertText', { text: query });
-  await waitForExpression(
-    client,
-    `document.querySelector('input[aria-label="Texto a buscar en la página"]')?.value ?? null`,
-    (value) => value === query,
-    `el texto «${query}» en el buscador`,
-    5000,
+  await setFindQuery(client, query);
+  const matched = await waitForSettledStatus(client, query, mode);
+
+  // El estado está traducido, así que la coincidencia se comprueba por comportamiento:
+  // una consulta que no está en la página debe producir un estado distinto.
+  const absent = `${query}-ausente-${Date.now()}`;
+  await setFindQuery(client, absent);
+  const missed = await waitForSettledStatus(client, absent, mode);
+  assert.notEqual(
+    missed.status,
+    matched.status,
+    'El buscador da el mismo estado para una consulta presente y otra ausente.',
   );
 
-  const deadline = Date.now() + 15000;
-  let lastState = null;
-  while (Date.now() < deadline) {
-    lastState = await client.evaluate(`(() => {
-      const dialog = document.querySelector('[role="dialog"][aria-label="Buscar en la página"]');
-      const input = document.querySelector('input[aria-label="Texto a buscar en la página"]');
-      const frame = document.querySelector('iframe');
-      let frameMode = null;
-      try { frameMode = frame ? new URL(frame.src).searchParams.get('mode') : null; } catch {}
-      return {
-        value: input?.value ?? null,
-        status: dialog?.querySelector('[aria-live="polite"]')?.textContent?.trim() ?? '',
-        iframe: frame?.src ?? null,
-        frameMode,
-      };
-    })()`);
+  await setFindQuery(client, query);
+  const restored = await waitForSettledStatus(client, query, mode);
+  assert.equal(restored.status, matched.status, 'El estado de coincidencia no es estable.');
 
-    if (lastState.status === 'Coincidencia encontrada') {
-      assert.equal(lastState.value, query, 'El buscador perdió el texto de la consulta.');
-      assert.equal(lastState.frameMode, mode, `La búsqueda cambió la vista ${mode} por otra.`);
-      return lastState;
-    }
-
-    // Reintenta mientras el iframe proxied termina de cargar o window.find necesita otra pasada.
-    await client.evaluate(
-      `document.querySelector('button[aria-label="Siguiente coincidencia"]')?.click()`,
-    );
-    await sleep(300);
-  }
-
-  throw new Error(
-    `No se encontró «${query}» en la vista ${mode}. Último estado: ${JSON.stringify(lastState)}`,
-  );
+  return matched;
 }
 
 function sendNativeCtrlF(pid) {
@@ -419,23 +475,25 @@ async function main() {
   );
 
   const realClicked = await cdp.evaluate(`(() => {
-    const button = [...document.querySelectorAll('button')].find((item) => item.textContent.trim() === 'REAL');
-    if (!button) return false;
-    button.click();
+    const buttons = [...document.querySelectorAll('button[aria-pressed]')]
+      .filter((button) => !button.closest('[role="dialog"]'));
+    if (!buttons[${MODE_INDEX.real}]) return false;
+    buttons[${MODE_INDEX.real}].click();
     return true;
   })()`);
-  assert.equal(realClicked, true, 'No se encontró el control REAL.');
+  assert.equal(realClicked, true, 'No se encontró el conmutador de la vista REAL.');
 
   const direct = await waitForExpression(
     cdp,
     `(() => {
       const frame = document.querySelector('iframe');
       const rect = frame?.getBoundingClientRect();
-      const real = [...document.querySelectorAll('button')].find((item) => item.textContent.trim() === 'REAL');
+      const modes = [...document.querySelectorAll('button[aria-pressed]')]
+        .filter((button) => !button.closest('[role="dialog"]'));
       return {
         appUrl: location.href,
         iframe: frame?.src ?? null,
-        realPressed: real?.getAttribute('aria-pressed') ?? null,
+        realPressed: modes[${MODE_INDEX.real}]?.getAttribute('aria-pressed') ?? null,
         rect: rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null,
       };
     })()`,
@@ -479,7 +537,7 @@ async function main() {
 
     const state = await cdp.evaluate(`(() => ({
       active: document.activeElement?.tagName ?? null,
-      findDialog: Boolean(document.querySelector('[role="dialog"][aria-label="Buscar en la página"]')),
+      findDialog: ${FIND_BAR_EXPRESSION}.open,
     }))()`);
     if (state.active === 'IFRAME') {
       focused = state;
@@ -497,32 +555,28 @@ async function main() {
   const findState = await waitForExpression(
     cdp,
     `(() => {
-      const dialog = document.querySelector('[role="dialog"][aria-label="Buscar en la página"]');
-      const input = document.querySelector('input[aria-label="Texto a buscar en la página"]');
-      const toggle = document.querySelector('button[aria-label="Buscar en la página"]');
+      const bar = ${FIND_BAR_EXPRESSION};
+      const toggle = document.querySelector('${FIND_TOGGLE}');
+      const active = document.activeElement;
       return {
-        dialog: Boolean(dialog),
-        input: Boolean(input),
-        focused: document.activeElement === input,
-        activeElement: document.activeElement?.tagName +
-          (document.activeElement?.getAttribute('aria-label')
-            ? '[' + document.activeElement.getAttribute('aria-label') + ']'
-            : ''),
+        ...bar,
+        activeElement:
+          (active?.tagName ?? '') +
+          (active?.getAttribute('aria-label') ? '[' + active.getAttribute('aria-label') + ']' : ''),
         expanded: toggle?.getAttribute('aria-expanded') ?? null,
         iframe: document.querySelector('iframe')?.src ?? null,
       };
     })()`,
-    (state) => state.dialog && state.input && state.focused && state.expanded === 'true',
-    'el diálogo «Buscar en la página» con el campo enfocado',
+    (state) => state.open && state.focused && state.expanded === 'true',
+    'el buscador abierto con el campo enfocado',
     10000,
   );
 
-  assert.equal(findState.input, true, 'No apareció el campo de búsqueda.');
   assert.equal(findState.focused, true, 'El campo de búsqueda no recibió el foco.');
-  assert.equal(findState.expanded, 'true', 'El botón de búsqueda no quedó expandido.');
+  assert.equal(findState.expanded, 'true', 'El conmutador del buscador no quedó expandido.');
   assert.equal(findState.iframe, EXTERNAL_URL, 'El iframe cambió después de abrir el buscador.');
 
-  console.log(`${LOG} PASS: Ctrl+F abrió «Buscar en la página» en la app instalada.`);
+  console.log(`${LOG} PASS: Ctrl+F abrió el buscador en la app instalada.`);
   console.log(`${LOG} Foco: ${findState.activeElement}`);
   console.log(`${LOG} iframe: ${findState.iframe}`);
 
