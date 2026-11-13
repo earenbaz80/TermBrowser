@@ -428,8 +428,9 @@ describe('búsqueda desde la pantalla de inicio', () => {
   });
 });
 
-// Las anclas las usa `scripts/e2e-installed-ctrl-f.mjs`: si desaparecen, el E2E sigue
-// pasando por el camino posicional y nadie se entera hasta que cambia el orden del JSX.
+// Las anclas las usan `scripts/e2e-installed-ctrl-f.mjs` y `scripts/e2e-installed-ui.mjs`:
+// si desaparecen, el E2E sigue pasando por el camino posicional (o falla en la app
+// instalada, que es opcional en CI) y nadie se entera hasta que cambia el orden del JSX.
 describe('anclas data-e2e del E2E instalado', () => {
   it('conserva los conmutadores de vista con su atributo y en orden', () => {
     renderSurface(pageTab);
@@ -459,5 +460,16 @@ describe('anclas data-e2e del E2E instalado', () => {
 
     // El respaldo posicional del E2E cuenta con tres botones: anterior, siguiente y cerrar.
     expect(bar!.querySelectorAll('button')).toHaveLength(3);
+  });
+
+  // El E2E de UI escribe y lee el campo del inicio por este atributo, no por su posición.
+  it('conserva el ancla del campo de búsqueda del inicio', () => {
+    renderSurface(blankTab);
+
+    const form = screen.getByRole('search', { name: 'Buscar en Terminus Search' });
+    const input = form.querySelector('input[data-e2e="start-search-input"]');
+
+    expect(input).not.toBeNull();
+    expect(input).toBe(within(form).getByRole('searchbox'));
   });
 });
