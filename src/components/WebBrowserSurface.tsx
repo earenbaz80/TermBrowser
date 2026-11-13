@@ -1052,6 +1052,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                 </span>
                 <input
                   type="search"
+                  data-e2e="start-search-input"
                   value={startQuery}
                   onChange={(event) => setStartQuery(event.target.value)}
                   placeholder={t('start.placeholder')}

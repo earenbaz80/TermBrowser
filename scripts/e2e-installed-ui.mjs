@@ -44,6 +44,8 @@ const LOCALE_KEY = 'terminus_locale_v1';
 // Opcional: cambia el idioma de la app desde el menú antes de comprobarla.
 const e2eLocale = (process.env.TERMINUS_E2E_LOCALE ?? '').trim();
 const START_FORM = 'form[role="search"]';
+// Ancla propia del campo de búsqueda del inicio: no depende de su posición ni del idioma.
+const START_INPUT = 'input[data-e2e="start-search-input"]';
 const THEMES = {
   msdos: { id: 'ms-dos', bg: '#000080', rgb: 'rgb(0, 0, 128)' },
   matrix: { id: 'matrix-dark', bg: '#020402', rgb: 'rgb(2, 4, 2)' },
@@ -303,7 +305,7 @@ async function main() {
     cdp,
     `(() => {
       const form = document.querySelector(${JSON.stringify(START_FORM)});
-      const input = form?.querySelector('input[type="search"]') ?? null;
+      const input = form?.querySelector(${JSON.stringify(START_INPUT)}) ?? null;
       return {
         forms: document.querySelectorAll(${JSON.stringify(START_FORM)}).length,
         hasInput: Boolean(input),
@@ -322,7 +324,7 @@ async function main() {
 
   const typed = await cdp.evaluate(`(() => {
     const form = document.querySelector(${JSON.stringify(START_FORM)});
-    const input = form?.querySelector('input[type="search"]');
+    const input = form?.querySelector(${JSON.stringify(START_INPUT)});
     if (!input) return false;
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
     setter.call(input, ${JSON.stringify(SEARCH_QUERY)});
@@ -337,6 +339,7 @@ async function main() {
   const searched = await waitForExpression(
     cdp,
     `(() => {
+      // Ya en los resultados, la única form[role="search"] es la de esa página.
       const form = document.querySelector(${JSON.stringify(START_FORM)});
       const input = form?.querySelector('input[type="search"]') ?? null;
       let history = [];
