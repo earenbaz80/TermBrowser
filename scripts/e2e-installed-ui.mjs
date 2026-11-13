@@ -375,8 +375,10 @@ async function main() {
     `(() => {
       const form = document.querySelector(${JSON.stringify(START_FORM)});
       const chips = [...document.querySelectorAll(${JSON.stringify(RECENT_CHIP)})];
+      const input = form?.querySelector(${JSON.stringify(START_INPUT)}) ?? null;
       return {
-        onStart: Boolean(form?.querySelector(${JSON.stringify(START_INPUT)})),
+        onStart: Boolean(input),
+        focused: document.activeElement === input,
         chips: chips.map((chip) => (chip.textContent ?? '').trim()),
         visible: chips
           .filter((chip) => chip.getClientRects().length > 0)
@@ -384,12 +386,15 @@ async function main() {
       };
     })()`,
     (state) =>
-      state.onStart && state.chips[0] === SEARCH_QUERY && state.visible.includes(SEARCH_QUERY),
-    'la búsqueda reciente como chip del inicio',
+      state.onStart &&
+      state.focused &&
+      state.chips[0] === SEARCH_QUERY &&
+      state.visible.includes(SEARCH_QUERY),
+    'la búsqueda reciente como chip del inicio y el campo enfocado',
     20000,
   );
   console.log(
-    `${LOG} PASS: la búsqueda del inicio queda como chip reciente (${recent.chips.length} guardada(s), ancla ${RECENT_CHIP}).`,
+    `${LOG} PASS: la búsqueda del inicio queda como chip reciente (${recent.chips.length} guardada(s), ancla ${RECENT_CHIP}) y el campo recupera el foco al volver con "home".`,
   );
 }
 

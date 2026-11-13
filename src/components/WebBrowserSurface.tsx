@@ -268,6 +268,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
   const [address, setAddress] = useState('');
   const [startQuery, setStartQuery] = useState('');
   const [recentSearches, setRecentSearches] = useState<string[]>(loadRecentSearches);
+  const startInputRef = useRef<HTMLInputElement>(null);
   const [commandHistory, setCommandHistory] = useState<string[]>(() => getPersistedCommandHistory());
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [draftCommand, setDraftCommand] = useState('');
@@ -668,6 +669,13 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
   const hasPage = Boolean(tab && tab.url && tab.url !== 'about:blank');
   const isTerminusSearch = Boolean(tab && isTerminusSearchUrl(tab.url));
   const hasExternalPage = hasPage && !isTerminusSearch;
+  const startPageVisible = online && !hasPage;
+
+  // Llegar al inicio (arranque o `home`) deja el campo listo para escribir, como la
+  // página de resultados cuando no tiene consulta.
+  useEffect(() => {
+    if (startPageVisible) startInputRef.current?.focus();
+  }, [startPageVisible]);
   const currentUrl = hasPage && tab ? tab.url : '';
   const savedBookmark = bookmarks.find((bm) => sameUrl(bm.url, currentUrl));
   const proxied = (view: PageMode) => `/api/view?url=${encodeURIComponent(tab?.url ?? '')}&mode=${view}`;
@@ -1064,6 +1072,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                 <input
                   type="search"
                   data-e2e="start-search-input"
+                  ref={startInputRef}
                   value={startQuery}
                   onChange={(event) => setStartQuery(event.target.value)}
                   placeholder={t('start.placeholder')}
