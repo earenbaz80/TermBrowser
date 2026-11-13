@@ -19,12 +19,15 @@
  */
 
 import assert from 'node:assert/strict';
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
-import net from 'node:net';
-import os from 'node:os';
 import path from 'node:path';
+import {
+  launchInstalledApp,
+  sleep,
+  waitForExpression,
+} from './lib/installed-app.mjs';
 
 const LOG = '[e2e-installed-ctrl-f]';
 const FIND_SHORTCUT_MARKER = 'terminus:find:shortcut';
@@ -32,37 +35,13 @@ const FIND_SHORTCUT_MARKER = 'terminus:find:shortcut';
 // (atributos del DOM, no el aria-label del idioma activo), así la prueba sirve en cualquier idioma.
 const ADDRESS_SELECTOR = 'input[aria-controls="terminus-address-suggestions"]';
 const EXTERNAL_URL = 'https://example.com/';
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const installedExe = process.env.TERMINUS_INSTALLED_EXE
   ? path.resolve(process.env.TERMINUS_INSTALLED_EXE)
   : path.join(process.env.LOCALAPPDATA ?? '', 'Programs', 'Terminus', 'Terminus.exe');
 
-let profileDir = '';
+let app = null;
 let fixtureServer = null;
-let appProcess = null;
-let cdp = null;
-let appLogs = '';
-
-function appendAppLog(chunk) {
-  appLogs = (appLogs + chunk.toString()).slice(-20000);
-}
-
-function getFreePort() {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.unref();
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      const port = typeof address === 'object' && address ? address.port : 0;
-      server.close(() => {
-        if (port > 0) resolve(port);
-        else reject(new Error('No se pudo reservar un puerto libre.'));
-      });
-    });
-  });
-}
 
 function startFixtureServer() {
   const html = `<!doctype html>
@@ -105,145 +84,6 @@ function startFixtureServer() {
       resolve({ server, url: `http://127.0.0.1:${port}/` });
     });
   });
-}
-
-async function waitForCdpPage(port, timeoutMs = 30000) {
-  const deadline = Date.now() + timeoutMs;
-  let lastError = '';
-
-  while (Date.now() < deadline) {
-    if (appProcess && appProcess.exitCode !== null) {
-      throw new Error(
-        `La app terminó antes de exponer CDP (código ${appProcess.exitCode}).\n${appLogs}`,
-      );
-    }
-
-    try {
-      const response = await fetch(`http://127.0.0.1:${port}/json/list`, {
-        signal: AbortSignal.timeout(1000),
-      });
-      if (response.ok) {
-        const targets = await response.json();
-        const page = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl);
-        if (page) return page;
-      }
-    } catch (error) {
-      lastError = error instanceof Error ? error.message : String(error);
-    }
-    await sleep(250);
-  }
-
-  throw new Error(
-    `CDP no respondió en ${timeoutMs} ms${lastError ? ` (${lastError})` : ''}.\n${appLogs}`,
-  );
-}
-
-function connectCdp(webSocketUrl) {
-  return new Promise((resolve, reject) => {
-    const socket = new WebSocket(webSocketUrl);
-    const pending = new Map();
-    let nextId = 0;
-    let opened = false;
-
-    const failPending = (error) => {
-      for (const request of pending.values()) {
-        clearTimeout(request.timer);
-        request.reject(error);
-      }
-      pending.clear();
-    };
-
-    const send = (method, params = {}) =>
-      new Promise((resolveSend, rejectSend) => {
-        if (socket.readyState !== WebSocket.OPEN) {
-          rejectSend(new Error(`CDP cerrado antes de ${method}.`));
-          return;
-        }
-        const id = ++nextId;
-        const timer = setTimeout(() => {
-          pending.delete(id);
-          rejectSend(new Error(`Timeout CDP en ${method}.`));
-        }, 15000);
-        pending.set(id, { resolve: resolveSend, reject: rejectSend, timer });
-        socket.send(JSON.stringify({ id, method, params }));
-      });
-
-    socket.addEventListener('message', (event) => {
-      let message;
-      try {
-        message = JSON.parse(event.data);
-      } catch {
-        return;
-      }
-      const request = pending.get(message.id);
-      if (!request) return;
-      pending.delete(message.id);
-      clearTimeout(request.timer);
-      if (message.error) {
-        request.reject(new Error(message.error.message || `Error CDP ${message.error.code}.`));
-      } else {
-        request.resolve(message.result);
-      }
-    });
-
-    socket.addEventListener('error', () => {
-      if (!opened) reject(new Error('No se pudo abrir el WebSocket CDP.'));
-      failPending(new Error('Error WebSocket CDP.'));
-    });
-    socket.addEventListener('close', () => {
-      failPending(new Error('CDP cerrado.'));
-    });
-    socket.addEventListener(
-      'open',
-      () => {
-        opened = true;
-        resolve({
-          send,
-          evaluate: async (expression) => {
-            const result = await send('Runtime.evaluate', {
-              expression,
-              returnByValue: true,
-              awaitPromise: true,
-            });
-            if (result.exceptionDetails) {
-              throw new Error(
-                result.exceptionDetails.exception?.description ||
-                  result.exceptionDetails.text ||
-                  'Fallo de evaluación en el renderer.',
-              );
-            }
-            return result.result.value;
-          },
-          close: () => socket.close(),
-        });
-      },
-      { once: true },
-    );
-  });
-}
-
-async function waitForExpression(client, expression, predicate, label, timeoutMs = 15000) {
-  const deadline = Date.now() + timeoutMs;
-  let lastValue;
-  let lastError = '';
-
-  while (Date.now() < deadline) {
-    if (appProcess && appProcess.exitCode !== null) {
-      throw new Error(`La app terminó mientras se esperaba ${label}.\n${appLogs}`);
-    }
-    try {
-      lastValue = await client.evaluate(expression);
-      if (predicate(lastValue)) return lastValue;
-      lastError = '';
-    } catch (error) {
-      lastError = error instanceof Error ? error.message : String(error);
-    }
-    await sleep(200);
-  }
-
-  throw new Error(
-    `Timeout esperando ${label}. Último estado: ${lastError || JSON.stringify(lastValue)}`,
-  );
 }
 
 /** Confirms that the server is already serving the selected proxied view. */
@@ -470,46 +310,6 @@ function sendNativeCtrlF(pid) {
   }
 }
 
-async function stopApp() {
-  if (cdp) {
-    try {
-      cdp.close();
-    } catch {}
-    cdp = null;
-  }
-  if (!appProcess || appProcess.exitCode !== null) return;
-
-  const exited = new Promise((resolve) => appProcess.once('exit', resolve));
-  appProcess.kill();
-  await Promise.race([exited, sleep(4000)]);
-  if (appProcess.exitCode === null) {
-    appProcess.kill('SIGKILL');
-    await Promise.race([exited, sleep(2000)]);
-  }
-}
-
-async function cleanup() {
-  await stopApp();
-
-  if (fixtureServer) {
-    const server = fixtureServer;
-    fixtureServer = null;
-    server.closeAllConnections?.();
-    await new Promise((resolve) => server.close(resolve));
-  }
-
-  if (profileDir) {
-    try {
-      fs.rmSync(profileDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-    } catch (error) {
-      console.warn(
-        `${LOG} No se pudo borrar el perfil temporal: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-    profileDir = '';
-  }
-}
-
 async function main() {
   assert.ok(
     process.platform === 'win32',
@@ -529,32 +329,20 @@ async function main() {
 
   const fixture = await startFixtureServer();
   fixtureServer = fixture.server;
-  const cdpPort = await getFreePort();
-  profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'terminus-e2e-'));
 
   console.log(`${LOG} Ejecutable instalado: ${installedExe}`);
   console.log(`${LOG} Fixture cross-origin: ${fixture.url}`);
 
-  appProcess = spawn(
-    installedExe,
-    [`--remote-debugging-port=${cdpPort}`, `--user-data-dir=${profileDir}`],
-    {
-      env: {
-        ...process.env,
-        // El fixture vive en loopback; no debe depender de la política de red del usuario.
-        TERMINUS_BLOCK_PRIVATE: '0',
-        TERMINUS_NETWORK_POLICY: 'local',
-      },
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: false,
+  app = await launchInstalledApp({
+    exe: installedExe,
+    profilePrefix: 'terminus-e2e-',
+    env: {
+      // El fixture vive en loopback; no debe depender de la política de red del usuario.
+      TERMINUS_BLOCK_PRIVATE: '0',
+      TERMINUS_NETWORK_POLICY: 'local',
     },
-  );
-  appProcess.stdout?.on('data', appendAppLog);
-  appProcess.stderr?.on('data', appendAppLog);
-
-  const target = await waitForCdpPage(cdpPort);
-  cdp = await connectCdp(target.webSocketDebuggerUrl);
-  await cdp.send('Runtime.enable');
+  });
+  const cdp = app.client;
 
   const address = JSON.stringify(ADDRESS_SELECTOR);
   await waitForExpression(
@@ -704,7 +492,7 @@ async function main() {
   assert.ok(focused, 'El iframe REAL no recibió el foco tras varios clics.');
   assert.equal(focused.findDialog, false, 'El buscador no debe estar abierto antes de enviar Ctrl+F.');
 
-  sendNativeCtrlF(appProcess.pid);
+  sendNativeCtrlF(app.pid);
 
   const findState = await waitForExpression(
     cdp,
@@ -760,10 +548,16 @@ try {
   }
 } catch (error) {
   console.error(`${LOG} FAIL: ${error instanceof Error ? error.message : String(error)}`);
-  if (appLogs.trim()) {
-    console.error(`${LOG} Log de la app (cola):\n${appLogs.trim()}`);
+  if (app?.logs().trim()) {
+    console.error(`${LOG} Log de la app (cola):\n${app.logs().trim()}`);
   }
   process.exitCode = 1;
 } finally {
-  await cleanup();
+  await app?.cleanup();
+
+  if (fixtureServer) {
+    const server = fixtureServer;
+    server.closeAllConnections?.();
+    await new Promise((resolve) => server.close(resolve));
+  }
 }

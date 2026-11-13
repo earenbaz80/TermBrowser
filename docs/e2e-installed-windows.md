@@ -188,7 +188,7 @@ En Git Bash:
 TERMINUS_INSTALLED_EXE="C:\ruta\Terminus.exe" npm run test:e2e:installed
 ```
 
-`npm run test:e2e:installed:ui` comparte requisitos y aislamiento, y añade las comprobaciones de interfaz: cabecera única, cambio de tema persistido tras recargar y búsqueda del inicio en un paso. El script crea su propio servidor de fixture, perfil temporal y puerto CDP, y limpia todo al terminar. No requiere que la app esté abierta; de hecho, conviene cerrar instancias previas. Debe ejecutarse en la misma sesión interactiva y sobre el build recién instalado: el script comprueba que `app.asar` contiene el marcador del atajo global y falla si la instalación está desactualizada.
+`npm run test:e2e:installed:ui` comparte requisitos y aislamiento, y añade las comprobaciones de interfaz: cabecera única, cambio de tema persistido tras recargar y búsqueda del inicio en un paso. Ambos guiones comparten `scripts/lib/installed-app.mjs`: arranque del ejecutable con perfil temporal, cliente CDP, esperas y limpieza. El script crea su propio servidor de fixture, perfil temporal y puerto CDP, y limpia todo al terminar. No requiere que la app esté abierta; de hecho, conviene cerrar instancias previas. Debe ejecutarse en la misma sesión interactiva y sobre el build recién instalado: el script comprueba que `app.asar` contiene el marcador del atajo global y falla si la instalación está desactualizada.
 
 ## Diagnóstico
 
