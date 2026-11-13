@@ -136,8 +136,7 @@ En cualquier otro caso se omite, pero el build y el instalador sí se generan.
 Al terminar, el resumen del workflow debe indicar:
 
 ```text
-E2E: PASS
-Código de salida del E2E: 0
+E2E: PASS (código 0)
 Runner del E2E: GitHub Actions 1000002614 (alojado por GitHub)
 ```
 
