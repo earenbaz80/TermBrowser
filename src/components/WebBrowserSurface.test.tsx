@@ -566,6 +566,16 @@ describe('anclas data-e2e del E2E instalado', () => {
 
   // El E2E de UI cuenta los botones del formulario para descartar el botón intermedio
   // sin leer ningún texto traducido; este test avisa si aparece uno de más.
+  it('marca la búsqueda recordada con el ancla del E2E instalado', () => {
+    localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(['electron']));
+
+    renderSurface();
+
+    const chips = [...document.querySelectorAll('[data-e2e="recent-search"]')] as HTMLElement[];
+    expect(chips).toHaveLength(1);
+    expect(chips[0].textContent?.trim()).toBe('electron');
+  });
+
   it('mantiene un único botón de envío en el formulario del inicio', () => {
     renderSurface(blankTab);
 

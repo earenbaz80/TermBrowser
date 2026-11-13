@@ -120,8 +120,8 @@ const mergeStartChips = (recent: string[], fixed: string[]) => {
   const recentOnly = recent.filter((query) => !fixedKeys.has(query.toLowerCase()));
 
   return [
-    ...recentOnly.map((query, index) => ({ query, narrowHidden: index > 0 })),
-    ...fixed.map((query) => ({ query, narrowHidden: false })),
+    ...recentOnly.map((query, index) => ({ query, narrowHidden: index > 0, recent: true })),
+    ...fixed.map((query) => ({ query, narrowHidden: false, recent: false })),
   ];
 };
 
@@ -1101,6 +1101,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                 <button
                   key={chip.query}
                   type="button"
+                  data-e2e={chip.recent ? 'recent-search' : undefined}
                   onClick={() => {
                     soundEffects.playKeyClick();
                     setRecentSearches(recordRecentSearch(chip.query));

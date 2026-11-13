@@ -4,7 +4,7 @@ Este documento es la fuente de verdad de lo que falta. El repositorio no usa iss
 
 - Última release publicada: `0.3.0` (tag `v0.3.0`, 12 de noviembre de 2026), con instalador, `.blockmap`, ZIP y `SHA256SUMS.txt`.
 - Estado del proyecto: rediseño de interfaz e internacionalización (PR #11) mergeados en `main`, notas de release y README alineados con los artefactos publicados, y el E2E instalado del hito 0.3.0 pasado.
-- Verificación actual: `npm run lint` correcto (tsc y eslint), `npm test` con 41 archivos y 191 pruebas, cliente y servidor compilados, instalador `0.3.0` generado y `NotSigned`.
+- Verificación actual: `npm run lint` correcto (tsc y eslint), `npm test` con 41 archivos y 192 pruebas, cliente y servidor compilados, instalador `0.3.0` generado y `NotSigned`.
 - No hay fechas comprometidas. Los hitos se ordenan por prioridad, no por calendario.
 
 ## Decisiones cerradas
@@ -64,15 +64,15 @@ Estado del guion de Ctrl+F (13 de noviembre de 2026):
 
 - [x] Anclas `data-e2e` en `WebBrowserSurface.tsx`: `find-bar`, `find-input`, `find-status`, `find-prev`, `find-next`, `find-close` y `view-mode-real|dark|text`. El guion resuelve buscador, campo, estado, botones y conmutadores por esos atributos, en vez de por orden del JSX o `aria-pressed`.
 - [x] Respaldo para la versión instalada anterior: un build sin `data-e2e` (la `0.3.0` del 12 de noviembre) sigue pasando por el camino estructural (único `[role="dialog"]` con `aria-live`, primer `input`, botones por posición y `aria-pressed` fuera de diálogos). Verificado con tres `PASS` contra ese ejecutable.
-- [x] Pruebas que protegen las anclas: cuatro casos en `WebBrowserSurface.test.tsx` ("anclas data-e2e del E2E instalado") fallan si desaparecen los atributos del buscador, del campo de inicio, del único botón de envío o de los conmutadores de vista. `npm test` queda en 41 archivos y 191 pruebas.
+- [x] Pruebas que protegen las anclas: cuatro casos en `WebBrowserSurface.test.tsx` ("anclas data-e2e del E2E instalado") fallan si desaparecen los atributos del buscador, del campo de inicio, del único botón de envío o de los conmutadores de vista. `npm test` queda en 41 archivos y 192 pruebas.
 - [x] Paso nativo con verificación de primer plano: la activación se reintenta hasta cinco veces y se confirma con `GetForegroundWindow` contra `MainWindowHandle` antes de enviar la tecla. Si el primer plano no llega o la tecla se pierde, el guion repite el atajo por CDP (mismo `before-input-event` de Chromium y mismo IPC, sin depender de la ventana activa), lo anota en el log como «Ctrl+F por CDP» y continúa; solo falla si tampoco así se abre el buscador.
 - [x] Resultado real de la última tanda, con el build de hoy instalado (instalador `0.3.0` generado e instalado; `app.asar` contiene `find-bar`, `find-next` y `view-mode-`): siete corridas seguidas de `npm run test:e2e:installed` cerraron con los tres `PASS` y `EXIT=0`, ya por la ruta `data-e2e`; las siete avisaron «Ctrl+F por CDP» porque otra ventana retenía el primer plano, y ninguna dependió de reintentos. El respaldo estructural se comprobó aparte con las mismas tres comprobaciones contra la `0.3.0` anterior.
 
-Cierre (13 de noviembre de 2026): las corridas dejan el log con los tres `PASS` de Ctrl+F, los cuatro de la UI y los cuatro de la UI en alemán, y el artefacto `e2e-installed-logs` disponible. Requisitos y diagnóstico en `docs/e2e-installed-windows.md`.
+Cierre (13 de noviembre de 2026): las corridas dejan el log con los tres `PASS` de Ctrl+F, los cinco de la UI y los cinco de la UI en alemán, y el artefacto `e2e-installed-logs` disponible. Requisitos y diagnóstico en `docs/e2e-installed-windows.md`.
 
 ### 3. Cobertura automatizada de la interfaz nueva — regresiones cubiertas en CI
 
-Las tres regresiones del cierre y la persistencia del tema tienen prueba en `npm test` (41 archivos, 191 pruebas), que el CI ejecuta siempre, y además en la app empaquetada: `npm run test:e2e:installed:ui` cerró con cuatro `PASS` sobre la 0.3.0 instalada (12 de noviembre de 2026).
+Las tres regresiones del cierre y la persistencia del tema tienen prueba en `npm test` (41 archivos, 192 pruebas), que el CI ejecuta siempre, y además en la app empaquetada: `npm run test:e2e:installed:ui` cerró con cuatro `PASS` sobre la 0.3.0 instalada (12 de noviembre de 2026).
 
 Pendiente:
 
@@ -81,7 +81,7 @@ Pendiente:
 - [x] Búsqueda del inicio (`WebBrowserSurface.test.tsx`): un solo paso (`search <consulta>`, con espacios recortados y el campo vaciado), envío vacío que no navega y sugerencia clicable que busca su propio texto; falla si reaparece el botón «ABRIR TERMINUS SEARCH».
 - [x] Cabecera única (`HeaderBar.test.tsx`): un solo `<header>` con la marca, las pestañas y los controles de ventana dentro, sin barra de título duplicada.
 - [x] Persistencia del tema (`App.theme.test.tsx`): monta la app entera, cambia el tema desde el menú, comprueba que queda en `localStorage` y que al desmontarla y volver a montarla arranca con el tema guardado aplicado; también cubre el tema por defecto y un valor guardado que ya no existe.
-- [x] Los mismos casos en el E2E instalado (`scripts/e2e-installed-ui.mjs`, `npm run test:e2e:installed:ui`): sobre la 0.3.0 instalada comprueba la cabecera única (1 `<header>` con pestañas y los 3 controles de ventana dentro), abre el menú, cambia el tema y lo ve guardado en `localStorage` y aplicado tras recargar el renderer, y hace la búsqueda del inicio escribiendo y pulsando Enter, sin botón intermedio. Resultado: cuatro `PASS`. Ya está en el paso opcional del E2E instalado, junto al de Ctrl+F, y corre en CI con `workflow_dispatch` (`run_installed_e2e=true`).
+- [x] Los mismos casos en el E2E instalado (`scripts/e2e-installed-ui.mjs`, `npm run test:e2e:installed:ui`): sobre la 0.3.0 instalada comprueba la cabecera única (1 `<header>` con pestañas y los 3 controles de ventana dentro), abre el menú, cambia el tema y lo ve guardado en `localStorage` y aplicado tras recargar el renderer, y hace la búsqueda del inicio escribiendo y pulsando Enter, sin botón intermedio. y comprueba que esa misma consulta reaparece al volver al inicio como chip reciente anclado en `data-e2e="recent-search"`. Resultado: cinco `PASS`. Ya está en el paso opcional del E2E instalado, junto al de Ctrl+F, y corre en CI con `workflow_dispatch` (`run_installed_e2e=true`).
 
 Cierre: las pruebas fallan si se reintroduce el botón intermedio de búsqueda, una segunda cabecera o un menú que no guarda el tema. La persistencia se comprueba de dos formas: remontando la app completa en Vitest y recargando el renderer de la app instalada, que arranca con el tema guardado seleccionado en el menú.
 

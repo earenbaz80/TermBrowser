@@ -6,7 +6,8 @@
  *   - cabecera única (un `<header>` con marca, pestañas y controles de ventana),
  *   - menú de configuración abierto, cambio de tema y persistencia tras recargar,
  *   - búsqueda del inicio en un solo paso (escribir y Enter) con un único botón
- *     de envío en el formulario.
+ *     de envío en el formulario,
+ *   - esa misma búsqueda reaparece como chip reciente del inicio, con su ancla.
  *
  * Arranca el ejecutable instalado con un perfil temporal y habla con él por CDP.
  * No usa `electron .` ni `example.com`.
@@ -46,6 +47,8 @@ const e2eLocale = (process.env.TERMINUS_E2E_LOCALE ?? '').trim();
 const START_FORM = 'form[role="search"]';
 // Ancla propia del campo de búsqueda del inicio: no depende de su posición ni del idioma.
 const START_INPUT = 'input[data-e2e="start-search-input"]';
+// Ancla de las chips recientes: distingue una búsqueda recordada de una sugerencia fija.
+const RECENT_CHIP = '[data-e2e="recent-search"]';
 const THEMES = {
   msdos: { id: 'ms-dos', bg: '#000080', rgb: 'rgb(0, 0, 128)' },
   matrix: { id: 'matrix-dark', bg: '#020402', rgb: 'rgb(2, 4, 2)' },
@@ -364,6 +367,29 @@ async function main() {
 
   console.log(
     `${LOG} PASS: búsqueda del inicio en un paso («search ${SEARCH_QUERY}» registrado, resultados en ${searched.address}).`,
+  );
+  // 5. La búsqueda lanzada arriba queda como chip reciente del inicio.
+  await runCommand(cdp, 'home');
+  const recent = await waitForExpression(
+    cdp,
+    `(() => {
+      const form = document.querySelector(${JSON.stringify(START_FORM)});
+      const chips = [...document.querySelectorAll(${JSON.stringify(RECENT_CHIP)})];
+      return {
+        onStart: Boolean(form?.querySelector(${JSON.stringify(START_INPUT)})),
+        chips: chips.map((chip) => (chip.textContent ?? '').trim()),
+        visible: chips
+          .filter((chip) => chip.getClientRects().length > 0)
+          .map((chip) => (chip.textContent ?? '').trim()),
+      };
+    })()`,
+    (state) =>
+      state.onStart && state.chips[0] === SEARCH_QUERY && state.visible.includes(SEARCH_QUERY),
+    'la búsqueda reciente como chip del inicio',
+    20000,
+  );
+  console.log(
+    `${LOG} PASS: la búsqueda del inicio queda como chip reciente (${recent.chips.length} guardada(s), ancla ${RECENT_CHIP}).`,
   );
 }
 
