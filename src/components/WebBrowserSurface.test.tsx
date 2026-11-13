@@ -462,14 +462,15 @@ describe('búsquedas recientes bajo el campo de inicio', () => {
     expect(chipTexts()).toEqual(['ciencia', 'electron']);
   });
 
-  it('no duplica una sugerencia fija que ya está entre las recientes', () => {
+  it('no repite una sugerencia fija aunque se haya buscado', () => {
     renderSurface();
     const suggestions = screen.getAllByTitle(/^Buscar «/);
     const fixedCount = suggestions.length;
 
     fireEvent.click(suggestions[0]);
 
-    expect(chipTexts()).toHaveLength(1);
+    // Queda la chip fija, sin una copia "reciente" al lado ni hueco al ocultarla.
+    expect(chipTexts()).toEqual([]);
     expect(screen.getAllByTitle(/^Buscar «/)).toHaveLength(fixedCount);
   });
 
@@ -479,6 +480,43 @@ describe('búsquedas recientes bajo el campo de inicio', () => {
     submitSearch('   ');
 
     expect(localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY)).toBeNull();
+  });
+  it('en ventana estrecha deja solo la reciente más nueva', () => {
+    localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(['uno', 'dos', 'tres']));
+
+    renderSurface();
+
+    // El recorte es CSS con el breakpoint `sm` de Tailwind (640 px): jsdom no calcula
+    // layout, así que la prueba fija qué chip se oculta y con qué clases.
+    const recents = [...document.querySelectorAll('[data-e2e="recent-search"]')] as HTMLElement[];
+    expect(recents.map((chip) => chip.textContent?.trim())).toEqual(['uno', 'dos', 'tres']);
+    const classes = (node: HTMLElement) => node.className.split(/\s+/);
+    expect(classes(recents[0])).not.toContain('hidden');
+    expect(classes(recents[1])).toContain('hidden');
+    expect(classes(recents[1])).toContain('sm:inline-block');
+    expect(classes(recents[2])).toContain('hidden');
+
+    // La etiqueta tampoco ocupa línea en estrecho.
+    const label = screen.getByText('Prueba con');
+    expect(classes(label)).toContain('hidden');
+    expect(classes(label)).toContain('sm:inline');
+  });
+
+  it('deja las sugerencias fijas fuera del recorte y la etiqueta solo bajo el breakpoint', () => {
+    localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(['uno', 'dos']));
+
+    renderSurface();
+
+    const classes = (node: HTMLElement) => node.className.split(/\s+/);
+    const chips = [...document.querySelectorAll('[title^="Buscar «"]')] as HTMLElement[];
+    expect(chips).toHaveLength(5);
+
+    // Solo la segunda reciente es la que se oculta en estrecho; las fijas nunca.
+    const hidden = chips.filter((chip) => classes(chip).includes('hidden'));
+    expect(hidden.map((chip) => chip.textContent?.trim())).toEqual(['dos']);
+
+    // La etiqueta sigue en el árbol y reaparece a partir de `sm`.
+    expect(classes(screen.getByText('Prueba con'))).toContain('sm:inline');
   });
 });
 
