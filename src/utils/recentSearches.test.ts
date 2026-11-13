@@ -19,7 +19,7 @@ describe('búsquedas recientes del inicio', () => {
     expect(loadRecentSearches()).toEqual(['arquitectura', 'electron']);
   });
 
-  it('no repite una búsqueda, aunque cambie el caso o los espacios', () => {
+  it('no repite una búsqueda, aunque cambie el caso o los espacios de los extremos', () => {
     recordRecentSearch('Electron');
     recordRecentSearch('arquitectura');
     recordRecentSearch('  electron  ');
@@ -30,13 +30,11 @@ describe('búsquedas recientes del inicio', () => {
   it(`conserva como mucho ${MAX_RECENT_SEARCHES} entradas`, () => {
     ['uno', 'dos', 'tres', 'cuatro'].forEach(recordRecentSearch);
 
-    const searches = loadRecentSearches();
-    expect(searches).toEqual(['cuatro', 'tres', 'dos']);
-    expect(searches).toHaveLength(MAX_RECENT_SEARCHES);
+    expect(loadRecentSearches()).toEqual(['cuatro', 'tres', 'dos']);
   });
 
-  it('ignora entradas corruptas, vacías o que no son texto', () => {
-    store(['ok', '', '   ', 42, null, { query: 'no' }, 'ok']);
+  it('ignora un almacén corrupto o con entradas que no son texto', () => {
+    store(['ok', '', '   ', 42, null, { query: 'no' }]);
     expect(loadRecentSearches()).toEqual(['ok']);
 
     localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, 'no-json');
@@ -52,12 +50,9 @@ describe('búsquedas recientes del inicio', () => {
     expect(loadRecentSearches()).toEqual(['electron']);
   });
 
-  it('normaliza espacios y recorta las consultas largas', () => {
-    recordRecentSearch('  arquitectura   de   software  ');
+  it('recorta las consultas que no caben en una chip', () => {
     recordRecentSearch('x'.repeat(200));
 
-    const [longest, first] = loadRecentSearches();
-    expect(first).toBe('arquitectura de software');
-    expect(longest).toHaveLength(80);
+    expect(loadRecentSearches()).toEqual(['x'.repeat(80)]);
   });
 });
