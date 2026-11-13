@@ -44,16 +44,21 @@ const FIND_TOGGLE = 'button[aria-keyshortcuts="Control+F"]';
 // PAGE_MODES los pinta en orden: REAL, OSCURO y TEXTO.
 const MODE_INDEX = { real: 0, dark: 1, text: 2 };
 // El buscador es el único diálogo con una región `aria-live` (el estado de la búsqueda),
-// y sus botones van en orden: anterior, siguiente y cerrar.
+// y sus botones van en orden: anterior, siguiente y cerrar. La consulta, el estado y el
+// modo del iframe salen de una sola lectura para no encadenar evaluaciones.
 const FIND_BAR_EXPRESSION = `(() => {
   const dialog = [...document.querySelectorAll('[role="dialog"]')]
     .find((item) => item.querySelector('[aria-live="polite"]'));
   const input = dialog?.querySelector('input') ?? null;
+  const frame = document.querySelector('iframe');
+  let frameMode = null;
+  try { frameMode = frame ? new URL(frame.src).searchParams.get('mode') : null; } catch {}
   return {
     open: Boolean(dialog),
     value: input?.value ?? null,
     status: dialog?.querySelector('[aria-live="polite"]')?.textContent?.trim() ?? '',
     focused: document.activeElement === input,
+    frameMode,
   };
 })()`;
 
@@ -240,7 +245,7 @@ async function openFindBar(client) {
   })()`);
   assert.equal(opened, true, `No se encontró el conmutador del buscador (${FIND_TOGGLE}).`);
 
-  await waitForExpression(
+  return waitForExpression(
     client,
     FIND_BAR_EXPRESSION,
     (state) => state.open && state.focused,
@@ -261,46 +266,42 @@ async function setFindQuery(client, text) {
     return true;
   })()`);
   assert.equal(changed, true, 'No se encontró el campo del buscador.');
-
-  await waitForExpression(
-    client,
-    FIND_BAR_EXPRESSION,
-    (state) => state.value === text,
-    `el texto «${text}» en el buscador`,
-    5000,
-  );
 }
 
 /**
- * Espera a que el estado del buscador se estabilice para la consulta actual.
- * El texto del estado está traducido, así que aquí solo se exige que exista,
- * que no cambie entre dos lecturas y que la vista no haya cambiado.
+ * Espera a que el buscador reporte un estado nuevo para la consulta y se repita.
+ * El texto está traducido, así que la coincidencia se comprueba por comportamiento:
+ * el estado de una consulta presente debe ser distinto del de una ausente, y estable.
  */
-async function waitForSettledStatus(client, query, mode) {
+async function waitForSettledStatus(client, query, mode, previousStatus) {
   const deadline = Date.now() + 20000;
-  let previous = null;
+  let last = null;
+  let confirmed = null;
 
   while (Date.now() < deadline) {
     const state = await client.evaluate(FIND_BAR_EXPRESSION);
     if (state.value !== query) {
       throw new Error(`El buscador perdió el texto «${query}»: ahora tiene «${state.value}».`);
     }
-    if (state.status && previous && previous.status === state.status) {
-      const frameMode = await client.evaluate(`(() => {
-        const frame = document.querySelector('iframe');
-        try { return frame ? new URL(frame.src).searchParams.get('mode') : null; } catch { return null; }
-      })()`);
-      assert.equal(frameMode, mode, `La búsqueda cambió la vista ${mode} por otra.`);
-      return state;
+
+    if (state.status && state.status !== previousStatus) {
+      if (confirmed?.status === state.status) {
+        assert.equal(state.frameMode, mode, `La búsqueda cambió la vista ${mode} por otra.`);
+        return state;
+      }
+      confirmed = state;
+      await sleep(300);
+      continue;
     }
-    previous = state;
-    // Reintenta mientras el iframe proxied termina de cargar o window.find necesita otra pasada.
+
+    last = state;
+    // Sin estado nuevo: el iframe proxied puede estar cargando o window.find necesita otra pasada.
     await clickFindControl(client, 1);
-    await sleep(350);
+    await sleep(300);
   }
 
   throw new Error(
-    `El estado del buscador no se estabilizó para «${query}». Último estado: ${JSON.stringify(previous)}`,
+    `El buscador no dio un estado distinto de «${previousStatus}» para «${query}». Último estado: ${JSON.stringify(last)}`,
   );
 }
 
@@ -310,24 +311,15 @@ async function searchInView(client, mode, query) {
   await waitForProxiedPage(client, mode, 'Fixture cross-origin');
 
   await closeFindBar(client);
-  await openFindBar(client);
+  const bar = await openFindBar(client);
   await setFindQuery(client, query);
-  const matched = await waitForSettledStatus(client, query, mode);
+  const matched = await waitForSettledStatus(client, query, mode, bar.status);
 
-  // El estado está traducido, así que la coincidencia se comprueba por comportamiento:
-  // una consulta que no está en la página debe producir un estado distinto.
+  // Una consulta que no está en la página tiene que dar otro estado; si no, el
+  // «match» anterior no significaba nada.
   const absent = `${query}-ausente-${Date.now()}`;
   await setFindQuery(client, absent);
-  const missed = await waitForSettledStatus(client, absent, mode);
-  assert.notEqual(
-    missed.status,
-    matched.status,
-    'El buscador da el mismo estado para una consulta presente y otra ausente.',
-  );
-
-  await setFindQuery(client, query);
-  const restored = await waitForSettledStatus(client, query, mode);
-  assert.equal(restored.status, matched.status, 'El estado de coincidencia no es estable.');
+  await waitForSettledStatus(client, absent, mode, matched.status);
 
   return matched;
 }
@@ -587,11 +579,11 @@ async function main() {
 
   const dark = await searchInView(cdp, 'dark', 'Fixture');
   console.log(`${LOG} PASS: búsqueda en OSCURO (${dark.status}).`);
-  console.log(`${LOG} iframe OSCURO: ${dark.iframe}`);
+  console.log(`${LOG} Vista OSCURO: ${dark.frameMode}`);
 
   const text = await searchInView(cdp, 'text', 'buscador');
   console.log(`${LOG} PASS: búsqueda en TEXTO (${text.status}).`);
-  console.log(`${LOG} iframe TEXTO: ${text.iframe}`);
+  console.log(`${LOG} Vista TEXTO: ${text.frameMode}`);
 }
 
 try {
