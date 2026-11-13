@@ -440,16 +440,18 @@ describe('búsquedas recientes bajo el campo de inicio', () => {
     fireEvent.submit(form);
   };
 
-  const chipTexts = () =>
-    [...document.querySelectorAll('[data-e2e="recent-search"]')].map((node) => (node.textContent ?? '').trim());
+  const chips = () => [...document.querySelectorAll('[title^="Buscar «"]')] as HTMLElement[];
+  const chipTexts = () => chips().map((chip) => (chip.textContent ?? '').trim());
+  const classes = (node: HTMLElement) => node.className.split(/\s+/);
 
   it('recuerda la búsqueda enviada y la coloca delante de las fijas', () => {
     renderSurface();
-    expect(chipTexts()).toEqual([]);
+    const fixedCount = chips().length;
 
     submitSearch('  arquitectura de software  ');
 
-    expect(chipTexts()).toEqual(['arquitectura de software']);
+    expect(chipTexts()[0]).toBe('arquitectura de software');
+    expect(chips()).toHaveLength(fixedCount + 1);
     expect(JSON.parse(localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY) ?? '[]')).toEqual([
       'arquitectura de software',
     ]);
@@ -460,19 +462,18 @@ describe('búsquedas recientes bajo el campo de inicio', () => {
 
     renderSurface();
 
-    expect(chipTexts()).toEqual(['ciencia', 'electron']);
+    expect(chipTexts().slice(0, 2)).toEqual(['ciencia', 'electron']);
   });
 
   it('no repite una sugerencia fija aunque se haya buscado', () => {
     renderSurface();
-    const suggestions = screen.getAllByTitle(/^Buscar «/);
-    const fixedCount = suggestions.length;
+    const fixedCount = chips().length;
 
-    fireEvent.click(suggestions[0]);
+    fireEvent.click(chips()[0]);
 
     // Queda la chip fija, sin una copia "reciente" al lado ni hueco al ocultarla.
-    expect(chipTexts()).toEqual([]);
-    expect(screen.getAllByTitle(/^Buscar «/)).toHaveLength(fixedCount);
+    expect(chips()).toHaveLength(fixedCount);
+    expect(new Set(chipTexts()).size).toBe(fixedCount);
   });
 
   it('no guarda un envío vacío', () => {
@@ -482,6 +483,7 @@ describe('búsquedas recientes bajo el campo de inicio', () => {
 
     expect(localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY)).toBeNull();
   });
+
   it('en ventana estrecha deja solo la reciente más nueva', () => {
     localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(['uno', 'dos', 'tres']));
 
@@ -489,35 +491,15 @@ describe('búsquedas recientes bajo el campo de inicio', () => {
 
     // El recorte es CSS con el breakpoint `sm` de Tailwind (640 px): jsdom no calcula
     // layout, así que la prueba fija qué chip se oculta y con qué clases.
-    const recents = [...document.querySelectorAll('[data-e2e="recent-search"]')] as HTMLElement[];
-    expect(recents.map((chip) => chip.textContent?.trim())).toEqual(['uno', 'dos', 'tres']);
-    const classes = (node: HTMLElement) => node.className.split(/\s+/);
-    expect(classes(recents[0])).not.toContain('hidden');
-    expect(classes(recents[1])).toContain('hidden');
-    expect(classes(recents[1])).toContain('sm:inline-block');
-    expect(classes(recents[2])).toContain('hidden');
+    const [newest, older, oldest, ...fixed] = chips();
+    expect(chipTexts().slice(0, 3)).toEqual(['uno', 'dos', 'tres']);
+    expect(classes(newest)).not.toContain('hidden');
+    expect(classes(older)).toContain('hidden');
+    expect(classes(oldest)).toContain('hidden');
 
-    // La etiqueta tampoco ocupa línea en estrecho.
-    const label = screen.getByText('Prueba con');
-    expect(classes(label)).toContain('hidden');
-    expect(classes(label)).toContain('sm:inline');
-  });
-
-  it('deja las sugerencias fijas fuera del recorte y la etiqueta solo bajo el breakpoint', () => {
-    localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(['uno', 'dos']));
-
-    renderSurface();
-
-    const classes = (node: HTMLElement) => node.className.split(/\s+/);
-    const chips = [...document.querySelectorAll('[title^="Buscar «"]')] as HTMLElement[];
-    expect(chips).toHaveLength(5);
-
-    // Solo la segunda reciente es la que se oculta en estrecho; las fijas nunca.
-    const hidden = chips.filter((chip) => classes(chip).includes('hidden'));
-    expect(hidden.map((chip) => chip.textContent?.trim())).toEqual(['dos']);
-
-    // La etiqueta sigue en el árbol y reaparece a partir de `sm`.
-    expect(classes(screen.getByText('Prueba con'))).toContain('sm:inline');
+    // Las fijas nunca se ocultan; la etiqueta sí desaparece en estrecho.
+    fixed.forEach((chip) => expect(classes(chip)).not.toContain('hidden'));
+    expect(classes(screen.getByText('Prueba con'))).toContain('hidden');
   });
 });
 

@@ -110,29 +110,19 @@ const MODE_LABELS: Record<PageMode, MessageKey> = {
   text: 'browser.modeText',
 };
 
-const START_CHIPS_MAX = 6;
-
 /**
- * Recent searches go first and the fixed suggestions that are still new follow,
- * so the start page keeps a single row of chips.
+ * Recent searches go first, then the fixed suggestions. A search that is already
+ * a fixed suggestion is not repeated, so that chip stays visible even when the
+ * CSS hides the older recent searches in a narrow window.
  */
-const mergeStartChips = (
-  recent: string[],
-  fixed: string[]
-): { query: string; recent: boolean; narrowHidden: boolean }[] => {
+const mergeStartChips = (recent: string[], fixed: string[]) => {
   const fixedKeys = new Set(fixed.map((suggestion) => suggestion.toLowerCase()));
-  // A search that is already a fixed suggestion is not repeated: the fixed chip
-  // always stays visible, even when the CSS hides the older recent searches.
   const recentOnly = recent.filter((query) => !fixedKeys.has(query.toLowerCase()));
-  const seen = new Set(recentOnly.map((query) => query.toLowerCase()));
-  const chips = recentOnly.map((query, index) => ({ query, recent: true, narrowHidden: index > 0 }));
-  for (const suggestion of fixed) {
-    const key = suggestion.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    chips.push({ query: suggestion, recent: false, narrowHidden: false });
-  }
-  return chips.slice(0, START_CHIPS_MAX);
+
+  return [
+    ...recentOnly.map((query, index) => ({ query, narrowHidden: index > 0 })),
+    ...fixed.map((query) => ({ query, narrowHidden: false })),
+  ];
 };
 
 const START_LINKS = [
@@ -277,7 +267,7 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
   const online = useNetworkStatus();
   const [address, setAddress] = useState('');
   const [startQuery, setStartQuery] = useState('');
-  const [recentSearches, setRecentSearches] = useState<string[]>(() => loadRecentSearches());
+  const [recentSearches, setRecentSearches] = useState<string[]>(loadRecentSearches);
   const [commandHistory, setCommandHistory] = useState<string[]>(() => getPersistedCommandHistory());
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [draftCommand, setDraftCommand] = useState('');
@@ -1111,7 +1101,6 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                 <button
                   key={chip.query}
                   type="button"
-                  data-e2e={chip.recent ? 'recent-search' : undefined}
                   onClick={() => {
                     soundEffects.playKeyClick();
                     setRecentSearches(recordRecentSearch(chip.query));
