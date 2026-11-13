@@ -349,16 +349,11 @@ jobs:
             $durationText = 'desconocida'
           }
           # El preflight solo prueba que hay escritorio, no de qué runner se trata.
-          $runnerName = if ($env:RUNNER_NAME) { $env:RUNNER_NAME } else { 'desconocido' }
-          $runnerEnvironmentText = switch ($env:RUNNER_ENVIRONMENT) {
-            'github-hosted' { 'alojado por GitHub' }
-            'self-hosted' { 'autoalojado' }
-            default { 'sin identificar' }
-          }
+          $runnerKind = if ($env:RUNNER_ENVIRONMENT -eq 'self-hosted') { 'autoalojado' } else { 'alojado por GitHub' }
           $e2eRunnerText = if ($env:E2E_OUTCOME -eq 'skipped') {
-            "No ejecutado (job en $runnerName, $runnerEnvironmentText)"
+            "No ejecutado (job en $($env:RUNNER_NAME), $runnerKind)"
           } else {
-            "$runnerName ($runnerEnvironmentText)"
+            "$($env:RUNNER_NAME) ($runnerKind)"
           }
           $runNumber = $env:RUN_NUMBER
           $runUrl = $env:RUN_URL
