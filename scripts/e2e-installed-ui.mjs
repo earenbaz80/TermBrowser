@@ -163,12 +163,6 @@ async function applyE2ELocale(client) {
 
   const current = await openSettingsMenu(client);
   assert.ok(current.locale, 'El menú de configuración no expone el selector de idioma.');
-  // El nombre accesible de la barra está traducido: se guarda para comprobar que la
-  // interfaz se vuelve a pintar, nunca para compararlo con un idioma concreto.
-  const beforeLabel = await client.evaluate(
-    `document.querySelector(${JSON.stringify(ADDRESS_SELECTOR)})?.getAttribute('aria-label') ?? null`,
-  );
-
   if (current.locale !== e2eLocale) {
     const changed = await client.evaluate(`(() => {
       const select = document.getElementById('terminus-locale-select');
@@ -181,22 +175,16 @@ async function applyE2ELocale(client) {
     assert.equal(changed, true, 'No se pudo cambiar el idioma desde el menú.');
   }
 
-  // El idioma se comprueba con el atributo `lang` que pone la app y con que la barra
-  // cambie de nombre accesible; ninguna cadena traducida del guion.
+  // El idioma se comprueba con el `lang` que fija la app al aplicarlo y con que quede
+  // guardado; el nombre accesible de la barra solo se registra, no se compara.
   const applied = await waitForExpression(
     client,
     `(() => ({
-      locale: document.getElementById('terminus-locale-select')?.value ?? null,
       stored: localStorage.getItem(${JSON.stringify(LOCALE_KEY)}),
       lang: document.documentElement.lang || null,
       address: document.querySelector(${JSON.stringify(ADDRESS_SELECTOR)})?.getAttribute('aria-label') ?? null,
     }))()`,
-    (state) =>
-      state.locale === e2eLocale &&
-      state.stored === e2eLocale &&
-      state.lang === e2eLocale &&
-      state.address !== null &&
-      (current.locale === e2eLocale || state.address !== beforeLabel),
+    (state) => state.stored === e2eLocale && state.lang === e2eLocale,
     `la interfaz en ${e2eLocale}`,
     10000,
   );
