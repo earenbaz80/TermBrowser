@@ -384,6 +384,8 @@ jobs:
             ''
           )
           $lines | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          # También a la salida del paso: el resumen renderizado no se lee sin sesión.
+          $lines | Write-Output
 
       # En PRs desde forks el GITHUB_TOKEN es de solo lectura; se omite el comentario.
       # Solo se publica cuando alguna fase anterior ha fallado.
