@@ -28,7 +28,9 @@ import path from 'node:path';
 
 const LOG = '[e2e-installed-ctrl-f]';
 const FIND_SHORTCUT_MARKER = 'terminus:find:shortcut';
-const ADDRESS_SELECTOR = 'input[aria-label="Barra de direcciones y búsqueda"]';
+// La barra de direcciones se identifica por su relación con la lista de sugerencias
+// (atributos del DOM, no el aria-label del idioma activo), así la prueba sirve en cualquier idioma.
+const ADDRESS_SELECTOR = 'input[aria-controls="terminus-address-suggestions"]';
 const EXTERNAL_URL = 'https://example.com/';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
