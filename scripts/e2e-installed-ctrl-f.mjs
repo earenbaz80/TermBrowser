@@ -39,24 +39,28 @@ const EXTERNAL_URL = 'https://example.com/';
 // --- Anclas del DOM (ninguna depende del idioma activo) ---
 // Conmutador del buscador: atributo fijo de teclado, no la etiqueta traducida.
 const FIND_TOGGLE = 'button[aria-keyshortcuts="Control+F"]';
-// Los tres conmutadores de vista son los únicos `aria-pressed` fuera de un diálogo
-// (el menú de configuración también usa `aria-pressed`, pero vive dentro de [role="dialog"]).
-// PAGE_MODES los pinta en orden: REAL, OSCURO y TEXTO.
+// Conmutadores de vista: la app actual expone `data-e2e="view-mode-<id>"`. El respaldo
+// para la 0.3.0 instalada son los únicos `aria-pressed` fuera de un diálogo, en el orden
+// en que PAGE_MODES los pinta: REAL, OSCURO y TEXTO.
 const MODE_INDEX = { real: 0, dark: 1, text: 2 };
-// El buscador es el único diálogo con una región `aria-live` (el estado de la búsqueda),
-// y sus botones van en orden: anterior, siguiente y cerrar. La consulta, el estado y el
-// modo del iframe salen de una sola lectura para no encadenar evaluaciones.
+// El buscador y sus controles se localizan por `data-e2e`; la 0.3.0 instalada todavía
+// no los lleva, así que se mantiene el respaldo estructural (único diálogo con
+// `aria-live`, y botones en orden anterior, siguiente y cerrar).
+const FIND_DIALOG_EXPRESSION = `document.querySelector('[data-e2e="find-bar"]')
+    ?? [...document.querySelectorAll('[role="dialog"]')]
+      .find((item) => item.querySelector('[aria-live="polite"]'))`;
+// La consulta, el estado y el modo del iframe salen de una sola lectura.
 const FIND_BAR_EXPRESSION = `(() => {
-  const dialog = [...document.querySelectorAll('[role="dialog"]')]
-    .find((item) => item.querySelector('[aria-live="polite"]'));
-  const input = dialog?.querySelector('input') ?? null;
+  const dialog = ${FIND_DIALOG_EXPRESSION};
+  const input = dialog?.querySelector('[data-e2e="find-input"], input') ?? null;
+  const status = dialog?.querySelector('[data-e2e="find-status"], [aria-live="polite"]');
   const frame = document.querySelector('iframe');
   let frameMode = null;
   try { frameMode = frame ? new URL(frame.src).searchParams.get('mode') : null; } catch {}
   return {
     open: Boolean(dialog),
     value: input?.value ?? null,
-    status: dialog?.querySelector('[aria-live="polite"]')?.textContent?.trim() ?? '',
+    status: status?.textContent?.trim() ?? '',
     focused: document.activeElement === input,
     frameMode,
   };
@@ -142,15 +146,23 @@ async function waitForProxiedPage(client, mode, expectedText, timeoutMs = 15000)
 
 async function selectViewMode(client, mode) {
   const clicked = await client.evaluate(`(() => {
+    const exact = document.querySelector('[data-e2e="view-mode-${mode}"]');
+    if (exact) {
+      exact.click();
+      return { clicked: true, exact: true, count: null };
+    }
     const buttons = [...document.querySelectorAll('button[aria-pressed]')]
       .filter((button) => !button.closest('[role="dialog"]'));
     const button = buttons[${MODE_INDEX[mode]}];
-    if (!button) return { clicked: false, count: buttons.length };
+    if (!button) return { clicked: false, exact: false, count: buttons.length };
     button.click();
-    return { clicked: true, count: buttons.length };
+    return { clicked: true, exact: false, count: buttons.length };
   })()`);
-  assert.equal(clicked.count, 3, `Se esperaban 3 conmutadores de vista y hay ${clicked.count}.`);
   assert.equal(clicked.clicked, true, `No se encontró el conmutador de la vista ${mode}.`);
+  // La 0.3.0 instalada no lleva data-e2e: solo entonces se depende del orden.
+  if (!clicked.exact) {
+    assert.equal(clicked.count, 3, `Se esperaban 3 conmutadores de vista y hay ${clicked.count}.`);
+  }
 
   const state = await waitForExpression(
     client,
@@ -158,15 +170,14 @@ async function selectViewMode(client, mode) {
       const frame = document.querySelector('iframe');
       let frameMode = null;
       try { frameMode = frame ? new URL(frame.src).searchParams.get('mode') : null; } catch {}
-      const buttons = [...document.querySelectorAll('button[aria-pressed]')]
-        .filter((button) => !button.closest('[role="dialog"]'));
-      return {
-        iframe: frame?.src ?? null,
-        frameMode,
-        pressed: buttons[${MODE_INDEX[mode]}]?.getAttribute('aria-pressed') ?? null,
-      };
+      const exact = document.querySelector('[data-e2e="view-mode-${mode}"]');
+      const pressed = exact
+        ? null
+        : ([...document.querySelectorAll('button[aria-pressed]')]
+            .filter((button) => !button.closest('[role="dialog"]'))[${MODE_INDEX[mode]}]?.getAttribute('aria-pressed') ?? null);
+      return { iframe: frame?.src ?? null, frameMode, pressed };
     })()`,
-    (value) => value.frameMode === mode && value.pressed === 'true',
+    (value) => value.frameMode === mode && (value.pressed === null || value.pressed === 'true'),
     `la vista ${mode}`,
     15000,
   );
@@ -218,13 +229,16 @@ async function navigateToPage(client, url, expectedFramePart) {
   );
 }
 
-/** Pulsa un botón del buscador por su posición: 0 anterior, 1 siguiente, 2 cerrar. */
-async function clickFindControl(client, index) {
+/**
+ * Pulsa un botón del buscador por su `data-e2e`; si la app instalada aún no lo lleva,
+ * cae a la posición dentro del diálogo (0 anterior, 1 siguiente, 2 cerrar).
+ */
+async function clickFindControl(client, action, fallbackIndex) {
   return client.evaluate(`(() => {
-    const dialog = [...document.querySelectorAll('[role="dialog"]')]
-      .find((item) => item.querySelector('[aria-live="polite"]'));
+    const dialog = ${FIND_DIALOG_EXPRESSION};
     if (!dialog) return false;
-    const button = [...dialog.querySelectorAll('button')][${index}];
+    const button = dialog.querySelector('[data-e2e="find-${action}"]')
+      ?? [...dialog.querySelectorAll('button')][${fallbackIndex}];
     if (!button) return false;
     button.click();
     return true;
@@ -232,7 +246,7 @@ async function clickFindControl(client, index) {
 }
 
 async function closeFindBar(client) {
-  await clickFindControl(client, 2);
+  await clickFindControl(client, 'close', 2);
   await waitForExpression(client, FIND_BAR_EXPRESSION, (state) => !state.open, 'el cierre del buscador', 5000);
 }
 
@@ -256,9 +270,8 @@ async function openFindBar(client) {
 
 async function setFindQuery(client, text) {
   const changed = await client.evaluate(`(() => {
-    const dialog = [...document.querySelectorAll('[role="dialog"]')]
-      .find((item) => item.querySelector('[aria-live="polite"]'));
-    const input = dialog?.querySelector('input');
+    const dialog = ${FIND_DIALOG_EXPRESSION};
+    const input = dialog?.querySelector('[data-e2e="find-input"], input');
     if (!input) return false;
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
     setter.call(input, ${JSON.stringify(text)});
@@ -296,7 +309,7 @@ async function waitForSettledStatus(client, query, mode, previousStatus) {
 
     last = state;
     // Sin estado nuevo: el iframe proxied puede estar cargando o window.find necesita otra pasada.
-    await clickFindControl(client, 1);
+    await clickFindControl(client, 'next', 1);
     await sleep(300);
   }
 
