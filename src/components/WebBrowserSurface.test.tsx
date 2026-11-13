@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { FOCUS_ADDRESS_EVENT, WebBrowserSurface } from './WebBrowserSurface';
 import { THEMES } from '../utils/themes';
 import { RECENT_SEARCHES_STORAGE_KEY } from '../utils/recentSearches';
+import { BOOT_ASCII } from '../utils/bootBanner';
 import type { BrowserTab, TerminusDesktopApi, TerminusSearchState } from '../types';
 
 const theme = THEMES['cyberpunk-obsidian'];
@@ -517,6 +518,22 @@ describe('búsquedas recientes bajo el campo de inicio', () => {
 
     // La etiqueta sigue en el árbol y reaparece a partir de `sm`.
     expect(classes(screen.getByText('Prueba con'))).toContain('sm:inline');
+  });
+});
+
+describe('cartel del inicio', () => {
+  it('mantiene el cartel ASCII original en lugar de la versión compacta', () => {
+    renderSurface();
+
+    const signs = [...document.querySelectorAll('.ascii-sign')] as HTMLElement[];
+    expect(signs).toHaveLength(1);
+
+    // El inicio escala ese cartel con el ancho de la ventana; no cambia de rótulo.
+    const [sign] = signs;
+    expect(sign.className.split(/\s+/)).toContain('ascii-sign-start');
+    expect(sign.className.split(/\s+/)).not.toContain('ascii-sign-compact');
+    expect(sign.textContent).toBe(BOOT_ASCII);
+    expect(sign.textContent).toContain('████████╗███████╗');
   });
 });
 

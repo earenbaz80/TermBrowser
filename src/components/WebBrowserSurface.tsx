@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Bookmark, BrowserTab, PageMode, ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
-import { BOOT_ASCII, BOOT_ASCII_COMPACT } from '../utils/bootBanner';
+import { BOOT_ASCII } from '../utils/bootBanner';
 import { getLatencyGlow } from '../utils/latencyGlow';
 import { expectedFrameMessageOrigin, isTrustedFrameMessage } from '../utils/frameMessageSecurity';
 import { RetroAssistantEyes } from './RetroAssistantEyes';
@@ -1026,19 +1026,13 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center font-mono">
             <div className="ascii-boot" style={glowStyle}>
+              {/* The full ANSI Shadow sign is the sign in every window size: CSS scales it down. */}
               <pre
-                className="ascii-sign ascii-sign-wide select-none font-mono"
+                className="ascii-sign ascii-sign-start select-none font-mono"
                 aria-hidden="true"
                 data-text={BOOT_ASCII}
               >
                 {BOOT_ASCII}
-              </pre>
-              <pre
-                className="ascii-sign ascii-sign-compact select-none font-mono"
-                aria-hidden="true"
-                data-text={BOOT_ASCII_COMPACT}
-              >
-                {BOOT_ASCII_COMPACT}
               </pre>
               <div
                 className="ascii-latency"

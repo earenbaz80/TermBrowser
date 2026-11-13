@@ -362,6 +362,14 @@
   display: none;
 }
 
+/* The web start page keeps the full 79-column sign in every window size: it
+   scales with the viewport instead of swapping to the compact lettering. The
+   divisor leaves room for the glyph advance (about 0.6em) plus the padding. */
+.ascii-sign-start {
+  display: block;
+  font-size: min(10px, calc((100vw - 4rem) / 52));
+}
+
 /* The inline command manual switches to its reflowed 42-column version on phones. */
 .ascii-manual-wide {
   display: block;
