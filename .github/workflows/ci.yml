@@ -24,11 +24,9 @@ jobs:
     name: Windows - lint, tests, cobertura y E2E opcional
     outputs:
       pr_comment_url: ${{ steps.pr_summary.outputs.comment_url }}
-    # El E2E usa SendKeys y necesita una sesión de escritorio interactiva, algo que
-    # no está garantizado en windows-latest. Para ejecuciones repetidas se configura
-    # una etiqueta self-hosted en TERMINUS_CI_RUNNER; al lanzarlo a mano con
-    # workflow_dispatch el preflight decide y también ha pasado en windows-latest
-    # (corrida 43384471680, con los tres guiones en verde).
+    # El E2E usa SendKeys y necesita escritorio interactivo: lo comprueba el
+    # preflight, no la etiqueta del runner, así que en windows-latest puede pasar.
+    # Para ejecuciones repetidas conviene TERMINUS_CI_RUNNER con un runner propio.
     # Un PR desde un fork nunca usa un runner autoalojado: podría ejecutar
     # código no confiable en una máquina con acceso a la red local.
     runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'windows-latest' || vars.TERMINUS_CI_RUNNER || 'windows-latest' }}
