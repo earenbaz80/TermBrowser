@@ -110,6 +110,8 @@ const MODE_LABELS: Record<PageMode, MessageKey> = {
   text: 'browser.modeText',
 };
 
+const START_CHIPS_MAX = 6;
+
 /**
  * Recent searches go first and the fixed suggestions that are still new follow,
  * so the start page keeps a single row of chips.
@@ -117,16 +119,20 @@ const MODE_LABELS: Record<PageMode, MessageKey> = {
 const mergeStartChips = (
   recent: string[],
   fixed: string[]
-): { query: string; recent: boolean }[] => {
-  const seen = new Set(recent.map((query) => query.toLowerCase()));
-  const chips = recent.map((query) => ({ query, recent: true }));
+): { query: string; recent: boolean; narrowHidden: boolean }[] => {
+  const fixedKeys = new Set(fixed.map((suggestion) => suggestion.toLowerCase()));
+  // A search that is already a fixed suggestion is not repeated: the fixed chip
+  // always stays visible, even when the CSS hides the older recent searches.
+  const recentOnly = recent.filter((query) => !fixedKeys.has(query.toLowerCase()));
+  const seen = new Set(recentOnly.map((query) => query.toLowerCase()));
+  const chips = recentOnly.map((query, index) => ({ query, recent: true, narrowHidden: index > 0 }));
   for (const suggestion of fixed) {
     const key = suggestion.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    chips.push({ query: suggestion, recent: false });
+    chips.push({ query: suggestion, recent: false, narrowHidden: false });
   }
-  return chips.slice(0, 6);
+  return chips.slice(0, START_CHIPS_MAX);
 };
 
 const START_LINKS = [
@@ -1101,7 +1107,9 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
               </div>
             </form>
             <div className="flex flex-wrap items-center justify-center gap-2">
-              <span className="text-[9px] uppercase tracking-[0.18em] opacity-45">{t('start.tryWith')}</span>
+              <span className="hidden text-[9px] uppercase tracking-[0.18em] opacity-45 sm:inline">
+                {t('start.tryWith')}
+              </span>
               {mergeStartChips(
                 recentSearches,
                 SUGGESTED_QUERY_KEYS.map((key) => t(key))
@@ -1116,7 +1124,9 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                     setStartQuery(chip.query);
                     go(`search ${chip.query}`);
                   }}
-                  className="border px-2.5 py-1 text-[10px] cursor-pointer transition-opacity hover:opacity-70"
+                  className={`border px-2.5 py-1 text-[10px] cursor-pointer transition-opacity hover:opacity-70${
+                    chip.narrowHidden ? ' hidden sm:inline-block' : ''
+                  }`}
                   style={{ borderColor: theme.border, color: theme.text }}
                   title={t('start.searchFor', { query: chip.query })}
                 >
