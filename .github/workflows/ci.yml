@@ -262,8 +262,12 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force artifacts/e2e | Out-Null
+          # Los dos guiones corren siempre; el paso falla si falla cualquiera de ellos.
+          $e2eExitCode = 0
           npm run test:e2e:installed 2>&1 | Tee-Object -FilePath artifacts/e2e/e2e-installed.log
-          $e2eExitCode = $LASTEXITCODE
+          if ($LASTEXITCODE -ne 0) { $e2eExitCode = $LASTEXITCODE }
+          npm run test:e2e:installed:ui 2>&1 | Tee-Object -FilePath artifacts/e2e/e2e-installed-ui.log
+          if ($LASTEXITCODE -ne 0) { $e2eExitCode = $LASTEXITCODE }
           $e2eResult = if ($e2eExitCode -eq 0) { 'PASS' } else { 'FAIL' }
           "result=$e2eResult" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "exit_code=$e2eExitCode" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
@@ -275,7 +279,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: e2e-installed-logs
-          path: artifacts/e2e/e2e-installed.log
+          path: |
+            artifacts/e2e/e2e-installed.log
+            artifacts/e2e/e2e-installed-ui.log
           # El E2E instalado es opcional: sin log no hay nada que subir y no debe avisar.
           if-no-files-found: ignore
 
