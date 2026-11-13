@@ -5,7 +5,7 @@ Esta guía prepara la ejecución de `npm run test:e2e:installed` en un runner de
 - arranca el ejecutable instalado con un perfil temporal;
 - carga `https://example.com/` para el iframe REAL cross-origin y sirve un fixture HTTP local en otro puerto para las vistas `OSCURO` y `TEXTO`;
 - obtiene el control del renderer mediante CDP;
-- envía `Ctrl+F` con `SendKeys` nativo de Windows;
+- envía `Ctrl+F` con `SendKeys` nativo de Windows y, si otra ventana retiene el primer plano o la tecla se pierde, repite el atajo por CDP (mismo `before-input-event` de Chromium y mismo IPC);
 - comprueba que el buscador encuentra texto real en las vistas `OSCURO` y `TEXTO`.
 
 La única salida a Internet es `https://example.com/`; el resto se sirve en loopback.
@@ -226,8 +226,8 @@ Solo aplican al **respaldo**, es decir, a un build instalado anterior a los `dat
 | --- | --- | --- |
 | `No se encontró la app instalada` | Falta el NSIS o cambió la ruta. | Instala el build actual o define `TERMINUS_INSTALLED_EXE`. |
 | `La app instalada no contiene el atajo global` | Instalación antigua o build incorrecto. | Vuelve a ejecutar `npm run desktop:build` e instala ese instalador. |
-| `No se pudo poner Terminus en primer plano: la ventana activa es otra` | Runner como servicio (sesión 0), sesión bloqueada, app elevada u otra ventana conservando el primer plano. El guion reintenta la activación cinco veces y comprueba el resultado con `GetForegroundWindow` antes de enviar la tecla. | Arranca el runner con `run.cmd` en sesión interactiva, desbloquea el escritorio, no ejecutes como administrador y no dejes otra app reclamando el primer plano. |
-| `Ctrl+F se envió con Terminus en primer plano, pero la app no abrió el buscador` | La ventana sí estaba delante, pero el foco de teclado se quedó en otra ventana o en el propio shell: `SendKeys` no llegó al contenido web. | Cierra diálogos modales, vuelve a lanzar la prueba y evita forzar el primer plano desde fuera (por ejemplo, con `SetForegroundWindow` visible o minimizada): activar la ventana no le devuelve el foco a WebView2. |
+| `Ctrl+F por CDP: …` en el log | Otra ventana conserva el primer plano (o el foco de teclado no siguió a la activación) y la tecla nativa no entró. **No es un fallo**: el guion repite el atajo por CDP, que recorre el mismo `before-input-event` de Chromium y el mismo IPC de la app. El log lo deja escrito y continúa con la ruta `CDP`. | Nada. Si quieres que la corrida use la tecla nativa, deja Terminus en primer plano; el resto de comprobaciones es idéntico. |
+| `Ctrl+F no abrió el buscador ni con la tecla nativa ni por CDP` | El atajo no responde en absoluto: renderer sin cargar o build que no registra `before-input-event`. | Revisa el log de la app que imprime el guion, comprueba que el `app.asar` instalado es el actual y reinstala. |
 | `CDP no respondió` | La app terminó, el puerto está bloqueado o Electron no arrancó. | Revisa la cola del log de la app que imprime el script; comprueba antivirus/firewall y que el ejecutable sea el instalado. |
 | `El iframe REAL no recibió el foco` | Ventana oculta, modal abierto o escritorio no interactivo. | Mantén la sesión visible, cierra diálogos y vuelve a lanzar la prueba. |
 | `No se encontró «Fixture»` en OSCURO/TEXTO | El proxy no pudo acceder al fixture loopback. | Comprueba que el firewall permita loopback; el E2E ya define `TERMINUS_BLOCK_PRIVATE=0` y `TERMINUS_NETWORK_POLICY=local` para la instancia de prueba. |
