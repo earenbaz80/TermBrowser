@@ -5,7 +5,8 @@
  * Depende de internet (example.com y las listas de Ghostery), así que el guion
  * comprueba esos destinos antes de arrancar y distingue los fallos:
  *   - código 0: `E2E_ADBLOCK_OK`, el producto cumple.
- *   - código 2: `E2E_ADBLOCK_UNREACHABLE`, sin red en el runner (infraestructura).
+ *   - código 2: `E2E_ADBLOCK_UNREACHABLE`, sin red en el runner o sin listas
+ *     utilizables (caché ausente, truncada o con menos filtros que el mínimo).
  *   - código 1: regresión del producto.
  *
  * Para probar el camino sin red: `TERMINUS_E2E_ADBLOCK_PROBE_URLS=http://127.0.0.1:9/`.
@@ -19,6 +20,7 @@ import {
   isNetworkUnavailable,
   UnreachableNetworkError,
 } from './lib/network-preflight.mjs';
+import { isEngineUnusable, readEngineState } from './lib/adblock-engine-state.mjs';
 
 const fixtureHtml = `<!doctype html>
 <html lang="es">
@@ -207,9 +209,10 @@ try {
   console.log('BODY_TEXT', (await page.locator('body').innerText().catch(() => '<sin body>')).slice(0, 1200));
   console.log('LOCAL_STORAGE', await page.evaluate(() => ({ ...localStorage })).catch(() => '<sin storage>'));
   await page.waitForTimeout(10000);
-  // Sin caché no hubo descarga de listas: los cosméticos no pueden aplicarse.
-  const adblockCacheAfter = fs.existsSync(path.join(userData, 'adblock-engine.bin'));
-  console.log('ADBLOCK_CACHE_AFTER', adblockCacheAfter);
+  // Estado real del motor serializado: cuántos filtros quedaron guardados. Sirve
+  // para no confundir una caché sin listas con una regresión de cosméticos.
+  const engineState = readEngineState(path.join(userData, 'adblock-engine.bin'));
+  console.log('ENGINE_STATE', JSON.stringify(engineState));
 
   const frames = page.frames().map((frame) => frame.url());
   console.log('FRAMES', JSON.stringify(frames));
@@ -408,10 +411,11 @@ try {
     publicCosmeticState.adDisplay !== 'none' ||
     publicCosmeticState.slotDisplay !== 'none'
   ) {
-    // Si la app nunca pudo serializar el motor, faltan las listas: eso es red.
-    if (!adblockCacheAfter) {
+    // Sin caché, con una caché ilegible o con listas a medias, el motor no tiene
+    // filtros: eso es red (o una descarga truncada), no una regresión del producto.
+    if (isEngineUnusable(engineState)) {
       throw new UnreachableNetworkError(
-        [{ url: `${LIST_ASSETS}/easylist/easylist.txt`, reason: 'EasyList/EasyPrivacy no se descargaron (sin caché del motor)' }],
+        [{ url: `${LIST_ASSETS}/easylist/easylist.txt`, reason: `motor sin listas: ${engineState.reason}` }],
         { attempts: 3 }
       );
     }
