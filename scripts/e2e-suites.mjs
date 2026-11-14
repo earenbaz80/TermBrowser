@@ -6,7 +6,10 @@
  * no puede desincronizarse del que declara cada guion.
  *
  * `locale` vacío significa que la suite corre con el idioma por defecto de la app;
- * `pr` marca las suites que se ejecutan en un PR (la de alemán solo en main).
+ * `pr` marca las suites que se ejecutan en un PR. La de alemán también corre: medido
+ * sobre la app instalada el 14 de noviembre de 2026, `ui` tarda 12 s y `ui-de` otros
+ * 12 s, así que condicionarla a cambios de textos ahorraría segundos y perdería la
+ * cobertura de disposición y pestañas con cadenas alemanas.
  */
 
 export const E2E_SUITES = [
@@ -32,7 +35,7 @@ export const E2E_SUITES = [
     log: 'e2e-installed-ui-de.log',
     locale: 'de',
     steps: 11,
-    pr: false,
+    pr: true,
   },
 ];
 

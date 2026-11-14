@@ -161,8 +161,11 @@ jobs:
                 $appChanged = @($files | Where-Object { $_ -match $pattern }).Count -gt 0
               }
               $enabled = $appChanged
-              # La suite de alemán solo en main: es la misma UI y dobla el tiempo del PR.
-              $only = 'ctrl-f,ui'
+              # La de alemán también: medido sobre la app instalada (14/11/2026) son
+              # 12 s, lo mismo que `ui`, y cubre disposición y pestañas con textos
+              # alemanes, que no cambian solo cuando cambian los textos. La lista
+              # tiene que coincidir con las suites `pr: true` de e2e-suites.mjs.
+              $only = 'ctrl-f,ui,ui-de'
               $reason = if ($appChanged) { 'PR que toca la app' } else { 'PR sin cambios de app' }
             }
           } else {
