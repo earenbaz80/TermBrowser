@@ -34,8 +34,71 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
+  # Veredicto rápido: lint y unitarios sin esperar al build ni al E2E. Corre en
+  # paralelo con `windows`, y `requerido` sigue siendo el check que protege
+  # `main`, así que separar no relaja la puerta de merge.
+  checks:
+    name: Checks - lint, pruebas y cobertura
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 'windows-latest' || vars.TERMINUS_CI_RUNNER || 'windows-latest' }}
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validar workflows con actionlint
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '1.7.12'
+          $expectedSha256 = '6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9'
+          $zip = Join-Path $env:RUNNER_TEMP "actionlint_$version.zip"
+          $binDir = Join-Path $env:RUNNER_TEMP "actionlint_$version"
+
+          Invoke-WebRequest -Uri "https://github.com/rhysd/actionlint/releases/download/v$version/actionlint_${version}_windows_amd64.zip" -OutFile $zip
+          $actualSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()
+          if ($actualSha256 -ne $expectedSha256) {
+            throw "Checksum de actionlint inválido: $actualSha256 (esperado $expectedSha256)."
+          }
+
+          New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+          Expand-Archive -LiteralPath $zip -DestinationPath $binDir -Force
+          & (Join-Path $binDir 'actionlint.exe') -color
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Typecheck y ESLint
+        run: npm run lint
+
+      - name: Pruebas unitarias con cobertura
+        run: npm run test:coverage
+
+      - name: Publicar cobertura
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-lcov
+          path: coverage/lcov.info
+          if-no-files-found: error
+
+      - name: Auditar dependencias (incluye desarrollo)
+        run: npm audit --audit-level=moderate
+
+      - name: Instalar Chromium para Playwright
+        run: npx playwright install chromium
+
+      - name: Prueba Chromium del sandbox Python
+        run: npm run test:e2e:python-sandbox
+
   windows:
-    name: Windows - lint, tests, cobertura y E2E opcional
+    name: Windows - build, E2E y artefactos
     outputs:
       pr_comment_url: ${{ steps.pr_summary.outputs.comment_url }}
     # El E2E usa SendKeys y necesita escritorio interactivo: lo comprueba el
@@ -111,26 +174,6 @@ jobs:
           "only=$only" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "E2E instalado: $($enabled.ToString().ToLower()) ($reason)"
 
-      - name: Validar workflows con actionlint
-        shell: pwsh
-        timeout-minutes: 5
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $version = '1.7.12'
-          $expectedSha256 = '6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9'
-          $zip = Join-Path $env:RUNNER_TEMP "actionlint_$version.zip"
-          $binDir = Join-Path $env:RUNNER_TEMP "actionlint_$version"
-
-          Invoke-WebRequest -Uri "https://github.com/rhysd/actionlint/releases/download/v$version/actionlint_${version}_windows_amd64.zip" -OutFile $zip
-          $actualSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()
-          if ($actualSha256 -ne $expectedSha256) {
-            throw "Checksum de actionlint inválido: $actualSha256 (esperado $expectedSha256)."
-          }
-
-          New-Item -ItemType Directory -Force -Path $binDir | Out-Null
-          Expand-Archive -LiteralPath $zip -DestinationPath $binDir -Force
-          & (Join-Path $binDir 'actionlint.exe') -color
-
       - name: Configurar Node.js
         uses: actions/setup-node@v7
         with:
@@ -161,30 +204,9 @@ jobs:
           }
           Write-Host "Sesión interactiva detectada: SessionId=$sessionId"
 
+      # El build necesita las dependencias; `checks` instala las suyas en paralelo.
       - name: Instalar dependencias
         run: npm ci
-
-      - name: Instalar Chromium para Playwright
-        run: npx playwright install chromium
-
-      - name: Auditar dependencias (incluye desarrollo)
-        run: npm audit --audit-level=moderate
-
-      - name: Typecheck y ESLint
-        run: npm run lint
-
-      - name: Pruebas unitarias con cobertura
-        run: npm run test:coverage
-
-      - name: Publicar cobertura
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-lcov
-          path: coverage/lcov.info
-          if-no-files-found: error
-
-      - name: Prueba Chromium del sandbox Python
-        run: npm run test:e2e:python-sandbox
 
       - name: Preparar certificado de firma
         if: env.SIGNING_ENABLED == 'true'
@@ -532,3 +554,37 @@ jobs:
           if ($env:GITHUB_STEP_SUMMARY) {
             "- **Comentario del PR:** [Ver resumen]($commentUrl)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           }
+
+  # El contexto que exige la protección de `main` se mantiene con este job
+  # agregado: si `checks` o `windows` fallan, este check falla igual que antes
+  # de partir el trabajo, así que la regla de merge no cambia.
+  requerido:
+    name: Windows - lint, tests, cobertura y E2E opcional
+    needs: [checks, windows]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      pr_comment_url: ${{ needs.windows.outputs.pr_comment_url }}
+
+    steps:
+      - name: Comprobar el resultado de los dos jobs
+        shell: bash
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          WINDOWS_RESULT: ${{ needs.windows.result }}
+        run: |
+          echo "checks: $CHECKS_RESULT"
+          echo "windows: $WINDOWS_RESULT"
+          fallo=0
+          for resultado in "$CHECKS_RESULT" "$WINDOWS_RESULT"; do
+            case "$resultado" in
+              success|skipped) ;;
+              *) fallo=1 ;;
+            esac
+          done
+          if [ "$fallo" -ne 0 ]; then
+            echo "::error title=CI en rojo::checks=$CHECKS_RESULT, windows=$WINDOWS_RESULT"
+            exit 1
+          fi
+          echo "Los dos jobs pasaron."
