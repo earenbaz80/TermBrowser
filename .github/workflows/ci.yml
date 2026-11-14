@@ -247,6 +247,25 @@ jobs:
           $certificatePath = Join-Path $env:RUNNER_TEMP 'terminus-signing.pfx'
           Remove-Item -LiteralPath $certificatePath -Force -ErrorAction SilentlyContinue
 
+      # El E2E de adblock lanza Playwright contra `release/win-unpacked`, así que va
+      # justo después del build y antes de instalar: no depende del gate del E2E
+      # instalado ni de una sesión de escritorio interactiva.
+      - name: E2E de adblock en Electron
+        id: e2e_adblock
+        timeout-minutes: 10
+        run: npm run test:e2e:adblock
+
+      # La captura es la prueba visual del fixture con el bloqueo aplicado; se sube
+      # aunque el paso falle, para poder mirarla cuando algo se rompa.
+      - name: Publicar captura del E2E de adblock
+        id: upload-adblock
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-adblock
+          path: artifacts/adblock-electron.png
+          if-no-files-found: ignore
+
       # El artefacto lleva el instalador suelto, no un ZIP propio: Actions envuelve el
       # fichero en su propio zip al descargarlo, y por eso el tamaño descargado no
       # coincide con el del .exe. El ZIP de release se arma a mano con Compress-Archive
@@ -345,6 +364,8 @@ jobs:
           LOGS_URL: ${{ steps.upload-e2e-logs.outputs.artifact-url }}
           SUMS_NAME: terminus-sha256sums-${{ steps.version.outputs.version }}-run-${{ github.run_number }}-windows
           SUMS_URL: ${{ steps.upload-sha256sums.outputs.artifact-url }}
+          ADBLOCK_OUTCOME: ${{ steps.e2e_adblock.outcome }}
+          ADBLOCK_URL: ${{ steps.upload-adblock.outputs.artifact-url }}
         run: |
           $version = if ($env:APP_VERSION) { $env:APP_VERSION } else { 'desconocida' }
           $status = if ($env:JOB_STATUS) { $env:JOB_STATUS } else { 'desconocido' }
@@ -385,6 +406,14 @@ jobs:
           $installerLink = if ($env:INSTALLER_URL) { "[Descargar]($env:INSTALLER_URL)" } else { 'No disponible' }
           $logsLink = if ($env:LOGS_URL) { "[Descargar]($env:LOGS_URL)" } else { 'No disponible' }
           $sumsLink = if ($env:SUMS_URL) { "[Descargar]($env:SUMS_URL)" } else { 'No disponible' }
+          $adblockLink = if ($env:ADBLOCK_URL) { "[Captura]($env:ADBLOCK_URL)" } else { 'sin captura' }
+          $adblockText = if ($env:ADBLOCK_OUTCOME -eq 'success') {
+            "OK - $adblockLink"
+          } elseif ($env:ADBLOCK_OUTCOME -eq 'failure') {
+            "FAIL - $adblockLink"
+          } else {
+            'No ejecutado'
+          }
 
           $lines = @(
             '## Terminus CI',
@@ -397,6 +426,7 @@ jobs:
             "- **Duración:** $durationText",
             "- **Ejecución:** [$env:RUN_NUMBER]($env:RUN_URL)",
             "- **Instalador:** $env:INSTALLER_NAME - $installerLink",
+            "- **E2E adblock:** $adblockText",
             "- **Logs E2E:** e2e-installed-logs - $logsLink",
             "- **Sumas SHA-256:** $env:SUMS_NAME - $sumsLink",
             ''

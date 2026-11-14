@@ -117,13 +117,14 @@ El job `windows` ejecuta, en orden:
 6. `npm run test:coverage`, que publica el artefacto `coverage-lcov`.
 7. `npm run test:e2e:python-sandbox`.
 8. `npm run desktop:build`.
-9. Publica el instalador NSIS como artefacto.
-10. Instala el instalador más reciente con `/S`.
-11. Detiene cualquier instancia de Terminus que el instalador haya abierto.
-12. Define `TERMINUS_INSTALLED_EXE` apuntando a `%LOCALAPPDATA%\Programs\Terminus\Terminus.exe`.
-13. Ejecuta `node scripts/e2e-run.mjs`: recorre `scripts/e2e-suites.mjs`, lanza cada suite con `npm run`, guarda su salida en `artifacts/e2e/<log>` y falla con el primer código distinto de cero. En un PR corre `ctrl-f` y `ui`; en `main` y en el nocturno corre también `ui-de`, la UI con `TERMINUS_E2E_LOCALE=de` para ejercer la ruta multiidioma.
-14. Compara el recuento: cada log tiene que cerrar con `STEPS: n/m` igual al total que declara su entrada de `scripts/e2e-suites.mjs`, la misma lista que leen los guiones, así que el esperado no se puede desincronizar. El resumen del paso queda `ctrl-f 5/5 · ui 11/11 · ui-de 11/11`.
-15. Publica los logs del E2E y un resumen del job.
+9. `npm run test:e2e:adblock`: Playwright lanza `release/win-unpacked/Terminus.exe` contra un fixture local y comprueba el proxy, el bloqueo de red y los cosméticos de EasyList, el bloqueo de la red privada en las vistas proxificada y REAL, el popup bloqueado y el contenido legítimo visible. Corre en todos los runs, no depende del gate del E2E instalado, y publica `artifacts/adblock-electron.png` en el artefacto `e2e-adblock` (también cuando el paso falla).
+10. Publica el instalador NSIS como artefacto.
+11. Instala el instalador más reciente con `/S`.
+12. Detiene cualquier instancia de Terminus que el instalador haya abierto.
+13. Define `TERMINUS_INSTALLED_EXE` apuntando a `%LOCALAPPDATA%\Programs\Terminus\Terminus.exe`.
+14. Ejecuta `node scripts/e2e-run.mjs`: recorre `scripts/e2e-suites.mjs`, lanza cada suite con `npm run`, guarda su salida en `artifacts/e2e/<log>` y falla con el primer código distinto de cero. En un PR corre `ctrl-f` y `ui`; en `main` y en el nocturno corre también `ui-de`, la UI con `TERMINUS_E2E_LOCALE=de` para ejercer la ruta multiidioma.
+15. Compara el recuento: cada log tiene que cerrar con `STEPS: n/m` igual al total que declara su entrada de `scripts/e2e-suites.mjs`, la misma lista que leen los guiones, así que el esperado no se puede desincronizar. El resumen del paso queda `ctrl-f 5/5 · ui 11/11 · ui-de 11/11`.
+16. Publica los logs del E2E y un resumen del job, que incluye el estado del E2E de adblock con el enlace a su captura.
 
 El E2E se ejecuta cuando se cumple una de estas condiciones:
 

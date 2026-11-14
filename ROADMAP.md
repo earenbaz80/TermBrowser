@@ -77,6 +77,8 @@ Cobertura de Ctrl+F (14 de noviembre de 2026): el guion pasa a cinco pasos. Adem
 
 Cobertura de pestañas (14 de noviembre de 2026): la suite de la UI pasa a once pasos. El 9 abre una segunda pestaña con `tab new web`, navega en ella por su cuenta y exige que la primera conserve URL e historial; el 10 vuelve a la primera y comprueba que `back`/`forward` recorren solo su historial, con la segunda intacta; el 11 recarga el renderer y exige que las dos pestañas vuelvan con su `id`, URL, historial e índice y que la primera siga activa. Se compara la sesión guardada (`termbrowser.tabs`) y `aria-selected`, no el texto de las etiquetas, así que los pasos valen igual con la interfaz en alemán: `ui 11/11 · ui-de 11/11` en la 0.3.0 instalada.
 
+E2E de adblock en CI (14 de noviembre de 2026): `npm run test:e2e:adblock` pasa a correr en el job `windows`, justo después de `npm run desktop:build` porque lanza `release/win-unpacked/Terminus.exe` y no el instalador. Se ejecuta en todos los runs y no depende del gate del E2E instalado, así que un PR sin cambios de app también lo verifica. Su captura `artifacts/adblock-electron.png` se publica en el artefacto `e2e-adblock` aunque el paso falle, y el resumen del job muestra su estado con el enlace a la captura.
+
 ### 3. Cobertura automatizada de la interfaz nueva — regresiones cubiertas en CI
 
 Las tres regresiones del cierre y la persistencia del tema tienen prueba en `npm test` (41 archivos, 195 pruebas), que el CI ejecuta siempre, y además en la app empaquetada: `npm run test:e2e:installed:ui` cerró con cuatro `PASS` sobre la 0.3.0 instalada (12 de noviembre de 2026).
