@@ -23,7 +23,7 @@ export const E2E_SUITES = [
     script: 'test:e2e:installed:ui',
     log: 'e2e-installed-ui.log',
     locale: '',
-    steps: 8,
+    steps: 11,
     pr: true,
   },
   {
@@ -31,7 +31,7 @@ export const E2E_SUITES = [
     script: 'test:e2e:installed:ui',
     log: 'e2e-installed-ui-de.log',
     locale: 'de',
-    steps: 8,
+    steps: 11,
     pr: false,
   },
 ];
