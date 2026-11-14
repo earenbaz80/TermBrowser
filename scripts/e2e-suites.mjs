@@ -5,11 +5,10 @@
  * guiones (para su total de pasos) y las pruebas, así que el recuento esperado
  * no puede desincronizarse del que declara cada guion.
  *
- * `locale` vacío significa que la suite corre con el idioma por defecto de la app;
- * `pr` marca las suites que se ejecutan en un PR. La de alemán también corre: medido
- * sobre la app instalada el 14 de noviembre de 2026, `ui` tarda 12 s y `ui-de` otros
- * 12 s, así que condicionarla a cambios de textos ahorraría segundos y perdería la
- * cobertura de disposición y pestañas con cadenas alemanas.
+ * `locale` vacío significa que la suite corre con el idioma por defecto de la app.
+ * El CI no elige suites por evento: cuando pide el E2E instalado corre todas, así
+ * que la lista no se duplica en el workflow. La de alemán no se restringe porque
+ * cuesta lo mismo que `ui` (12 s cada una sobre la app instalada, 14 s `ctrl-f`).
  */
 
 export const E2E_SUITES = [
@@ -19,7 +18,6 @@ export const E2E_SUITES = [
     log: 'e2e-installed.log',
     locale: '',
     steps: 5,
-    pr: true,
   },
   {
     label: 'ui',
@@ -27,7 +25,6 @@ export const E2E_SUITES = [
     log: 'e2e-installed-ui.log',
     locale: '',
     steps: 11,
-    pr: true,
   },
   {
     label: 'ui-de',
@@ -35,7 +32,6 @@ export const E2E_SUITES = [
     log: 'e2e-installed-ui-de.log',
     locale: 'de',
     steps: 11,
-    pr: true,
   },
 ];
 
