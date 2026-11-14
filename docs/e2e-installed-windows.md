@@ -81,6 +81,14 @@ Sin la variable el job usa `windows-latest`: allí el escritorio no está garant
 
 > **Seguridad:** al definir `TERMINUS_CI_RUNNER`, los jobs de `push`, `workflow_dispatch` y PRs del mismo repositorio se ejecutan en ese runner, no solo el E2E. El workflow fuerza `windows-latest` para PRs desde forks, pero un runner autoalojado sigue siendo una superficie de riesgo. No lo configures para un repositorio público que acepte PRs de desconocidos; usa un runner dedicado y, preferiblemente, una VM desechable o una instantánea restaurable.
 
+## Vigilancia del nocturno
+
+El cron de CI (`30 3 * * *`) dispara las tres suites en `main`. Que GitHub deje de lanzarlo —el cron se desactiva tras semanas de inactividad, el YAML pierde `on.schedule` o el workflow se renombra— no lo nota nadie: simplemente dejan de existir corridas y los PRs siguen en verde.
+
+`nightly-watchdog.yml` corre a las 09:00 UTC y falla si el workflow de CI no tiene ninguna corrida **programada** en las últimas 36 h. La ventana tolera el retraso habitual del cron (24 h entre corridas más 12 h de margen) pero no una noche perdida, que a esa hora ya serían 48 h. Consulta el endpoint del workflow (`/actions/workflows/ci.yml/runs?event=schedule`), no el del repositorio, para que su propia corrida programada no tape el hueco; y no cuenta los `workflow_dispatch`, porque lo que se vigila es que dispare el cron.
+
+Si falla, la anotación del check dice el motivo y el resumen repite la ventana y el workflow. Para probarlo a mano: `node scripts/nightly-watchdog.mjs` con `GITHUB_TOKEN` y `GITHUB_REPOSITORY`, o con `--runs-file <json>` para evaluar corridas guardadas sin red.
+
 ## Disparar la ejecución
 
 ### Desde GitHub

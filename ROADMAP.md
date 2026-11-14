@@ -83,6 +83,8 @@ Fallos de red frente a regresiones (14 de noviembre de 2026): el E2E de adblock 
 
 Diagnóstico desde el artefacto (14 de noviembre de 2026): el guion escribe su propia salida en `artifacts/e2e/adblock-electron.log` (UTF-8, sin depender del shell ni de `Tee-Object`), con los `NETWORK …` del preflight, el estado del fixture y el marcador final. El artefacto `e2e-adblock` publica ese log junto a la captura, también cuando el paso falla, así que un fallo se investiga sin rebuscar en el log del run.
 
+Watchdog del nocturno (14 de noviembre de 2026): `nightly-watchdog.yml` corre a las 09:00 UTC y falla si el workflow de CI no tiene ninguna corrida programada en las últimas 36 h, porque el cron llevaba con cero ejecuciones y nada lo detectaba. Mira el endpoint del propio workflow para que su corrida no cuente como nocturno, ignora los `workflow_dispatch` a propósito y deja el motivo en la anotación del check; la lógica (`scripts/lib/nightly-watchdog.mjs`) tiene 9 pruebas y admite `--runs-file` para diagnosticar sin red.
+
 Ensayo sin red en Actions (14 de noviembre de 2026): el CI gana el input `adblock_offline` en `workflow_dispatch`. Marcado, el paso recibe `TERMINUS_E2E_ADBLOCK_PROBE_URLS=http://127.0.0.1:9/` y se comprueba de verdad, sin cortar la red del runner, que el código 2 deja el job verde, emite el `::warning` y el resumen escribe «Omitido (sin red) - ensayo con workflow_dispatch».
 
 ### 3. Cobertura automatizada de la interfaz nueva — regresiones cubiertas en CI
