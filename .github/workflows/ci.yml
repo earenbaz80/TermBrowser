@@ -327,6 +327,65 @@ jobs:
             artifacts/e2e/adblock-electron.log
           if-no-files-found: ignore
 
+      # Ensayos de clasificación, solo en el nocturno: el guion se ejecuta dos veces
+      # más contra fallos que no son del producto y que deben salir con código 2.
+      # Si alguno deja de clasificarse como red, el nocturno se pone rojo en vez de
+      # depender de que alguien lo pruebe a mano.
+      - name: 'Ensayo de adblock: motor sin listas'
+        id: drill_engine
+        if: github.event_name == 'schedule'
+        timeout-minutes: 10
+        shell: pwsh
+        env:
+          TERMINUS_E2E_ADBLOCK_SEED_EMPTY_ENGINE: '1'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run test:e2e:adblock
+          $code = $LASTEXITCODE
+          $log = 'artifacts/e2e/adblock-drill-engine.log'
+          if (Test-Path -LiteralPath 'artifacts/e2e/adblock-electron.log') {
+            Copy-Item -LiteralPath 'artifacts/e2e/adblock-electron.log' -Destination $log -Force
+          }
+          if ($code -ne 2) {
+            throw "El ensayo con el motor vacío debía salir con código 2 (clasificación como red) y salió con $code."
+          }
+          if (-not (Select-String -LiteralPath $log -Pattern 'motor sin listas' -Quiet -ErrorAction SilentlyContinue)) {
+            throw 'El ensayo con el motor vacío salió con código 2, pero el log no atribuye el fallo al motor sin listas.'
+          }
+          Write-Host 'Ensayo del motor vacío: código 2 y motivo del motor, como se esperaba.'
+
+      - name: 'Ensayo de adblock: destino inalcanzable'
+        id: drill_offline
+        if: github.event_name == 'schedule'
+        timeout-minutes: 10
+        shell: pwsh
+        env:
+          TERMINUS_E2E_ADBLOCK_PROBE_URLS: 'http://127.0.0.1:9/'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run test:e2e:adblock
+          $code = $LASTEXITCODE
+          $log = 'artifacts/e2e/adblock-drill-offline.log'
+          if (Test-Path -LiteralPath 'artifacts/e2e/adblock-electron.log') {
+            Copy-Item -LiteralPath 'artifacts/e2e/adblock-electron.log' -Destination $log -Force
+          }
+          if ($code -ne 2) {
+            throw "El ensayo sin red debía salir con código 2 (fallo de infraestructura) y salió con $code."
+          }
+          if (-not (Select-String -LiteralPath $log -Pattern 'E2E_ADBLOCK_UNREACHABLE' -Quiet -ErrorAction SilentlyContinue)) {
+            throw 'El ensayo sin red salió con código 2, pero el log no marca E2E_ADBLOCK_UNREACHABLE.'
+          }
+          Write-Host 'Ensayo sin red: código 2 y marcador de red inalcanzable, como se esperaba.'
+
+      - name: Publicar ensayos de adblock
+        id: upload_drills
+        if: always() && github.event_name == 'schedule'
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-adblock-drills
+          path: artifacts/e2e/adblock-drill-*.log
+          if-no-files-found: ignore
+
       # El artefacto lleva el instalador suelto, no un ZIP propio: Actions envuelve el
       # fichero en su propio zip al descargarlo, y por eso el tamaño descargado no
       # coincide con el del .exe. El ZIP de release se arma a mano con Compress-Archive
@@ -429,6 +488,9 @@ jobs:
           ADBLOCK_SKIPPED: ${{ steps.e2e_adblock.outputs.skipped }}
           ADBLOCK_FORCED: ${{ steps.e2e_adblock.outputs.forced }}
           ADBLOCK_URL: ${{ steps.upload-adblock.outputs.artifact-url }}
+          DRILL_ENGINE: ${{ steps.drill_engine.outcome }}
+          DRILL_OFFLINE: ${{ steps.drill_offline.outcome }}
+          DRILL_URL: ${{ steps.upload_drills.outputs.artifact-url }}
         run: |
           $version = if ($env:APP_VERSION) { $env:APP_VERSION } else { 'desconocida' }
           $status = if ($env:JOB_STATUS) { $env:JOB_STATUS } else { 'desconocido' }
@@ -482,6 +544,14 @@ jobs:
             'No ejecutado'
           }
 
+          $drillLink = if ($env:DRILL_URL) { "[Logs]($env:DRILL_URL)" } else { 'sin logs' }
+          $drillsText = if (-not $env:DRILL_ENGINE -or $env:DRILL_ENGINE -eq 'skipped') {
+            'No ejecutados (solo en el nocturno)'
+          } elseif ($env:DRILL_ENGINE -eq 'success' -and $env:DRILL_OFFLINE -eq 'success') {
+            "OK (motor sin listas y sin red, los dos con código 2) - $drillLink"
+          } else {
+            "FAIL (motor: $env:DRILL_ENGINE, sin red: $env:DRILL_OFFLINE) - $drillLink"
+          }
           $lines = @(
             '## Terminus CI',
             '',
@@ -494,6 +564,7 @@ jobs:
             "- **Ejecución:** [$env:RUN_NUMBER]($env:RUN_URL)",
             "- **Instalador:** $env:INSTALLER_NAME - $installerLink",
             "- **E2E adblock:** $adblockText",
+            "- **Ensayos de clasificación:** $drillsText",
             "- **Logs E2E:** e2e-installed-logs - $logsLink",
             "- **Sumas SHA-256:** $env:SUMS_NAME - $sumsLink",
             ''
