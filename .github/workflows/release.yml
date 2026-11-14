@@ -3,6 +3,11 @@ name: Release
 # Un tag de versión publica el instalador que genera el mismo comando que usa el
 # CI (`npm run desktop:build`), con sus hashes y notas. El CI de push solo corre
 # en ramas, así que un tag no compila dos veces.
+#
+# Antes de publicar, el job instala ese mismo instalador en limpio y le pasa la
+# suite Ctrl+F sobre la app instalada: si el `.exe` que se va a publicar no
+# arranca o no encuentra, no hay release. Sin ese paso, la release era lo único
+# que nadie probaba tal como se entrega.
 on:
   push:
     tags:
@@ -48,6 +53,62 @@ jobs:
 
       # `--published` copia el instalador con el nombre que GitHub admite como asset
       # (sin espacios), para que las notas y los hashes nombren el fichero real.
+      # Lo que se publica es lo que se acaba de instalar: mismo binario, mismo
+      # instalador NSIS que subirá el release. La instalación es silenciosa y en
+      # limpio, así que cubre también el arranque que ve un usuario nuevo.
+      - name: Instalar el instalador recién compilado
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = Get-ChildItem -LiteralPath release -Filter 'Terminus Setup *.exe' |
+            Where-Object { $_.Name -notlike '*.__uninstaller.exe' } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if (-not $installer) {
+            throw 'No se generó el instalador NSIS.'
+          }
+
+          # Una instancia abierta hace fallar al instalador; el E2E arranca la suya.
+          Get-Process -Name Terminus -ErrorAction SilentlyContinue |
+            Stop-Process -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 2
+
+          Write-Host "Instalando $($installer.FullName)"
+          $process = Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "El instalador terminó con código $($process.ExitCode)."
+          }
+
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\Terminus\Terminus.exe'
+          if (-not (Test-Path -LiteralPath $exe)) {
+            throw "No se encontró la app instalada en $exe."
+          }
+
+          # NSIS suele abrir la app al terminar; el E2E necesita lanzar la suya.
+          Get-Process -Name Terminus -ErrorAction SilentlyContinue |
+            Stop-Process -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 2
+
+          "TERMINUS_INSTALLED_EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: E2E de Ctrl+F sobre el instalador empaquetado
+        id: smoke
+        timeout-minutes: 10
+        shell: pwsh
+        run: node scripts/e2e-run.mjs --only ctrl-f
+
+      # El log y la captura del fallo viajan con la ejecución: sin ellos, un
+      # release bloqueado obliga a reproducir el problema a mano.
+      - name: Publicar log del E2E del release
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-e2e-installed
+          path: |
+            artifacts/e2e/e2e-installed.log
+            artifacts/e2e/*.png
+          if-no-files-found: ignore
+
       - name: Preparar hashes y notas
         id: artifacts
         run: node scripts/release-artifacts.cjs --tag "${{ github.ref_name }}" --published
@@ -89,6 +150,7 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
           JOB_STATUS: ${{ job.status }}
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
           INSTALLER: ${{ steps.artifacts.outputs.asset }}
           ASSET_NAME: ${{ steps.artifacts.outputs.assetName }}
           RUN_NUMBER: ${{ github.run_number }}
@@ -100,6 +162,13 @@ jobs:
             'No disponible'
           }
           $installerName = if ($env:ASSET_NAME) { $env:ASSET_NAME } else { 'No disponible' }
+          $smoke = if ($env:SMOKE_OUTCOME -eq 'success') {
+            'PASS (Ctrl+F sobre la app instalada)'
+          } elseif ($env:SMOKE_OUTCOME) {
+            "No superado ($env:SMOKE_OUTCOME)"
+          } else {
+            'No ejecutado'
+          }
           $lines = @(
             '## Release de Terminus',
             '',
@@ -107,6 +176,7 @@ jobs:
             "- **Estado:** $env:JOB_STATUS",
             "- **Instalador:** $installerName",
             "- **SHA-256:** $hash",
+            "- **Probado antes de publicar:** $smoke",
             "- **Ejecución:** [$env:RUN_NUMBER]($env:RUN_URL)",
             ''
           )
