@@ -605,6 +605,16 @@ describe('anclas data-e2e del E2E instalado', () => {
     expect(chips[0].textContent?.trim()).toBe('electron');
   });
 
+  // El paso 6 mide el recorte en estrecho dentro del contenedor y con la etiqueta localizada.
+  it('conserva el contenedor de chips del inicio y su etiqueta', () => {
+    renderSurface();
+
+    const box = document.querySelector('[data-e2e="start-chips"]');
+    expect(box).not.toBeNull();
+    expect(box!.querySelector('[data-e2e="start-chips-label"]')).not.toBeNull();
+    expect(box!.querySelectorAll('button').length).toBeGreaterThan(0);
+  });
+
   it('mantiene un único botón de envío en el formulario del inicio', () => {
     renderSurface(blankTab);
 

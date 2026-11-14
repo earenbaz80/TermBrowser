@@ -268,8 +268,8 @@ jobs:
           $stepReports = @()
           foreach ($suite in @(
             @{ script = 'test:e2e:installed'; log = 'e2e-installed.log'; locale = ''; steps = $null },
-            @{ script = 'test:e2e:installed:ui'; log = 'e2e-installed-ui.log'; locale = ''; steps = 5 },
-            @{ script = 'test:e2e:installed:ui'; log = 'e2e-installed-ui-de.log'; locale = 'de'; steps = 5 }
+            @{ script = 'test:e2e:installed:ui'; log = 'e2e-installed-ui.log'; locale = ''; steps = 6 },
+            @{ script = 'test:e2e:installed:ui'; log = 'e2e-installed-ui-de.log'; locale = 'de'; steps = 6 }
           )) {
             $env:TERMINUS_E2E_LOCALE = $suite.locale
             npm run $suite.script 2>&1 | Tee-Object -FilePath "artifacts/e2e/$($suite.log)"
