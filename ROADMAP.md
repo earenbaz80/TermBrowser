@@ -70,6 +70,8 @@ Estado del guion de Ctrl+F (13 de noviembre de 2026):
 
 Cierre (13 de noviembre de 2026): las corridas dejan el log con los tres `PASS` de Ctrl+F, los seis de la UI y los seis de la UI en alemán, numerados (`PASS n/m`, con `STEPS: 3/3` en Ctrl+F y `STEPS: 6/6` en cada suite de UI) y el artefacto `e2e-installed-logs` disponible. El paso de E2E del CI compara ese recuento con el total esperado y falla si no coincide, así un paso saltado no sale verde. Requisitos y diagnóstico en `docs/e2e-installed-windows.md`.
 
+Vigilancia (14 de noviembre de 2026): las suites y su recuento esperado viven en `scripts/e2e-suites.mjs`, que leen los dos guiones y el ejecutor; `node scripts/e2e-run.mjs` las lanza, guarda los logs y compara el recuento sin PowerShell embebido en el workflow (pruebas en `scripts/lib/e2e-report.test.mjs`). El E2E corre en los PRs del propio repositorio que tocan la app (`ctrl-f` y `ui`), todas las noches en `main` con las tres suites, y un `workflow_dispatch` ya no cancela el check del PR. Los guiones anotan la duración de cada paso y comprueban que el `app.asar` instalado es idéntico al del build local antes de empezar, para que una instalación vieja falle al principio y no como un timeout.
+
 ### 3. Cobertura automatizada de la interfaz nueva — regresiones cubiertas en CI
 
 Las tres regresiones del cierre y la persistencia del tema tienen prueba en `npm test` (41 archivos, 195 pruebas), que el CI ejecuta siempre, y además en la app empaquetada: `npm run test:e2e:installed:ui` cerró con cuatro `PASS` sobre la 0.3.0 instalada (12 de noviembre de 2026).

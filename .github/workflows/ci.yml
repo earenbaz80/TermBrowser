@@ -3,6 +3,9 @@ name: CI
 on:
   push:
   pull_request:
+  # Nocturno: main corre las tres suites, incluida la de alemán.
+  schedule:
+    - cron: '30 3 * * *'
   workflow_dispatch:
     inputs:
       run_installed_e2e:
@@ -17,7 +20,9 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Un dispatch sobre una rama no puede cancelar el check del PR: solo un push
+  # nuevo cancela la corrida anterior de la misma referencia.
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
   windows:
@@ -45,6 +50,57 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v7
+
+      # Decide si el E2E instalado corre en esta ejecución y con qué suites.
+      # Un PR del propio repositorio que toca código de la app lo ejecuta (sin la
+      # suite de alemán); el nocturno de main corre todas.
+      - name: Decidir si corre el E2E instalado
+        id: e2e_gate
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          DISPATCH_E2E: ${{ github.event.inputs.run_installed_e2e }}
+          INSTALLED_E2E_VAR: ${{ vars.TERMINUS_RUN_INSTALLED_E2E }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $enabled = $false
+          $only = ''
+          $reason = ''
+
+          if ($env:EVENT_NAME -eq 'schedule') {
+            $enabled = $true
+            $reason = 'nocturno de main'
+          } elseif ($env:EVENT_NAME -eq 'workflow_dispatch') {
+            $enabled = $env:DISPATCH_E2E -eq 'true'
+            $reason = 'dispatch'
+          } elseif ($env:EVENT_NAME -eq 'pull_request') {
+            if ($env:PR_HEAD_REPO -ne $env:REPO) {
+              $reason = 'PR desde un fork'
+            } else {
+              # Solo cuando el PR toca lo que se empaqueta; si la API falla, se ejecuta.
+              $appChanged = $true
+              $pattern = '^(src/|electron/|scripts/|assets/|index\.html$|package(-lock)?\.json$|vite\.config\.|vitest\.config\.|tsconfig[^/]*\.json$|electron-builder)'
+              $files = @(gh api --paginate "repos/$($env:REPO)/pulls/$($env:PR_NUMBER)/files" --jq '.[].filename' 2>$null)
+              if ($LASTEXITCODE -eq 0 -and $files.Count -gt 0) {
+                $appChanged = @($files | Where-Object { $_ -match $pattern }).Count -gt 0
+              }
+              $enabled = $appChanged
+              # La suite de alemán solo en main: es la misma UI y dobla el tiempo del PR.
+              $only = 'ctrl-f,ui'
+              $reason = if ($appChanged) { 'PR que toca la app' } else { 'PR sin cambios de app' }
+            }
+          } else {
+            $enabled = $env:INSTALLED_E2E_VAR -eq 'true'
+            $reason = 'push'
+          }
+
+          "enabled=$($enabled.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "only=$only" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "E2E instalado: $($enabled.ToString().ToLower()) ($reason)"
 
       - name: Validar workflows con actionlint
         shell: pwsh
@@ -83,7 +139,7 @@ jobs:
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Preflight de sesión interactiva del E2E
-        if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.run_installed_e2e == 'true') || (vars.TERMINUS_RUN_INSTALLED_E2E == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) }}
+        if: steps.e2e_gate.outputs.enabled == 'true'
         timeout-minutes: 1
         shell: pwsh
         run: |
@@ -227,7 +283,7 @@ jobs:
           if-no-files-found: error
 
       - name: Instalar el build actual
-        if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.run_installed_e2e == 'true') || (vars.TERMINUS_RUN_INSTALLED_E2E == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) }}
+        if: steps.e2e_gate.outputs.enabled == 'true'
         shell: pwsh
         run: |
           $installer = Get-ChildItem -LiteralPath release -Filter 'Terminus Setup *.exe' |
@@ -257,50 +313,10 @@ jobs:
 
       - name: E2E en la app instalada
         id: e2e
-        if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.run_installed_e2e == 'true') || (vars.TERMINUS_RUN_INSTALLED_E2E == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) }}
+        if: steps.e2e_gate.outputs.enabled == 'true'
         timeout-minutes: 10
         shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force artifacts/e2e | Out-Null
-          # Los guiones corren siempre; el de UI dos veces (sin locale y en alemán) para
-          # ejercer la ruta multiidioma. El paso falla con el primer código distinto de cero.
-          $suites = @(
-            @{ label = 'ctrl-f'; script = 'test:e2e:installed'; log = 'e2e-installed.log'; locale = ''; steps = 3 },
-            @{ label = 'ui'; script = 'test:e2e:installed:ui'; log = 'e2e-installed-ui.log'; locale = ''; steps = 6 },
-            @{ label = 'ui-de'; script = 'test:e2e:installed:ui'; log = 'e2e-installed-ui-de.log'; locale = 'de'; steps = 6 }
-          )
-          $e2eExitCode = 0
-          foreach ($suite in $suites) {
-            $env:TERMINUS_E2E_LOCALE = $suite.locale
-            npm run $suite.script 2>&1 | Tee-Object -FilePath "artifacts/e2e/$($suite.log)"
-            if ($LASTEXITCODE -ne 0) { $e2eExitCode = $LASTEXITCODE }
-            Remove-Item Env:\TERMINUS_E2E_LOCALE -ErrorAction SilentlyContinue
-          }
-
-          # Un paso saltado no puede salir verde: cada guion declara «STEPS: n/m» y su
-          # recuento tiene que ser el que espera el workflow, aunque salga con 0.
-          $stepReports = foreach ($suite in $suites) {
-            $path = "artifacts/e2e/$($suite.log)"
-            $text = if (Test-Path -LiteralPath $path) { Get-Content -Raw -LiteralPath $path } else { '' }
-            $match = [regex]::Match($text, 'STEPS: (\d+)/(\d+)')
-            if (-not $match.Success) {
-              Write-Host "::error::$($suite.log) no informó de los pasos ejecutados."
-              $e2eExitCode = 1
-              "$($suite.label) sin recuento"
-            } else {
-              $counts = "$($match.Groups[1].Value)/$($match.Groups[2].Value)"
-              if ($counts -ne "$($suite.steps)/$($suite.steps)") {
-                Write-Host "::error::$($suite.log) declara $counts pasos; se esperaban $($suite.steps)/$($suite.steps)."
-                $e2eExitCode = 1
-              }
-              "$($suite.label) $counts"
-            }
-          }
-          $e2eResult = if ($e2eExitCode -eq 0) { 'PASS' } else { 'FAIL' }
-          "result=$e2eResult" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          "exit_code=$e2eExitCode" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          "steps=$($stepReports -join ' · ')" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          exit $e2eExitCode
+        run: node scripts/e2e-run.mjs --only "${{ steps.e2e_gate.outputs.only }}"
 
       - name: Publicar logs del E2E
         id: upload-e2e-logs
@@ -312,6 +328,7 @@ jobs:
             artifacts/e2e/e2e-installed.log
             artifacts/e2e/e2e-installed-ui.log
             artifacts/e2e/e2e-installed-ui-de.log
+            artifacts/e2e/*.png
           # El E2E instalado es opcional: sin log no hay nada que subir y no debe avisar.
           if-no-files-found: ignore
 

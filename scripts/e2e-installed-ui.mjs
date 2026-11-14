@@ -27,7 +27,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { suiteSteps } from './e2e-suites.mjs';
 import {
+  assertInstalledMatchesBuild,
   launchInstalledApp,
   sleep,
   waitForExpression,
@@ -36,8 +38,10 @@ import {
 const LOG = '[e2e-installed-ui]';
 // Los pasos se cuentan: el guion cierra con «STEPS: ejecutados/esperados» y el paso
 // del E2E en CI compara ese número con el total, para que un paso perdido no pase.
-const TOTAL_STEPS = 6;
+// El total vive en `e2e-suites.mjs`, la misma lista que lee el CI.
+const TOTAL_STEPS = suiteSteps('ui');
 let stepsRun = 0;
+let stepStartedAt = Date.now();
 const THEME_KEY = 'termbrowser_theme_v1';
 const HISTORY_KEY = 'termbrowser_cmd_history_v1';
 const UI_MARKER = 'terminus-theme-select';
@@ -65,10 +69,12 @@ const THEMES = {
   matrix: { id: 'matrix-dark', bg: '#020402', rgb: 'rgb(2, 4, 2)' },
 };
 
-/** Anota un paso superado y lo numera sobre el total esperado. */
+/** Anota un paso superado, lo numera sobre el total y registra lo que tardó. */
 function pass(message) {
   stepsRun += 1;
-  console.log(LOG + ' PASS ' + stepsRun + '/' + TOTAL_STEPS + ': ' + message);
+  const seconds = ((Date.now() - stepStartedAt) / 1000).toFixed(1).replace('.', ',');
+  stepStartedAt = Date.now();
+  console.log(LOG + ' PASS ' + stepsRun + '/' + TOTAL_STEPS + ': ' + message + ` (${seconds} s)`);
 }
 
 const installedExe = process.env.TERMINUS_INSTALLED_EXE
@@ -227,8 +233,13 @@ async function main() {
     `No se encontró la app instalada en ${installedExe}. Instala el build actual o define TERMINUS_INSTALLED_EXE.`,
   );
 
-  const asarPath = path.join(path.dirname(installedExe), 'resources', 'app.asar');
-  assert.ok(fs.existsSync(asarPath), `No se encontró el paquete instalado: ${asarPath}`);
+  // Si hay un build local, tiene que ser exactamente el que está instalado: así un
+  // instalador viejo se detecta aquí y no como un timeout confuso más adelante.
+  const installed = assertInstalledMatchesBuild({ exe: installedExe });
+  const asarPath = installed.asar;
+  if (installed.compared) {
+    console.log(`${LOG} Instalación verificada: el app.asar es el del build local.`);
+  }
   assert.ok(
     fs.readFileSync(asarPath).includes(Buffer.from(UI_MARKER)),
     'La app instalada no contiene el menú con selector de tema. Instala el build actual antes de ejecutar la prueba.',

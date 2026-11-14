@@ -14,6 +14,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -179,6 +180,41 @@ export async function waitForExpression(client, expression, predicate, label, ti
   throw new Error(
     `Timeout esperando ${label}. Último estado: ${lastError || JSON.stringify(lastValue)}`,
   );
+}
+
+/**
+ * Comprueba que el paquete instalado es el build local, si ese build existe.
+ *
+ * Sin la comparación, una instalación vieja se manifiesta como un timeout en un
+ * paso cualquiera; con ella, el guion falla al principio diciendo que hay que
+ * reinstalar. Si no hay build local (por ejemplo, en otra máquina) solo avisa.
+ */
+export function assertInstalledMatchesBuild({
+  exe,
+  buildDir = process.env.TERMINUS_BUILD_DIR ?? path.join('release', 'win-unpacked'),
+}) {
+  const asar = path.join(path.dirname(exe), 'resources', 'app.asar');
+  if (!fs.existsSync(asar)) {
+    throw new Error(`No se encontró el paquete instalado: ${asar}`);
+  }
+
+  const built = path.resolve(buildDir, 'resources', 'app.asar');
+  if (!fs.existsSync(built)) {
+    console.warn(
+      `Sin build local en ${path.resolve(buildDir)}: no se puede comprobar que la app instalada sea la actual.`,
+    );
+    return { asar, compared: false };
+  }
+
+  const hash = (file) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+  const installedHash = hash(asar);
+  if (installedHash !== hash(built)) {
+    throw new Error(
+      `La app instalada no es el build actual (${installedHash.slice(0, 12)} frente a ${built}). ` +
+        'Instala el instalador recién generado con npm run desktop:build.',
+    );
+  }
+  return { asar, compared: true };
 }
 
 /**

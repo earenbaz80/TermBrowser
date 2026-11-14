@@ -23,7 +23,9 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import { suiteSteps } from './e2e-suites.mjs';
 import {
+  assertInstalledMatchesBuild,
   launchInstalledApp,
   sleep,
   waitForExpression,
@@ -32,8 +34,10 @@ import {
 const LOG = '[e2e-installed-ctrl-f]';
 // Los pasos se cuentan: el guion cierra con «STEPS: ejecutados/esperados» y el paso
 // del E2E en CI compara ese número con el total, para que un paso perdido no pase.
-const TOTAL_STEPS = 3;
+// El total vive en `e2e-suites.mjs`, la misma lista que lee el CI.
+const TOTAL_STEPS = suiteSteps('ctrl-f');
 let stepsRun = 0;
+let stepStartedAt = Date.now();
 const FIND_SHORTCUT_MARKER = 'terminus:find:shortcut';
 // La barra de direcciones se identifica por su relación con la lista de sugerencias
 // (atributos del DOM, no el aria-label del idioma activo), así la prueba sirve en cualquier idioma.
@@ -70,10 +74,12 @@ const FIND_BAR_EXPRESSION = `(() => {
   };
 })()`;
 
-/** Anota un paso superado y lo numera sobre el total esperado. */
+/** Anota un paso superado, lo numera sobre el total y registra lo que tardó. */
 function pass(message) {
   stepsRun += 1;
-  console.log(LOG + ' PASS ' + stepsRun + '/' + TOTAL_STEPS + ': ' + message);
+  const seconds = ((Date.now() - stepStartedAt) / 1000).toFixed(1).replace('.', ',');
+  stepStartedAt = Date.now();
+  console.log(LOG + ' PASS ' + stepsRun + '/' + TOTAL_STEPS + ': ' + message + ` (${seconds} s)`);
 }
 
 const installedExe = process.env.TERMINUS_INSTALLED_EXE
@@ -440,8 +446,13 @@ async function main() {
     `No se encontró la app instalada en ${installedExe}. Instala el build actual o define TERMINUS_INSTALLED_EXE.`,
   );
 
-  const asarPath = path.join(path.dirname(installedExe), 'resources', 'app.asar');
-  assert.ok(fs.existsSync(asarPath), `No se encontró el paquete instalado: ${asarPath}`);
+  // Si hay un build local, tiene que ser exactamente el que está instalado: así un
+  // instalador viejo se detecta aquí y no como un timeout confuso más adelante.
+  const installed = assertInstalledMatchesBuild({ exe: installedExe });
+  const asarPath = installed.asar;
+  if (installed.compared) {
+    console.log(`${LOG} Instalación verificada: el app.asar es el del build local.`);
+  }
   assert.ok(
     fs.readFileSync(asarPath).includes(Buffer.from(FIND_SHORTCUT_MARKER)),
     'La app instalada no contiene el atajo global. Instala el build actual antes de ejecutar la prueba.',

@@ -121,15 +121,18 @@ El job `windows` ejecuta, en orden:
 10. Instala el instalador más reciente con `/S`.
 11. Detiene cualquier instancia de Terminus que el instalador haya abierto.
 12. Define `TERMINUS_INSTALLED_EXE` apuntando a `%LOCALAPPDATA%\Programs\Terminus\Terminus.exe`.
-13. Ejecuta `npm run test:e2e:installed` y `npm run test:e2e:installed:ui`; la UI se ejecuta dos veces, sin locale y con `TERMINUS_E2E_LOCALE=de`, para ejercer la ruta multiidioma. La salida queda en `artifacts/e2e/e2e-installed.log`, `artifacts/e2e/e2e-installed-ui.log` y `artifacts/e2e/e2e-installed-ui-de.log`; el paso falla con el primer código distinto de cero.
-14. Publica el log del E2E y un resumen del job.
+13. Ejecuta `node scripts/e2e-run.mjs`: recorre `scripts/e2e-suites.mjs`, lanza cada suite con `npm run`, guarda su salida en `artifacts/e2e/<log>` y falla con el primer código distinto de cero. En un PR corre `ctrl-f` y `ui`; en `main` y en el nocturno corre también `ui-de`, la UI con `TERMINUS_E2E_LOCALE=de` para ejercer la ruta multiidioma.
+14. Compara el recuento: cada log tiene que cerrar con `STEPS: n/m` igual al total que declara su entrada de `scripts/e2e-suites.mjs`, la misma lista que leen los guiones, así que el esperado no se puede desincronizar. El resumen del paso queda `ctrl-f 3/3 · ui 6/6 · ui-de 6/6`.
+15. Publica los logs del E2E y un resumen del job.
 
-El E2E solo se ejecuta si se cumple una de estas condiciones:
+El E2E se ejecuta cuando se cumple una de estas condiciones:
 
+- un PR del propio repositorio que toque `src/`, `electron/`, `scripts/`, `assets/`, `package.json`/`package-lock.json` o la configuración del build (corre `ctrl-f` y `ui`);
+- el nocturno de `main` (`cron` a las 03:30 UTC), que corre las tres suites;
 - `workflow_dispatch` con `run_installed_e2e = true`;
-- variable `TERMINUS_RUN_INSTALLED_E2E = true`, salvo en PRs desde forks.
+- la variable `TERMINUS_RUN_INSTALLED_E2E = true`, salvo en PRs desde forks.
 
-En cualquier otro caso se omite, pero el build y el instalador sí se generan.
+Un dispatch sobre una rama ya no cancela la corrida del PR: solo un push nuevo cancela la anterior de la misma referencia. En cualquier otro caso el E2E se omite, pero el build y el instalador sí se generan.
 
 ## Evidencias esperadas
 
@@ -247,5 +250,6 @@ Solo aplican al **respaldo**, es decir, a un build instalado anterior a los `dat
 - [ ] `TERMINUS_RUN_INSTALLED_E2E` está sin definir salvo que se quiera ejecutar en cada push.
 - [ ] El instalador se genera y se instala con `/S`.
 - [ ] El log contiene los tres `PASS`.
-- [ ] Los tres logs cierran con su recuento (`STEPS: 3/3` en Ctrl+F y `STEPS: 6/6` en cada suite de UI); el CI falla si no coincide con el esperado.
+- [ ] Los tres logs cierran con su recuento (`STEPS: 3/3` en Ctrl+F y `STEPS: 6/6` en cada suite de UI); `scripts/e2e-run.mjs` falla si no coincide con el esperado, aunque el guion salga con 0.
+- [ ] El paso anota la duración de cada `PASS` entre paréntesis, útil para ver un paso que empieza a rozar su espera.
 - [ ] El artefacto `e2e-installed-logs` está disponible.
