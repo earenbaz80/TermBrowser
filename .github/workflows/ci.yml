@@ -17,6 +17,11 @@ on:
         required: false
         default: false
         type: boolean
+      adblock_offline:
+        description: 'Simular que el runner no tiene red en el E2E de adblock (debe quedar verde con «Omitido (sin red)»)'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -257,14 +262,29 @@ jobs:
         id: e2e_adblock
         timeout-minutes: 12
         shell: pwsh
+        env:
+          # Solo lo rellena un dispatch con la casilla marcada; en el resto, vacío.
+          ADBLOCK_OFFLINE: ${{ github.event.inputs.adblock_offline }}
         run: |
+          # Ensayo del camino sin red, sin cortar la red del runner: el guion recibe
+          # un destino inalcanzable y tiene que salir con código 2.
+          if ($env:ADBLOCK_OFFLINE -eq 'true') {
+            $env:TERMINUS_E2E_ADBLOCK_PROBE_URLS = 'http://127.0.0.1:9/'
+            'forced=true' | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host 'Ensayo sin red: TERMINUS_E2E_ADBLOCK_PROBE_URLS=http://127.0.0.1:9/'
+          }
           # El guion escribe su propia salida en `artifacts/e2e/adblock-electron.log`
           # (UTF-8), así que el artefacto lleva el diagnóstico sin depender del shell.
           npm run test:e2e:adblock
           $code = $LASTEXITCODE
           if ($code -eq 2) {
             'skipped=true' | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-            Write-Host '::warning title=E2E de adblock omitido::El runner no alcanzó example.com o las listas de EasyList (código 2); no se puede distinguir una regresión de un fallo de red.'
+            $reason = if ($env:ADBLOCK_OFFLINE -eq 'true') {
+              'Ensayo sin red pedido con workflow_dispatch (destino inalcanzable, código 2); el comportamiento es el de un runner sin red.'
+            } else {
+              'El runner no alcanzó example.com o las listas de EasyList (código 2); no se puede distinguir una regresión de un fallo de red.'
+            }
+            Write-Host "::warning title=E2E de adblock omitido::$reason"
             exit 0
           }
           exit $code
@@ -382,6 +402,7 @@ jobs:
           SUMS_URL: ${{ steps.upload-sha256sums.outputs.artifact-url }}
           ADBLOCK_OUTCOME: ${{ steps.e2e_adblock.outcome }}
           ADBLOCK_SKIPPED: ${{ steps.e2e_adblock.outputs.skipped }}
+          ADBLOCK_FORCED: ${{ steps.e2e_adblock.outputs.forced }}
           ADBLOCK_URL: ${{ steps.upload-adblock.outputs.artifact-url }}
         run: |
           $version = if ($env:APP_VERSION) { $env:APP_VERSION } else { 'desconocida' }
@@ -424,7 +445,9 @@ jobs:
           $logsLink = if ($env:LOGS_URL) { "[Descargar]($env:LOGS_URL)" } else { 'No disponible' }
           $sumsLink = if ($env:SUMS_URL) { "[Descargar]($env:SUMS_URL)" } else { 'No disponible' }
           $adblockLink = if ($env:ADBLOCK_URL) { "[Captura]($env:ADBLOCK_URL)" } else { 'sin captura' }
-          $adblockText = if ($env:ADBLOCK_SKIPPED -eq 'true') {
+          $adblockText = if ($env:ADBLOCK_SKIPPED -eq 'true' -and $env:ADBLOCK_FORCED -eq 'true') {
+            "Omitido (sin red) - ensayo con workflow_dispatch - $adblockLink"
+          } elseif ($env:ADBLOCK_SKIPPED -eq 'true') {
             "Omitido (sin red) - $adblockLink"
           } elseif ($env:ADBLOCK_OUTCOME -eq 'success') {
             "OK - $adblockLink"

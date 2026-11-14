@@ -91,6 +91,8 @@ Sin la variable el job usa `windows-latest`: allí el escritorio no está garant
 4. Marca `run_installed_e2e`.
 5. Ejecuta el workflow.
 
+Para ensayar el camino «sin red» del E2E de adblock sin cortar la red del runner, marca `adblock_offline`: el paso recibe `TERMINUS_E2E_ADBLOCK_PROBE_URLS=http://127.0.0.1:9/`, sale con código 2 y el job tiene que quedar **verde** con el `::warning` «E2E de adblock omitido» y el resumen «Omitido (sin red) - ensayo con workflow_dispatch». Es la forma de comprobar en Actions que un fallo de red no se confunde con una regresión.
+
 ### Desde la CLI
 
 ```bash
