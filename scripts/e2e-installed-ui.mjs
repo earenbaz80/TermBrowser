@@ -7,7 +7,9 @@
  *   - menú de configuración abierto, cambio de tema y persistencia tras recargar,
  *   - búsqueda del inicio en un solo paso (escribir y Enter) con un único botón
  *     de envío en el formulario,
- *   - esa misma búsqueda reaparece como chip reciente del inicio, con su ancla.
+ *   - esa misma búsqueda reaparece como chip reciente del inicio, con su ancla,
+ *   - pestañas: una segunda pestaña navega por su cuenta, la primera conserva URL
+ *     e historial, y las dos se restauran al recargar el renderer.
  *
  * Arranca el ejecutable instalado con un perfil temporal y habla con él por CDP.
  * No usa `electron .` ni `example.com`.
@@ -51,6 +53,9 @@ const UI_MARKER = 'terminus-theme-select';
 const ADDRESS_SELECTOR = 'input[aria-controls="terminus-address-suggestions"]';
 const SEARCH_QUERY = 'terminus e2e ui';
 const LOCALE_KEY = 'terminus_locale_v1';
+// La sesión que la app guarda y restaura: es la fuente de verdad de las pestañas.
+const SESSION_KEY = 'termbrowser.tabs';
+const SECOND_QUERY = 'terminus e2e segunda pestana';
 // Opcional: cambia el idioma de la app desde el menú antes de comprobarla.
 const e2eLocale = (process.env.TERMINUS_E2E_LOCALE ?? '').trim();
 const START_FORM = 'form[role="search"]';
@@ -83,6 +88,55 @@ const installedExe = process.env.TERMINUS_INSTALLED_EXE
   : path.join(process.env.LOCALAPPDATA ?? '', 'Programs', 'Terminus', 'Terminus.exe');
 
 let app = null;
+
+/**
+ * Estado de la sesión guardada más lo que muestra la interfaz: pestañas persistidas
+ * (id, URL, historial e índice), pestaña activa, y la tira de pestañas y la barra.
+ * Se comparan los datos guardados, no el texto de las etiquetas, así sirve en cualquier idioma.
+ */
+const SESSION_STATE_EXPRESSION = `(() => {
+  let session = null;
+  try {
+    session = JSON.parse(localStorage.getItem(${JSON.stringify(SESSION_KEY)}) ?? 'null');
+  } catch {}
+  const saved = Array.isArray(session?.tabs) ? session.tabs : [];
+  const strip = [...document.querySelectorAll('[role="tab"]')];
+  return {
+    active: session?.activeTabId ?? null,
+    tabs: saved.map((tab) => ({
+      id: tab.id,
+      url: tab.url,
+      history: Array.isArray(tab.history) ? tab.history : [],
+      index: typeof tab.historyIndex === 'number' ? tab.historyIndex : -1,
+    })),
+    dom: {
+      header: Boolean(document.querySelector('header')),
+      tabs: strip.map((tab) => ({
+        selected: tab.getAttribute('aria-selected') === 'true',
+        text: (tab.textContent ?? '').trim(),
+      })),
+      selected: strip.filter((tab) => tab.getAttribute('aria-selected') === 'true').length,
+      address: document.querySelector(${JSON.stringify(ADDRESS_SELECTOR)})?.value ?? null,
+      onStart: Boolean(document.querySelector(${JSON.stringify(START_INPUT)})),
+    },
+  };
+})()`;
+
+/** La barra muestra vacío para `about:blank`, así que se compara con esa regla. */
+const shownAddress = (url) => (url === 'about:blank' ? '' : url);
+
+/** Escribe una consulta en el formulario del inicio de la pestaña activa. */
+async function typeStartQuery(client, query) {
+  return client.evaluate(`(() => {
+    const input = document.querySelector(${JSON.stringify(START_INPUT)});
+    if (!input) return false;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    setter.call(input, ${JSON.stringify(query)});
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.focus();
+    return true;
+  })()`);
+}
 
 const ROOT_STATE_EXPRESSION = `(() => {
   const root = document.getElementById('root')?.firstElementChild ?? null;
@@ -654,6 +708,192 @@ async function main() {
   );
 
   pass('el sinónimo «inicio» vuelve al inicio con el campo enfocado, como «home».');
+
+  // 9. Segunda pestaña: se abre desde la barra, navega por su cuenta y la primera
+  //    conserva su URL y su historial mientras tanto.
+  // La sesión se guarda con retardo: se espera a que incluya el `inicio` del paso 8
+  // (URL en el inicio, índice al final y entrada anterior distinta) antes de comparar.
+  const firstTab = (
+    await waitForExpression(
+      cdp,
+      SESSION_STATE_EXPRESSION,
+      (state) =>
+        state.tabs.length === 1 &&
+        state.dom.onStart &&
+        state.tabs[0].url === 'about:blank' &&
+        state.tabs[0].index === state.tabs[0].history.length - 1 &&
+        state.tabs[0].history.length >= 2 &&
+        state.tabs[0].history[state.tabs[0].history.length - 2] !== 'about:blank',
+      'la sesión guardada con la primera pestaña en el inicio',
+      20000,
+    )
+  ).tabs[0];
+  await runCommand(cdp, 'tab new web');
+
+  const opened = await waitForExpression(
+    cdp,
+    SESSION_STATE_EXPRESSION,
+    (state) =>
+      state.tabs.length === 2 &&
+      state.dom.tabs.length === 2 &&
+      state.tabs[1].id !== firstTab.id &&
+      state.active === state.tabs[1].id &&
+      state.dom.selected === 1 &&
+      state.dom.tabs[1].selected &&
+      state.dom.onStart,
+    'la segunda pestaña abierta, activa y en el inicio',
+    20000,
+  );
+  assert.deepEqual(
+    opened.tabs[0],
+    firstTab,
+    'Abrir la segunda pestaña cambió la URL o el historial de la primera.',
+  );
+
+  const secondTyped = await typeStartQuery(cdp, SECOND_QUERY);
+  assert.equal(secondTyped, true, 'No se pudo escribir en el inicio de la segunda pestaña.');
+  await sleep(200);
+  await pressEnter(cdp);
+  const secondResult = await waitForSearchResults(
+    cdp,
+    SECOND_QUERY,
+    'los resultados de la segunda pestaña',
+  );
+
+  const navigated = await waitForExpression(
+    cdp,
+    SESSION_STATE_EXPRESSION,
+    (state) =>
+      state.tabs.length === 2 &&
+      state.active === state.tabs[1].id &&
+      state.tabs[1].url === secondResult.address &&
+      state.tabs[1].history[state.tabs[1].index] === secondResult.address &&
+      state.dom.address === secondResult.address,
+    'la segunda pestaña en su propia búsqueda',
+    20000,
+  );
+  assert.deepEqual(
+    navigated.tabs[0],
+    firstTab,
+    'La primera pestaña cambió mientras la segunda navegaba.',
+  );
+  assert.ok(
+    navigated.tabs[1].history.length >= 2,
+    'La segunda pestaña no guardó su historial.',
+  );
+
+  pass(
+    `segunda pestaña con «tab new web» en ${secondResult.address}, con la primera intacta en su URL e historial.`,
+  );
+
+  // 10. Volver a la primera: conserva su URL e historial, y «back»/«forward» solo
+  //     mueven esa pestaña, no la segunda.
+  const clicked = await cdp.evaluate(`(() => {
+    const strip = [...document.querySelectorAll('[role="tab"]')];
+    if (strip.length < 2) return false;
+    strip[0].click();
+    return true;
+  })()`);
+  assert.equal(clicked, true, 'No se pudo pulsar la primera pestaña.');
+
+  const backOnFirst = await waitForExpression(
+    cdp,
+    SESSION_STATE_EXPRESSION,
+    (state) =>
+      state.active === firstTab.id &&
+      state.dom.selected === 1 &&
+      state.dom.tabs[0].selected &&
+      state.dom.address === shownAddress(firstTab.url),
+    'la primera pestaña activa con su URL',
+    20000,
+  );
+  assert.deepEqual(
+    backOnFirst.tabs[0],
+    firstTab,
+    'La primera pestaña perdió su historial al volver a ella.',
+  );
+  assert.equal(
+    backOnFirst.tabs[1].url,
+    secondResult.address,
+    'La segunda pestaña perdió su URL al volver a la primera.',
+  );
+
+  await runCommand(cdp, 'back');
+  const wentBack = await waitForExpression(
+    cdp,
+    SESSION_STATE_EXPRESSION,
+    (state) =>
+      state.tabs[0].index === firstTab.index - 1 &&
+      state.tabs[0].url === firstTab.history[firstTab.index - 1] &&
+      state.dom.address === shownAddress(state.tabs[0].url),
+    '«back» recorriendo el historial de la primera pestaña',
+    25000,
+  );
+  assert.deepEqual(
+    wentBack.tabs[1],
+    backOnFirst.tabs[1],
+    'El historial de la segunda pestaña cambió al retroceder en la primera.',
+  );
+
+  await runCommand(cdp, 'forward');
+  const wentForward = await waitForExpression(
+    cdp,
+    SESSION_STATE_EXPRESSION,
+    (state) =>
+      state.tabs[0].index === firstTab.index &&
+      state.tabs[0].url === firstTab.url &&
+      state.dom.address === shownAddress(firstTab.url),
+    '«forward» devolviendo la primera pestaña a su URL',
+    25000,
+  );
+
+  assert.deepEqual(
+    wentForward.tabs[1],
+    backOnFirst.tabs[1],
+    'El historial de la segunda pestaña cambió al avanzar en la primera.',
+  );
+
+  pass(
+    `la primera pestaña conserva URL e historial (${firstTab.history.length} entradas) y «back»/«forward» lo recorren sin tocar la segunda.`,
+  );
+
+  // 11. Recargar el renderer: las dos pestañas vuelven con su URL, su historial y la activa.
+  const beforeReload = await cdp.evaluate(SESSION_STATE_EXPRESSION);
+  await cdp.send('Page.enable');
+  await cdp.send('Page.reload', { ignoreCache: false });
+
+  const restoredTabs = await waitForExpression(
+    cdp,
+    SESSION_STATE_EXPRESSION,
+    (state) =>
+      state.dom.header &&
+      state.tabs.length === beforeReload.tabs.length &&
+      state.dom.tabs.length === beforeReload.tabs.length &&
+      state.active === beforeReload.active &&
+      state.dom.selected === 1 &&
+      state.tabs.every((tab, index) => {
+        const prior = beforeReload.tabs[index];
+        return (
+          tab.id === prior.id &&
+          tab.url === prior.url &&
+          tab.index === prior.index &&
+          tab.history.length === prior.history.length &&
+          tab.history.every((entry, position) => entry === prior.history[position])
+        );
+      }) &&
+      state.dom.address === shownAddress(beforeReload.tabs[0].url),
+    'las dos pestañas con su URL e historial tras recargar el renderer',
+    30000,
+  );
+  assert.equal(
+    restoredTabs.tabs[1].url,
+    secondResult.address,
+    'La segunda pestaña no volvió a su búsqueda tras recargar.',
+  );
+
+  pass(
+    `tras recargar, las 2 pestañas vuelven con su URL e historial (${restoredTabs.tabs[0].history.length} y ${restoredTabs.tabs[1].history.length} entradas) y la primera sigue activa.`,
+  );
 
   assert.equal(
     stepsRun,

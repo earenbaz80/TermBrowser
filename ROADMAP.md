@@ -75,6 +75,8 @@ Vigilancia (14 de noviembre de 2026): las suites y su recuento esperado viven en
 
 Cobertura de Ctrl+F (14 de noviembre de 2026): el guion pasa a cinco pasos. Además de abrir el buscador y buscar en OSCURO y TEXTO, recorre las coincidencias de `cross-origin` con «siguiente» y «anterior» (cada pulsación tiene que producir una búsqueda nueva con resultado, comprobada por el aviso `termbrowser-find-result`, porque el iframe va con `sandbox` y no deja leer su documento) y cierra con `Escape`, exigiendo el diálogo cerrado y `aria-expanded="false"` en el conmutador. Cuando un paso falla, el guion guarda una captura en `artifacts/e2e/failure-<guion>-<fecha>.png`.
 
+Cobertura de pestañas (14 de noviembre de 2026): la suite de la UI pasa a once pasos. El 9 abre una segunda pestaña con `tab new web`, navega en ella por su cuenta y exige que la primera conserve URL e historial; el 10 vuelve a la primera y comprueba que `back`/`forward` recorren solo su historial, con la segunda intacta; el 11 recarga el renderer y exige que las dos pestañas vuelvan con su `id`, URL, historial e índice y que la primera siga activa. Se compara la sesión guardada (`termbrowser.tabs`) y `aria-selected`, no el texto de las etiquetas, así que los pasos valen igual con la interfaz en alemán: `ui 11/11 · ui-de 11/11` en la 0.3.0 instalada.
+
 ### 3. Cobertura automatizada de la interfaz nueva — regresiones cubiertas en CI
 
 Las tres regresiones del cierre y la persistencia del tema tienen prueba en `npm test` (41 archivos, 195 pruebas), que el CI ejecuta siempre, y además en la app empaquetada: `npm run test:e2e:installed:ui` cerró con cuatro `PASS` sobre la 0.3.0 instalada (12 de noviembre de 2026).
