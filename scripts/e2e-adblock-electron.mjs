@@ -2,6 +2,9 @@
 /**
  * E2E de adblock sobre la app empaquetada (`release/win-unpacked/Terminus.exe`).
  *
+ * Arranca con un perfil temporal propio (`--user-data-dir`) para que local y CI
+ * prueben el mismo escenario frío y no dependa de la caché del usuario.
+ *
  * Depende de internet (example.com y las listas de Ghostery), así que el guion
  * comprueba esos destinos antes de arrancar y distingue los fallos:
  *   - código 0: `E2E_ADBLOCK_OK`, el producto cumple.
@@ -12,6 +15,7 @@
  * Para probar el camino sin red: `TERMINUS_E2E_ADBLOCK_PROBE_URLS=http://127.0.0.1:9/`.
  */
 import fs from 'node:fs';
+import os from 'node:os';
 import http from 'node:http';
 import path from 'node:path';
 import { _electron as electron } from 'playwright';
@@ -112,6 +116,21 @@ function teeOutputTo(file) {
 // cosméticos y las listas que descarga Ghostery en el primer arranque (sin caché).
 // `TERMINUS_E2E_ADBLOCK_PROBE_URLS` permite apuntar a otros destinos para probar
 // el camino sin red de forma determinista.
+// Con un perfil temporal el motor arranca sin caché y descarga las listas: se
+// espera a que el motor serializado tenga filtros en vez de adivinar con un
+// tiempo fijo, para que el resultado no dependa de la velocidad de la red.
+async function waitForEngine(file, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let state = readEngineState(file);
+  const started = Date.now();
+  while (!state.healthy && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    state = readEngineState(file);
+  }
+  console.log('ENGINE_WAIT_MS', Date.now() - started);
+  return state;
+}
+
 const LIST_ASSETS = 'https://raw.githubusercontent.com/ghostery/adblocker/master/packages/adblocker/assets';
 const NETWORK_TARGETS = (process.env.TERMINUS_E2E_ADBLOCK_PROBE_URLS ?? '')
   .split(',')
@@ -121,6 +140,7 @@ const PROBE_URLS = NETWORK_TARGETS.length
   ? NETWORK_TARGETS
   : ['https://example.com/', `${LIST_ASSETS}/easylist/easylist.txt`, `${LIST_ASSETS}/ublock-origin/resources.json`];
 let electronApp;
+let profileDir;
 let fixture;
 let privateProbe;
 
@@ -144,8 +164,19 @@ try {
   const fixtureUrl = `http://127.0.0.1:${fixture.port}/`;
   const privateProbeUrl = `http://127.0.0.1:${privateProbe.port}/private.png`;
 
+  // Perfil temporal propio: sin esto la app usa %APPDATA%\Terminus, comparte
+  // adblock-engine.bin con el usuario y la corrida depende de la caché previa.
+  profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'terminus-e2e-adblock-'));
+  console.log('PROFILE', profileDir);
+  const cacheBeforeStart = fs.existsSync(path.join(profileDir, 'adblock-engine.bin'));
+  console.log('ADBLOCK_CACHE_BEFORE', cacheBeforeStart);
+  if (cacheBeforeStart) {
+    throw new Error('El perfil temporal ya tenía caché del motor: la corrida no es un arranque frío.');
+  }
+
   electronApp = await electron.launch({
     executablePath: appPath,
+    args: [`--user-data-dir=${profileDir}`],
     env: {
       ...process.env,
       TERMINUS_ALLOW_PRIVATE: '1',
@@ -195,7 +226,13 @@ try {
 
   const userData = await electronApp.evaluate(({ app }) => app.getPath('userData'));
   console.log('USER_DATA', userData);
-  console.log('ADBLOCK_CACHE_BEFORE', fs.existsSync(path.join(userData, 'adblock-engine.bin')));
+  const profileIsolated =
+    path.resolve(userData).toLowerCase() === path.resolve(profileDir).toLowerCase();
+  console.log('PROFILE_ISOLATED', profileIsolated);
+  if (!profileIsolated) {
+    throw new Error(`El E2E no usa su perfil temporal: ${userData} frente a ${profileDir}`);
+  }
+
 
   await page.getByRole('textbox', { name: 'Barra de direcciones y búsqueda' }).waitFor({ timeout: 30000 });
   await page.waitForTimeout(1500);
@@ -208,10 +245,10 @@ try {
   console.log('PAGE_URL', page.url());
   console.log('BODY_TEXT', (await page.locator('body').innerText().catch(() => '<sin body>')).slice(0, 1200));
   console.log('LOCAL_STORAGE', await page.evaluate(() => ({ ...localStorage })).catch(() => '<sin storage>'));
-  await page.waitForTimeout(10000);
+
   // Estado real del motor serializado: cuántos filtros quedaron guardados. Sirve
   // para no confundir una caché sin listas con una regresión de cosméticos.
-  const engineState = readEngineState(path.join(userData, 'adblock-engine.bin'));
+  const engineState = await waitForEngine(path.join(userData, 'adblock-engine.bin'), 90000);
   console.log('ENGINE_STATE', JSON.stringify(engineState));
 
   const frames = page.frames().map((frame) => frame.url());
@@ -449,4 +486,13 @@ try {
   if (electronApp) await electronApp.close().catch(() => {});
   if (fixture) fixture.server.close();
   if (privateProbe) privateProbe.server.close();
+  if (profileDir) {
+    try {
+      fs.rmSync(profileDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    } catch (error) {
+      console.warn(
+        `No se pudo borrar el perfil temporal ${profileDir}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
 }
