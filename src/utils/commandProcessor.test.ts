@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BrowserTab } from '../types';
-import { processCommand, type CommandContext } from './commandProcessor';
+import {
+  HOME_FOCUS_EVENT,
+  processCommand,
+  type CommandContext,
+} from './commandProcessor';
 import { translateConsole } from '../i18n';
 
 const makeTab = () =>
@@ -72,6 +76,17 @@ describe('home', () => {
     expect(tab().title).toBe('Nueva Pestaña');
     expect(tab().history).toEqual(['about:blank', 'https://example.com', 'about:blank']);
     expect(tab().historyIndex).toBe(2);
+  });
+
+  it('avisa para que el inicio recupere el foco aunque ya estuviera allí', async () => {
+    const { ctx } = makeContext([makeTab()]);
+    const listener = vi.fn();
+    window.addEventListener(HOME_FOCUS_EVENT, listener);
+
+    await processCommand('home', ctx);
+
+    window.removeEventListener(HOME_FOCUS_EVENT, listener);
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 });
 

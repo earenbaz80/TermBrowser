@@ -17,6 +17,10 @@ import {
 } from '../types';
 import { THEMES } from './themes';
 
+// La pantalla de inicio escucha este aviso para devolver el foco a su campo,
+// también cuando `home` se repite estando ya en ella.
+export const HOME_FOCUS_EVENT = 'termbrowser:home-focus';
+
 
 import { formatAsciiBox } from './asciiBox';
 import { runPythonCode, VirtualFile } from './interpreter';
@@ -352,6 +356,8 @@ ${ctx.tc('out.manualBody')}`.trim(),
         };
       })
     );
+    // Avisa aunque la pantalla no cambie: repetir `home` también devuelve el foco.
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(HOME_FOCUS_EVENT));
     return {
       id: `cmd_${Date.now()}`,
       timestamp,

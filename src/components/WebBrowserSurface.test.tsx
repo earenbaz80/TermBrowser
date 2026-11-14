@@ -4,6 +4,7 @@ import { FOCUS_ADDRESS_EVENT, WebBrowserSurface } from './WebBrowserSurface';
 import { THEMES } from '../utils/themes';
 import { RECENT_SEARCHES_STORAGE_KEY } from '../utils/recentSearches';
 import { BOOT_ASCII } from '../utils/bootBanner';
+import { HOME_FOCUS_EVENT } from '../utils/commandProcessor';
 import type { BrowserTab, TerminusDesktopApi, TerminusSearchState } from '../types';
 
 const theme = THEMES['cyberpunk-obsidian'];
@@ -521,6 +522,19 @@ describe('foco del campo del inicio', () => {
     expect(screen.queryByRole('searchbox', { name: 'Buscar en Terminus Search' })).toBeNull();
 
     rerender(blankTab);
+
+    expect(document.activeElement).toBe(startInput());
+  });
+
+  it('devuelve el foco al repetir home estando ya en el inicio', () => {
+    renderSurface();
+    const address = document.querySelector(
+      'input[aria-controls="terminus-address-suggestions"]'
+    ) as HTMLInputElement;
+    address.focus();
+    expect(document.activeElement).toBe(address);
+
+    fireEvent(window, new Event(HOME_FOCUS_EVENT));
 
     expect(document.activeElement).toBe(startInput());
   });
