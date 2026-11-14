@@ -114,10 +114,13 @@ describe('selectSuites', () => {
     expect(() => suiteSteps('otra')).toThrow(/Suite desconocida/);
   });
 
-  it('reserva la suite de alemán para main', () => {
+  it('incluye la suite de alemán también en los PRs', () => {
+    // Medido sobre la app instalada: `ui` 12 s y `ui-de` 12 s, así que dejarla
+    // fuera de los PRs ahorra segundos y pierde disposición con textos alemanes.
     expect(E2E_SUITES.filter((suite) => suite.pr).map((suite) => suite.label)).toEqual([
       'ctrl-f',
       'ui',
+      'ui-de',
     ]);
   });
 });
