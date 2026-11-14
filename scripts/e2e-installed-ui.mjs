@@ -30,6 +30,7 @@ import path from 'node:path';
 import { suiteSteps } from './e2e-suites.mjs';
 import {
   assertInstalledMatchesBuild,
+  captureFailureScreenshot,
   launchInstalledApp,
   sleep,
   waitForExpression,
@@ -546,6 +547,8 @@ try {
   if (app?.logs().trim()) {
     console.error(`${LOG} Log de la app (cola):\n${app.logs().trim()}`);
   }
+  // Una imagen del estado en el momento del fallo ahorra adivinar con el JSON del timeout.
+  await captureFailureScreenshot(app?.client, 'ui');
   process.exitCode = 1;
 } finally {
   // El paso del E2E en CI lee esta línea para comparar con el total esperado.

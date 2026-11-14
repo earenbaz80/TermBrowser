@@ -218,6 +218,31 @@ export function assertInstalledMatchesBuild({
 }
 
 /**
+ * Guarda una captura de la ventana cuando un paso falla.
+ *
+ * El timeout ya vuelca el estado en JSON, pero un problema de disposición se ve
+ * mejor en una imagen; se sube con los logs del CI. Nunca hace fallar el guion.
+ */
+export async function captureFailureScreenshot(client, label = 'e2e') {
+  if (!client) return null;
+  const directory = path.resolve(process.env.TERMINUS_E2E_ARTIFACTS ?? 'artifacts/e2e');
+  try {
+    const { data } = await client.send('Page.captureScreenshot', { format: 'png' });
+    fs.mkdirSync(directory, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const file = path.join(directory, `failure-${label}-${stamp}.png`);
+    fs.writeFileSync(file, Buffer.from(data, 'base64'));
+    console.log(`Captura del fallo: ${file}`);
+    return file;
+  } catch (error) {
+    console.warn(
+      `No se pudo capturar la pantalla: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return null;
+  }
+}
+
+/**
  * Lanza el ejecutable instalado con perfil temporal y devuelve su cliente CDP.
  * `cleanup()` cierra el CDP, mata el proceso y borra el perfil.
  */
