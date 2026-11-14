@@ -39,6 +39,9 @@ function option(name) {
 const dir = path.resolve(root, option('dir') || 'release');
 const tag = option('tag') || `v${version}`;
 const checkOnly = args.includes('--check-only');
+// GitHub normaliza los espacios del nombre de un asset a puntos; con `--published`
+// el fichero se copia ya con ese nombre para que notas, hashes y descarga coincidan.
+const published = args.includes('--published');
 
 const match = new RegExp(`^v${version.replace(/\./g, '\\.')}(?:-(.+))?$`).exec(tag);
 if (!match) {
@@ -73,8 +76,7 @@ function findInstaller() {
   return installer;
 }
 
-function writeNotes({ installer, hash, sumsName }) {
-  const installerName = path.basename(installer);
+function writeNotes({ installerName, hash, sumsName }) {
   const lines = [
     `# Terminus ${version}${prerelease ? ` (${match[1]})` : ''}`,
     '',
@@ -123,14 +125,27 @@ function writeNotes({ installer, hash, sumsName }) {
 try {
   const installer = findInstaller();
   const hash = createHash('sha256').update(fs.readFileSync(installer)).digest('hex');
+
+  // El nombre publicado no puede llevar espacios: gh los cambia por puntos y las
+  // notas acabarían nombrando un fichero que no existe en la descarga.
+  let assetName = path.basename(installer);
+  let asset = installer;
+  if (published) {
+    assetName = assetName.replace(/\s+/g, '.');
+    asset = path.join(dir, assetName);
+    if (asset !== installer) fs.copyFileSync(installer, asset);
+  }
+
   const sumsPath = path.join(dir, 'SHA256SUMS.txt');
   // Mismo formato que el release: hash, dos espacios y el nombre, sin BOM.
-  fs.writeFileSync(sumsPath, `${hash}  ${path.basename(installer)}\n`, 'utf8');
+  fs.writeFileSync(sumsPath, `${hash}  ${assetName}\n`, 'utf8');
 
-  const notesPath = writeNotes({ installer, hash, sumsName: 'SHA256SUMS.txt' });
+  const notesPath = writeNotes({ installerName: assetName, hash, sumsName: 'SHA256SUMS.txt' });
 
   const outputs = {
     installer: path.resolve(installer),
+    asset: path.resolve(asset),
+    assetName,
     sums: path.resolve(sumsPath),
     notes: path.resolve(notesPath),
     version,

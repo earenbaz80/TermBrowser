@@ -99,7 +99,7 @@ Ese hash corresponde al build de ese run y no tiene por qué coincidir con el de
 
 1. Sube `version` en `package.json` y mergea el cambio en `main` con el CI en verde.
 2. Crea y empuja el tag: `git tag v0.3.0 && git push origin v0.3.0`. Un sufijo (`v0.3.0-rc1`) publica la release como preliminar.
-3. El workflow `Release` compila el instalador con el mismo `npm run desktop:build` que el CI, escribe `SHA256SUMS.txt` y las notas con `scripts/release-artifacts.cjs` (el helper que también usa el CI), y publica la release con el `.exe` y el `.txt` adjuntos.
+3. El workflow `Release` compila el instalador con el mismo `npm run desktop:build` que el CI, escribe `SHA256SUMS.txt` y las notas con `scripts/release-artifacts.cjs` (el helper que también usa el CI), y publica la release con el `.exe` y el `.txt` adjuntos. El asset se llama `Terminus.Setup.<versión>.exe`: GitHub no admite espacios en el nombre de un asset, así que el helper copia el fichero con ese nombre y las notas, los hashes y la descarga usan el mismo.
 4. El tag tiene que coincidir con `package.json`: si no, el workflow falla en el primer paso, antes del build. Reintentar el mismo tag reemplaza la release en lugar de duplicarla.
 
 El CI de push solo corre en ramas, así que un tag no compila dos veces. Los artefactos por run (`terminus-installer-…`) siguen existiendo para revisar un build concreto; la release es lo que sobrevive a la retención de artefactos.
