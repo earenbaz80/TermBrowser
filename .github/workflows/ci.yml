@@ -264,43 +264,42 @@ jobs:
           New-Item -ItemType Directory -Force artifacts/e2e | Out-Null
           # Los guiones corren siempre; el de UI dos veces (sin locale y en alemán) para
           # ejercer la ruta multiidioma. El paso falla con el primer código distinto de cero.
+          $suites = @(
+            @{ label = 'ctrl-f'; script = 'test:e2e:installed'; log = 'e2e-installed.log'; locale = ''; steps = 3 },
+            @{ label = 'ui'; script = 'test:e2e:installed:ui'; log = 'e2e-installed-ui.log'; locale = ''; steps = 6 },
+            @{ label = 'ui-de'; script = 'test:e2e:installed:ui'; log = 'e2e-installed-ui-de.log'; locale = 'de'; steps = 6 }
+          )
           $e2eExitCode = 0
-          foreach ($suite in @(
-            @{ script = 'test:e2e:installed'; log = 'e2e-installed.log'; locale = '' },
-            @{ script = 'test:e2e:installed:ui'; log = 'e2e-installed-ui.log'; locale = '' },
-            @{ script = 'test:e2e:installed:ui'; log = 'e2e-installed-ui-de.log'; locale = 'de' }
-          )) {
+          foreach ($suite in $suites) {
             $env:TERMINUS_E2E_LOCALE = $suite.locale
             npm run $suite.script 2>&1 | Tee-Object -FilePath "artifacts/e2e/$($suite.log)"
             if ($LASTEXITCODE -ne 0) { $e2eExitCode = $LASTEXITCODE }
             Remove-Item Env:\TERMINUS_E2E_LOCALE -ErrorAction SilentlyContinue
           }
 
-          # Un paso saltado no puede salir verde: cada suite de UI declara «STEPS: n/m» y su
-          # total tiene que ser el que espera el workflow, aunque el guion salga con 0.
-          $expectedSteps = 6
-          $stepReports = foreach ($log in @('e2e-installed-ui.log', 'e2e-installed-ui-de.log')) {
-            $path = "artifacts/e2e/$log"
+          # Un paso saltado no puede salir verde: cada guion declara «STEPS: n/m» y su
+          # recuento tiene que ser el que espera el workflow, aunque salga con 0.
+          $stepReports = foreach ($suite in $suites) {
+            $path = "artifacts/e2e/$($suite.log)"
             $text = if (Test-Path -LiteralPath $path) { Get-Content -Raw -LiteralPath $path } else { '' }
             $match = [regex]::Match($text, 'STEPS: (\d+)/(\d+)')
             if (-not $match.Success) {
-              Write-Host "::error::$log no informó de los pasos ejecutados."
+              Write-Host "::error::$($suite.log) no informó de los pasos ejecutados."
               $e2eExitCode = 1
-              'sin recuento'
+              "$($suite.label) sin recuento"
             } else {
               $counts = "$($match.Groups[1].Value)/$($match.Groups[2].Value)"
-              if ($counts -ne "$expectedSteps/$expectedSteps") {
-                Write-Host "::error::$log declara $counts pasos; se esperaban $expectedSteps/$expectedSteps."
+              if ($counts -ne "$($suite.steps)/$($suite.steps)") {
+                Write-Host "::error::$($suite.log) declara $counts pasos; se esperaban $($suite.steps)/$($suite.steps)."
                 $e2eExitCode = 1
               }
-              $counts
+              "$($suite.label) $counts"
             }
           }
           $e2eResult = if ($e2eExitCode -eq 0) { 'PASS' } else { 'FAIL' }
-          $e2eSteps = ($stepReports -join ' · ') + " (esperados $expectedSteps)"
           "result=$e2eResult" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "exit_code=$e2eExitCode" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          "steps=$e2eSteps" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "steps=$($stepReports -join ' · ')" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           exit $e2eExitCode
 
       - name: Publicar logs del E2E

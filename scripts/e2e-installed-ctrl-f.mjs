@@ -30,6 +30,10 @@ import {
 } from './lib/installed-app.mjs';
 
 const LOG = '[e2e-installed-ctrl-f]';
+// Los pasos se cuentan: el guion cierra con «STEPS: ejecutados/esperados» y el paso
+// del E2E en CI compara ese número con el total, para que un paso perdido no pase.
+const TOTAL_STEPS = 3;
+let stepsRun = 0;
 const FIND_SHORTCUT_MARKER = 'terminus:find:shortcut';
 // La barra de direcciones se identifica por su relación con la lista de sugerencias
 // (atributos del DOM, no el aria-label del idioma activo), así la prueba sirve en cualquier idioma.
@@ -65,6 +69,12 @@ const FIND_BAR_EXPRESSION = `(() => {
     frameMode,
   };
 })()`;
+
+/** Anota un paso superado y lo numera sobre el total esperado. */
+function pass(message) {
+  stepsRun += 1;
+  console.log(LOG + ' PASS ' + stepsRun + '/' + TOTAL_STEPS + ': ' + message);
+}
 
 const installedExe = process.env.TERMINUS_INSTALLED_EXE
   ? path.resolve(process.env.TERMINUS_INSTALLED_EXE)
@@ -572,7 +582,7 @@ async function main() {
   assert.equal(findState.iframe, EXTERNAL_URL, 'El iframe cambió después de abrir el buscador.');
 
   console.log(`${LOG} Ruta del atajo: ${shortcutRoute}`);
-  console.log(`${LOG} PASS: Ctrl+F abrió el buscador en la app instalada.`);
+  pass('Ctrl+F abrió el buscador en la app instalada.');
   console.log(`${LOG} Foco: ${findState.activeElement}`);
   console.log(`${LOG} iframe: ${findState.iframe}`);
 
@@ -583,12 +593,18 @@ async function main() {
   await navigateToPage(cdp, fixture.url, '/api/view');
 
   const dark = await searchInView(cdp, 'dark', 'Fixture');
-  console.log(`${LOG} PASS: búsqueda en OSCURO (${dark.status}).`);
+  pass(`búsqueda en OSCURO (${dark.status}).`);
   console.log(`${LOG} Vista OSCURO: ${dark.frameMode}`);
 
   const text = await searchInView(cdp, 'text', 'buscador');
-  console.log(`${LOG} PASS: búsqueda en TEXTO (${text.status}).`);
+  pass(`búsqueda en TEXTO (${text.status}).`);
   console.log(`${LOG} Vista TEXTO: ${text.frameMode}`);
+
+  assert.equal(
+    stepsRun,
+    TOTAL_STEPS,
+    'pasos ejecutados: ' + stepsRun + '/' + TOTAL_STEPS,
+  );
 }
 
 try {
@@ -604,6 +620,8 @@ try {
   }
   process.exitCode = 1;
 } finally {
+  // El paso del E2E en CI lee esta línea para comparar con el total esperado.
+  console.log(LOG + ' STEPS: ' + stepsRun + '/' + TOTAL_STEPS);
   await app?.cleanup();
 
   if (fixtureServer) {
