@@ -115,7 +115,7 @@ No lances dos ejecuciones simultáneas sobre la misma rama: la política de conc
 
 Si el E2E está solicitado, antes de instalar dependencias se ejecuta un preflight que exige una sesión interactiva (`SessionId != 0` y `[Environment]::UserInteractive`). Si falla, el job termina antes de compilar o instalar nada.
 
-El workflow se parte en dos jobs que corren en paralelo para que el primer veredicto llegue en minutos: `checks` (checkout, Node.js 22, actionlint —binario con versión y SHA-256 fijados—, `npm ci`, `npm run lint`, `npm run test:coverage` con el artefacto `coverage-lcov`, `npm audit` y la prueba Chromium del sandbox Python) y `windows` (gate del E2E, preflight, build, instalador, suites y artefactos). Un tercer job, `requerido`, no ejecuta nada: espera a los dos y falla si alguno falló, y conserva el nombre `Windows - lint, tests, cobertura y E2E opcional`, que es el contexto que exige la protección de `main`, así que el check obligatorio sigue siendo uno solo.
+El workflow se parte en dos jobs encadenados para que el primer veredicto llegue en minutos y el build no se gaste en código que no pasa el lint (`windows` declara `needs: checks` y se salta si `checks` falla): `checks` (checkout, Node.js 22, actionlint —binario con versión y SHA-256 fijados—, `npm ci`, `npm run lint`, `npm run test:coverage` con el artefacto `coverage-lcov`, `npm audit` y la prueba Chromium del sandbox Python) y `windows` (gate del E2E, preflight, build, instalador, suites y artefactos). Un tercer job, `requerido`, no ejecuta nada: espera a los dos y falla si alguno falló, y conserva el nombre `Windows - lint, tests, cobertura y E2E opcional`, que es el contexto que exige la protección de `main`, así que el check obligatorio sigue siendo uno solo.
 
 Los pasos 1 a 7 son del job `checks`; el resto, de `windows`, que ejecuta en orden:
 
@@ -132,16 +132,18 @@ Los pasos 1 a 7 son del job `checks`; el resto, de `windows`, que ejecuta en ord
 11. Instala el instalador más reciente con `/S`.
 12. Detiene cualquier instancia de Terminus que el instalador haya abierto.
 13. Define `TERMINUS_INSTALLED_EXE` apuntando a `%LOCALAPPDATA%\Programs\Terminus\Terminus.exe`.
-14. Ejecuta `node scripts/e2e-run.mjs`: recorre `scripts/e2e-suites.mjs`, lanza cada suite con `npm run`, guarda su salida en `artifacts/e2e/<log>` y falla con el primer código distinto de cero. Las suites que corre cada ejecución salen de `pr: true` en `scripts/e2e-suites.mjs`, y una prueba compara esa lista con la del workflow para que no se desincronicen. Las tres corren también en un PR cuando el gate lo pide: medido sobre la app instalada el 14 de noviembre de 2026, `ui` tarda 12 s, `ui-de` otros 12 s y `ctrl-f` 14 s, así que condicionar la de alemán a cambios de textos o i18n ahorraría doce segundos y perdería la cobertura de disposición, chips y pestañas con cadenas alemanas, que se rompen por CSS o por estructura y no solo cuando cambian los textos. `ui-de` es la misma suite con `TERMINUS_E2E_LOCALE=de`.
+14. Ejecuta `node scripts/e2e-run.mjs`: recorre `scripts/e2e-suites.mjs`, lanza cada suite con `npm run`, guarda su salida en `artifacts/e2e/<log>` y falla con el primer código distinto de cero. El CI lo llama sin `--only`: cuando el gate pide el E2E corre las tres suites, así que la lista vive solo en `scripts/e2e-suites.mjs` y no se duplica en el workflow. Medido sobre la app instalada el 14 de noviembre de 2026, `ui` tarda 12 s, `ui-de` otros 12 s y `ctrl-f` 14 s, por eso la de alemán no se restringe a cambios de textos o i18n: sus pasos comprueban disposición, chips, pestañas e historial con cadenas alemanas, que se rompen por CSS o por estructura y no solo cuando cambian los textos. `ui-de` es la misma suite con `TERMINUS_E2E_LOCALE=de`.
 15. Compara el recuento: cada log tiene que cerrar con `STEPS: n/m` igual al total que declara su entrada de `scripts/e2e-suites.mjs`, la misma lista que leen los guiones, así que el esperado no se puede desincronizar. El resumen del paso queda `ctrl-f 5/5 · ui 11/11 · ui-de 11/11`.
 16. Publica los logs del E2E y un resumen del job, que incluye el estado del E2E de adblock (`OK`, `FAIL` u `Omitido (sin red)`) con el enlace a su captura.
 
 El E2E se ejecuta cuando se cumple una de estas condiciones:
 
-- un PR del propio repositorio que toque `src/`, `electron/`, `scripts/`, `assets/`, `package.json`/`package-lock.json` o la configuración del build (corre `ctrl-f` y `ui`);
+- un PR del propio repositorio que toque `src/`, `electron/`, `scripts/`, `assets/`, `package.json`/`package-lock.json` o la configuración del build (corre las tres suites, igual que las demás condiciones);
 - el nocturno de `main` (`cron` a las 03:30 UTC), que corre las tres suites;
 - `workflow_dispatch` con `run_installed_e2e = true`;
-- la variable `TERMINUS_RUN_INSTALLED_E2E = true`, salvo en PRs desde forks.
+- la variable `TERMINUS_RUN_INSTALLED_E2E = true`, que es la que activa el E2E en cada push a `main` (salvo en PRs desde forks); hoy vale `true` y se cambia en Settings → Secrets and variables → Actions → Variables.
+
+En push no se filtra por ficheros cambiados (comparar contra `github.event.before`): el E2E añade unos 56 s al job (18 s de instalación y 38 s de suites) y es la única corrida que prueba exactamente el commit publicado, incluidos los merges de solo documentación que en el PR se saltaron el E2E. Un filtro ahorraría esos 56 s en esos merges a cambio de un camino de respaldo para cuando `before` no existe (primer push o fuerza), justo donde un fallo silencioso dejaría `main` sin probar.
 
 Un dispatch sobre una rama ya no cancela la corrida del PR: solo un push nuevo cancela la anterior de la misma referencia. En cualquier otro caso el E2E se omite, pero el build y el instalador sí se generan.
 

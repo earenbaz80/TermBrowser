@@ -99,6 +99,9 @@ jobs:
 
   windows:
     name: Windows - build, E2E y artefactos
+    # Espera al veredicto rápido: si el lint o las pruebas fallan, no se gasta el
+    # build ni el E2E. Cuesta el tiempo de `checks` en el camino verde.
+    needs: checks
     outputs:
       pr_comment_url: ${{ steps.pr_summary.outputs.comment_url }}
     # El E2E usa SendKeys y necesita escritorio interactivo: lo comprueba el
@@ -140,7 +143,6 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $enabled = $false
-          $only = ''
           $reason = ''
 
           if ($env:EVENT_NAME -eq 'schedule') {
@@ -161,11 +163,6 @@ jobs:
                 $appChanged = @($files | Where-Object { $_ -match $pattern }).Count -gt 0
               }
               $enabled = $appChanged
-              # La de alemán también: medido sobre la app instalada (14/11/2026) son
-              # 12 s, lo mismo que `ui`, y cubre disposición y pestañas con textos
-              # alemanes, que no cambian solo cuando cambian los textos. La lista
-              # tiene que coincidir con las suites `pr: true` de e2e-suites.mjs.
-              $only = 'ctrl-f,ui,ui-de'
               $reason = if ($appChanged) { 'PR que toca la app' } else { 'PR sin cambios de app' }
             }
           } else {
@@ -174,7 +171,6 @@ jobs:
           }
 
           "enabled=$($enabled.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          "only=$only" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "E2E instalado: $($enabled.ToString().ToLower()) ($reason)"
 
       - name: Configurar Node.js
@@ -448,7 +444,7 @@ jobs:
         if: steps.e2e_gate.outputs.enabled == 'true'
         timeout-minutes: 10
         shell: pwsh
-        run: node scripts/e2e-run.mjs --only "${{ steps.e2e_gate.outputs.only }}"
+        run: node scripts/e2e-run.mjs
 
       - name: Publicar logs del E2E
         id: upload-e2e-logs
