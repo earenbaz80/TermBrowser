@@ -250,10 +250,22 @@ jobs:
       # El E2E de adblock lanza Playwright contra `release/win-unpacked`, así que va
       # justo después del build y antes de instalar: no depende del gate del E2E
       # instalado ni de una sesión de escritorio interactiva.
+      # Código 2 = el runner no alcanzó example.com o las listas de EasyList. Eso no
+      # dice nada del producto: se avisa y el job sigue verde. Cualquier otro código
+      # sigue siendo un fallo, así que una regresión real no se puede colar.
       - name: E2E de adblock en Electron
         id: e2e_adblock
-        timeout-minutes: 10
-        run: npm run test:e2e:adblock
+        timeout-minutes: 12
+        shell: pwsh
+        run: |
+          npm run test:e2e:adblock
+          $code = $LASTEXITCODE
+          if ($code -eq 2) {
+            'skipped=true' | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host '::warning title=E2E de adblock omitido::El runner no alcanzó example.com o las listas de EasyList (código 2); no se puede distinguir una regresión de un fallo de red.'
+            exit 0
+          }
+          exit $code
 
       # La captura es la prueba visual del fixture con el bloqueo aplicado; se sube
       # aunque el paso falle, para poder mirarla cuando algo se rompa.
@@ -365,6 +377,7 @@ jobs:
           SUMS_NAME: terminus-sha256sums-${{ steps.version.outputs.version }}-run-${{ github.run_number }}-windows
           SUMS_URL: ${{ steps.upload-sha256sums.outputs.artifact-url }}
           ADBLOCK_OUTCOME: ${{ steps.e2e_adblock.outcome }}
+          ADBLOCK_SKIPPED: ${{ steps.e2e_adblock.outputs.skipped }}
           ADBLOCK_URL: ${{ steps.upload-adblock.outputs.artifact-url }}
         run: |
           $version = if ($env:APP_VERSION) { $env:APP_VERSION } else { 'desconocida' }
@@ -407,7 +420,9 @@ jobs:
           $logsLink = if ($env:LOGS_URL) { "[Descargar]($env:LOGS_URL)" } else { 'No disponible' }
           $sumsLink = if ($env:SUMS_URL) { "[Descargar]($env:SUMS_URL)" } else { 'No disponible' }
           $adblockLink = if ($env:ADBLOCK_URL) { "[Captura]($env:ADBLOCK_URL)" } else { 'sin captura' }
-          $adblockText = if ($env:ADBLOCK_OUTCOME -eq 'success') {
+          $adblockText = if ($env:ADBLOCK_SKIPPED -eq 'true') {
+            "Omitido (sin red) - $adblockLink"
+          } elseif ($env:ADBLOCK_OUTCOME -eq 'success') {
             "OK - $adblockLink"
           } elseif ($env:ADBLOCK_OUTCOME -eq 'failure') {
             "FAIL - $adblockLink"
