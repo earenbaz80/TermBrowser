@@ -128,7 +128,7 @@ El CI de push solo corre en ramas, así que un tag no compila dos veces. Los art
 - No hay autenticación multiusuario: el modelo de confianza es una sola persona en su equipo.
 - El terminal nativo y los comandos que ejecutes en él conservan el acceso a red del usuario; la política de red privada aplica al proxy y a las APIs del navegador.
 - La CSP mantiene `style-src 'unsafe-inline'` por los estilos de los temas; los scripts inline quedan bloqueados en producción.
-- La sanitización HTML es deliberadamente conservadora, pero no sustituye un navegador aislado para contenido hostil.
+- La sanitización HTML es deliberadamente conservadora, pero no sustituye un navegador aislado para contenido hostil. Dos detalles quedan como están: las URLs `data:` dentro de `srcset` de imágenes y el CSS de los atributos `style` no se reescriben. Ninguno ejecuta código en Chromium (un `data:` en `srcset` no se decodifica como documento y `url(javascript:)` no corre en CSS), y la CSP y el `sandbox` del iframe son el límite real; `src/utils/serverSecurity.hostile.test.ts` fija ese comportamiento para que un endurecimiento futuro lo delate.
 - EasyList no genera cosméticos genéricos para `localhost` ni direcciones IP porque no tienen eTLD; en esos casos se aplica el bloqueo de red, pero no el ocultado cosmético. Los dominios públicos sí reciben ambos.
 - Las métricas de red del monitor son parcialmente estimadas; no deben usarse como telemetría de producción.
 
