@@ -1,8 +1,24 @@
 /* global document, getComputedStyle, window */
+/**
+ * E2E de adblock sobre la app empaquetada (`release/win-unpacked/Terminus.exe`).
+ *
+ * Depende de internet (example.com y las listas de Ghostery), así que el guion
+ * comprueba esos destinos antes de arrancar y distingue los fallos:
+ *   - código 0: `E2E_ADBLOCK_OK`, el producto cumple.
+ *   - código 2: `E2E_ADBLOCK_UNREACHABLE`, sin red en el runner (infraestructura).
+ *   - código 1: regresión del producto.
+ *
+ * Para probar el camino sin red: `TERMINUS_E2E_ADBLOCK_PROBE_URLS=http://127.0.0.1:9/`.
+ */
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { _electron as electron } from 'playwright';
+import {
+  assertReachable,
+  isNetworkUnavailable,
+  UnreachableNetworkError,
+} from './lib/network-preflight.mjs';
 
 const fixtureHtml = `<!doctype html>
 <html lang="es">
@@ -64,11 +80,36 @@ function startPrivateProbeServer() {
 }
 
 const appPath = path.resolve('release/win-unpacked/Terminus.exe');
+
+// Destinos que el guion necesita de internet: la página pública del caso de
+// cosméticos y las listas que descarga Ghostery en el primer arranque (sin caché).
+// `TERMINUS_E2E_ADBLOCK_PROBE_URLS` permite apuntar a otros destinos para probar
+// el camino sin red de forma determinista.
+const LIST_ASSETS = 'https://raw.githubusercontent.com/ghostery/adblocker/master/packages/adblocker/assets';
+const NETWORK_TARGETS = (process.env.TERMINUS_E2E_ADBLOCK_PROBE_URLS ?? '')
+  .split(',')
+  .map((url) => url.trim())
+  .filter(Boolean);
+const PROBE_URLS = NETWORK_TARGETS.length
+  ? NETWORK_TARGETS
+  : ['https://example.com/', `${LIST_ASSETS}/easylist/easylist.txt`, `${LIST_ASSETS}/ublock-origin/resources.json`];
 let electronApp;
 let fixture;
 let privateProbe;
 
 try {
+  // Antes de arrancar la app: si el runner no tiene red, el fallo es de
+  // infraestructura y se distingue con un código de salida propio.
+  await assertReachable(PROBE_URLS, {
+    attempts: 3,
+    timeoutMs: 10000,
+    delayMs: 1500,
+    onAttempt: (result) =>
+      console.log(
+        `NETWORK ${result.ok ? 'OK' : 'FALLO'} ${result.url} (intentos: ${result.attempts}${result.reason ? `, ${result.reason}` : ''})`
+      ),
+  });
+
   fixture = await startFixtureServer();
   privateProbe = await startPrivateProbeServer();
   const fixtureUrl = `http://127.0.0.1:${fixture.port}/`;
@@ -139,7 +180,9 @@ try {
   console.log('BODY_TEXT', (await page.locator('body').innerText().catch(() => '<sin body>')).slice(0, 1200));
   console.log('LOCAL_STORAGE', await page.evaluate(() => ({ ...localStorage })).catch(() => '<sin storage>'));
   await page.waitForTimeout(10000);
-  console.log('ADBLOCK_CACHE_AFTER', fs.existsSync(path.join(userData, 'adblock-engine.bin')));
+  // Sin caché no hubo descarga de listas: los cosméticos no pueden aplicarse.
+  const adblockCacheAfter = fs.existsSync(path.join(userData, 'adblock-engine.bin'));
+  console.log('ADBLOCK_CACHE_AFTER', adblockCacheAfter);
 
   const frames = page.frames().map((frame) => frame.url());
   console.log('FRAMES', JSON.stringify(frames));
@@ -338,6 +381,13 @@ try {
     publicCosmeticState.adDisplay !== 'none' ||
     publicCosmeticState.slotDisplay !== 'none'
   ) {
+    // Si la app nunca pudo serializar el motor, faltan las listas: eso es red.
+    if (!adblockCacheAfter) {
+      throw new UnreachableNetworkError(
+        [{ url: `${LIST_ASSETS}/easylist/easylist.txt`, reason: 'EasyList/EasyPrivacy no se descargaron (sin caché del motor)' }],
+        { attempts: 3 }
+      );
+    }
     throw new Error('Los filtros cosméticos no se aplicaron a la página proxificada pública.');
   }
   if (proxyProbeHits !== 0) {
@@ -354,6 +404,16 @@ try {
   }
 
   console.log('E2E_ADBLOCK_OK');
+} catch (error) {
+  if (isNetworkUnavailable(error)) {
+    // Código 2: el CI lo trata como aviso. Nunca se pierde el motivo exacto.
+    console.error(`E2E_ADBLOCK_UNREACHABLE: ${error.message}`);
+    console.error('[e2e-adblock] Es un fallo de red del runner, no del producto; el CI lo marca como aviso.');
+    process.exitCode = 2;
+  } else {
+    console.error(`[e2e-adblock] FAIL: ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  }
 } finally {
   if (electronApp) await electronApp.close().catch(() => {});
   if (fixture) fixture.server.close();

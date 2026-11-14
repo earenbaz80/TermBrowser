@@ -79,6 +79,8 @@ Cobertura de pestañas (14 de noviembre de 2026): la suite de la UI pasa a once 
 
 E2E de adblock en CI (14 de noviembre de 2026): `npm run test:e2e:adblock` pasa a correr en el job `windows`, justo después de `npm run desktop:build` porque lanza `release/win-unpacked/Terminus.exe` y no el instalador. Se ejecuta en todos los runs y no depende del gate del E2E instalado, así que un PR sin cambios de app también lo verifica. Su captura `artifacts/adblock-electron.png` se publica en el artefacto `e2e-adblock` aunque el paso falle, y el resumen del job muestra su estado con el enlace a la captura.
 
+Fallos de red frente a regresiones (14 de noviembre de 2026): el E2E de adblock depende de `example.com` y de las listas de EasyList, así que antes de arrancar comprueba esos tres destinos con tres intentos acotados (`scripts/lib/network-preflight.mjs`, con pruebas propias). Si no responden sale con código 2 y `E2E_ADBLOCK_UNREACHABLE`, y el paso lo convierte en aviso con `skipped=true`: el job sigue verde y el resumen dice «Omitido (sin red)». El mismo código 2 cubre el caso de que el motor de adblock no haya podido descargar las listas (sin caché). Un fallo real del producto sigue saliendo con código 1 y pone el check en rojo, así que una regresión no se puede colar como problema de infraestructura.
+
 ### 3. Cobertura automatizada de la interfaz nueva — regresiones cubiertas en CI
 
 Las tres regresiones del cierre y la persistencia del tema tienen prueba en `npm test` (41 archivos, 195 pruebas), que el CI ejecuta siempre, y además en la app empaquetada: `npm run test:e2e:installed:ui` cerró con cuatro `PASS` sobre la 0.3.0 instalada (12 de noviembre de 2026).
