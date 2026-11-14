@@ -258,6 +258,8 @@ jobs:
         timeout-minutes: 12
         shell: pwsh
         run: |
+          # El guion escribe su propia salida en `artifacts/e2e/adblock-electron.log`
+          # (UTF-8), así que el artefacto lleva el diagnóstico sin depender del shell.
           npm run test:e2e:adblock
           $code = $LASTEXITCODE
           if ($code -eq 2) {
@@ -267,15 +269,17 @@ jobs:
           }
           exit $code
 
-      # La captura es la prueba visual del fixture con el bloqueo aplicado; se sube
-      # aunque el paso falle, para poder mirarla cuando algo se rompa.
+      # El artefacto lleva la captura y el log del paso; se suben aunque el paso falle,
+      # que es justo cuando hacen falta.
       - name: Publicar captura del E2E de adblock
         id: upload-adblock
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: e2e-adblock
-          path: artifacts/adblock-electron.png
+          path: |
+            artifacts/adblock-electron.png
+            artifacts/e2e/adblock-electron.log
           if-no-files-found: ignore
 
       # El artefacto lleva el instalador suelto, no un ZIP propio: Actions envuelve el

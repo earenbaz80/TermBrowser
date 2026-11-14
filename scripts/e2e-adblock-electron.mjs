@@ -81,6 +81,31 @@ function startPrivateProbeServer() {
 
 const appPath = path.resolve('release/win-unpacked/Terminus.exe');
 
+// La salida se guarda en UTF-8 aunque la lance un shell que reescriba la
+// codificación: el artefacto del CI lleva este fichero junto a la captura para
+// poder diagnosticar un fallo sin abrir el log del run.
+const LOG_PATH = path.resolve('artifacts/e2e/adblock-electron.log');
+
+function teeOutputTo(file) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, '');
+  const write = (chunk) => {
+    try {
+      fs.appendFileSync(file, chunk);
+    } catch {
+      // Sin log se pierde el diagnóstico, no el resultado: el resumen ya se ve.
+    }
+  };
+  for (const stream of [process.stdout, process.stderr]) {
+    const original = stream.write.bind(stream);
+    stream.write = (chunk, ...rest) => {
+      write(chunk);
+      return original(chunk, ...rest);
+    };
+  }
+  console.log('LOG_FILE', LOG_PATH);
+}
+
 // Destinos que el guion necesita de internet: la página pública del caso de
 // cosméticos y las listas que descarga Ghostery en el primer arranque (sin caché).
 // `TERMINUS_E2E_ADBLOCK_PROBE_URLS` permite apuntar a otros destinos para probar
@@ -98,6 +123,8 @@ let fixture;
 let privateProbe;
 
 try {
+  teeOutputTo(LOG_PATH);
+
   // Antes de arrancar la app: si el runner no tiene red, el fallo es de
   // infraestructura y se distingue con un código de salida propio.
   await assertReachable(PROBE_URLS, {
