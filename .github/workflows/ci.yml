@@ -1,7 +1,11 @@
 name: CI
 
 on:
+  # Solo ramas: un tag lo publica el workflow Release, así que el push de un tag
+  # no compila el instalador dos veces.
   push:
+    branches:
+      - '**'
   pull_request:
   # Nocturno: main corre las tres suites, incluida la de alemán.
   schedule:
@@ -257,22 +261,11 @@ jobs:
           path: release/Terminus Setup *.exe
           if-no-files-found: error
 
+      # El formato de los hashes y las notas vive en un helper que comparte con el
+      # workflow de release, para que no haya dos versiones del mismo fichero.
       - name: Generar SHA256SUMS.txt
         id: sha256sums
-        shell: pwsh
-        run: |
-          $installer = Get-ChildItem -LiteralPath release -Filter 'Terminus Setup *.exe' |
-            Sort-Object LastWriteTime -Descending |
-            Select-Object -First 1
-          if (-not $installer) {
-            throw 'No se generó el instalador NSIS.'
-          }
-
-          # Mismo formato que el SHA256SUMS.txt del release: hash, dos espacios y el nombre.
-          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer.FullName).Hash.ToLowerInvariant()
-          $path = Join-Path (Resolve-Path -LiteralPath release) 'SHA256SUMS.txt'
-          [System.IO.File]::WriteAllText($path, "$hash  $($installer.Name)`n", (New-Object System.Text.UTF8Encoding($false)))
-          Get-Content -LiteralPath $path
+        run: node scripts/release-artifacts.cjs --tag "v${{ steps.version.outputs.version }}"
 
       - name: Publicar SHA256SUMS.txt
         id: upload-sha256sums
