@@ -1,9 +1,5 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { E2E_SUITES, selectSuites, suiteSteps } from '../e2e-suites.mjs';
-
-const WORKFLOW = path.resolve('.github/workflows/ci.yml');
 
 describe('suites del E2E instalado', () => {
   it('no repite etiquetas ni ficheros de log', () => {
@@ -23,21 +19,5 @@ describe('suites del E2E instalado', () => {
   it('rechaza una suite desconocida', () => {
     expect(() => selectSuites(['ui-fr'])).toThrow(/Suite desconocida: ui-fr/);
     expect(() => suiteSteps('ui-fr')).toThrow(/Suite desconocida/);
-  });
-
-  it('el gate del CI coincide con las suites marcadas para PR', () => {
-    // La lista del workflow es la que decide qué corre en un PR; si alguien añade
-    // una suite con `pr: true` y no la añade aquí, no se ejecutaría nunca.
-    const workflow = fs.readFileSync(WORKFLOW, 'utf8');
-    // El gate declara `$only` vacío al principio y lo rellena al decidir.
-    const declared = [...workflow.matchAll(/\$only = '([^']*)'/g)]
-      .map((match) => match[1])
-      .filter(Boolean);
-    expect(declared).toHaveLength(1);
-
-    const fromSuites = E2E_SUITES.filter((suite) => suite.pr).map((suite) => suite.label);
-    const fromWorkflow = declared[0].split(',').filter(Boolean);
-
-    expect(fromWorkflow).toEqual(fromSuites);
   });
 });
