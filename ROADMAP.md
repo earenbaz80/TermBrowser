@@ -40,6 +40,7 @@ Estado:
 - [x] `docs/release-notes-v0.3.0.md` con cambios, verificación y SHA-256 del instalador.
 - [x] PR #11 mergeado en `main` con el CI en verde (lint, pruebas, cobertura y E2E opcional), sin anotaciones.
 - [x] Release `0.3.0` publicada el 12 de noviembre de 2026 y marcada como última release, con instalador, `.blockmap`, ZIP y `SHA256SUMS.txt` (los tres hashes).
+- [x] Publicación automatizada (14 de noviembre de 2026): `.github/workflows/release.yml` se dispara con un tag `v*`, compila con `npm run desktop:build`, escribe hashes y notas con `scripts/release-artifacts.cjs` —el mismo helper que usa el CI— y publica la release con el `.exe` y `SHA256SUMS.txt`. El tag tiene que coincidir con `package.json` (si no, falla antes del build), un sufijo lo marca como preliminar y reintentar el tag reemplaza la release. El CI de push solo corre en ramas, así que un tag no compila dos veces.
 - [x] README actualizado: arquitectura (`SettingsMenu`, `WindowControls`, `src/i18n`), flujo de búsqueda desde el inicio, idiomas y recuento de pruebas.
 
 Cierre: lint, pruebas y builds en verde; instalador generado, revisado e instalado; release `0.3.0` publicada con hashes; la búsqueda funciona desde la pantalla de inicio sin pasar por otra vista. Hito cerrado el 12 de noviembre de 2026.

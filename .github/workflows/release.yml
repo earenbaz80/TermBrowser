@@ -1,0 +1,111 @@
+name: Release
+
+# Un tag de versión publica el instalador que genera el mismo comando que usa el
+# CI (`npm run desktop:build`), con sus hashes y notas. El CI de push solo corre
+# en ramas, así que un tag no compila dos veces.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  windows-release:
+    name: Windows - instalador y release
+    # Mismo runner que el CI: en un runner autoalojado evita depender de la cuota
+    # de Actions, y en windows-latest funciona sin configuración.
+    runs-on: ${{ vars.TERMINUS_CI_RUNNER || 'windows-latest' }}
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      # Falla en segundos si el tag no corresponde a la versión de package.json,
+      # en vez de gastar el build y publicar un instalador con otro número.
+      - name: Comprobar que el tag coincide con package.json
+        run: node scripts/release-artifacts.cjs --tag "${{ github.ref_name }}" --check-only
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      # La release se publica sin firma Authenticode por decisión del proyecto;
+      # el flujo de firma queda documentado en docs/code-signing-windows.md.
+      - name: Compilar instalador NSIS
+        run: npm run desktop:build
+
+      - name: Preparar hashes y notas
+        id: artifacts
+        run: node scripts/release-artifacts.cjs --tag "${{ github.ref_name }}"
+
+      - name: Publicar la release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ steps.artifacts.outputs.prerelease }}
+          INSTALLER: ${{ steps.artifacts.outputs.installer }}
+          SUMS: ${{ steps.artifacts.outputs.sums }}
+          NOTES: ${{ steps.artifacts.outputs.notes }}
+          VERSION: ${{ steps.artifacts.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          # Reintentar el tag reemplaza la release: los assets se vuelven a subir
+          # en vez de acumular duplicados. El tag no se toca.
+          gh release view $env:TAG --json tagName 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "La release $env:TAG ya existe; se elimina para publicarla de nuevo."
+            gh release delete $env:TAG --yes
+          }
+
+          $extra = @()
+          if ($env:PRERELEASE -eq 'true') { $extra += '--prerelease' }
+          gh release create $env:TAG $env:INSTALLER $env:SUMS `
+            --title "Terminus $env:VERSION" `
+            --notes-file $env:NOTES `
+            @extra
+
+          gh release view $env:TAG --json url,assets `
+            --jq '"Release: " + .url + " (" + (.assets | length | tostring) + " assets)"'
+
+      - name: Resumen de la release
+        if: always()
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+          JOB_STATUS: ${{ job.status }}
+          INSTALLER: ${{ steps.artifacts.outputs.installer }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          $hash = if ($env:INSTALLER -and (Test-Path -LiteralPath $env:INSTALLER)) {
+            (Get-FileHash -Algorithm SHA256 -LiteralPath $env:INSTALLER).Hash.ToLowerInvariant()
+          } else {
+            'No disponible'
+          }
+          $installerName = if ($env:INSTALLER) { Split-Path -Leaf $env:INSTALLER } else { 'No disponible' }
+          $lines = @(
+            '## Release de Terminus',
+            '',
+            "- **Tag:** $env:TAG",
+            "- **Estado:** $env:JOB_STATUS",
+            "- **Instalador:** $installerName",
+            "- **SHA-256:** $hash",
+            "- **Ejecución:** [$env:RUN_NUMBER]($env:RUN_URL)",
+            ''
+          )
+          $lines | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          $lines | Write-Output

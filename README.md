@@ -95,6 +95,15 @@ Get-FileHash -Algorithm SHA256 'Terminus Setup 0.3.0.exe'   # compara con la lí
 
 Ese hash corresponde al build de ese run y no tiene por qué coincidir con el de la release publicada.
 
+### Publicar una release
+
+1. Sube `version` en `package.json` y mergea el cambio en `main` con el CI en verde.
+2. Crea y empuja el tag: `git tag v0.3.0 && git push origin v0.3.0`. Un sufijo (`v0.3.0-rc1`) publica la release como preliminar.
+3. El workflow `Release` compila el instalador con el mismo `npm run desktop:build` que el CI, escribe `SHA256SUMS.txt` y las notas con `scripts/release-artifacts.cjs` (el helper que también usa el CI), y publica la release con el `.exe` y el `.txt` adjuntos.
+4. El tag tiene que coincidir con `package.json`: si no, el workflow falla en el primer paso, antes del build. Reintentar el mismo tag reemplaza la release en lugar de duplicarla.
+
+El CI de push solo corre en ramas, así que un tag no compila dos veces. Los artefactos por run (`terminus-installer-…`) siguen existiendo para revisar un build concreto; la release es lo que sobrevive a la retención de artefactos.
+
 ## Seguridad
 
 - Este es un proyecto personal y no ha sido auditado por terceros. La revisión incluida en `docs/security-review-proxy-iframes.md` es interna y de alcance limitado. Úsalo bajo tu propio criterio y no lo presentes como un navegador auditado.
