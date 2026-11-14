@@ -144,6 +144,52 @@ jobs:
           gh release view $env:TAG --json url,assets `
             --jq '"Release: " + .url + " (" + (.assets | length | tostring) + " assets)"'
 
+      # Una subida truncada o un asset que no es el que se compiló se detectan aquí,
+      # en la propia entrega, y no cuando alguien descarga el instalador.
+      - name: Verificar el asset publicado
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          ASSET_NAME: ${{ steps.artifacts.outputs.assetName }}
+          SUMS: ${{ steps.artifacts.outputs.sums }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $jq = '.assets[] | select(.name == "' + $env:ASSET_NAME + '") | {id, name, size}'
+          $json = gh api "repos/$env:REPO/releases/tags/$env:TAG" --jq $jq
+          if (-not $json) {
+            throw "La release $env:TAG no publicó el asset $env:ASSET_NAME."
+          }
+          $asset = $json | ConvertFrom-Json
+
+          $expected = $null
+          foreach ($line in Get-Content -LiteralPath $env:SUMS) {
+            $pattern = '(?i)^([0-9a-f]{64})\s+\*?' + [regex]::Escape($env:ASSET_NAME) + '\s*$'
+            if ($line -match $pattern) { $expected = $Matches[1].ToLowerInvariant() }
+          }
+          if (-not $expected) {
+            throw "$env:SUMS no tiene la línea de $env:ASSET_NAME."
+          }
+
+          # La API exige la cabecera octet-stream para devolver el binario; sin ella
+          # entrega el JSON del asset.
+          $path = Join-Path $env:RUNNER_TEMP (Join-Path 'release-asset' $env:ASSET_NAME)
+          New-Item -ItemType Directory -Force -Path (Split-Path -Parent $path) | Out-Null
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept = 'application/octet-stream'
+          }
+          Invoke-WebRequest -Uri "https://api.github.com/repos/$env:REPO/releases/assets/$($asset.id)" -Headers $headers -OutFile $path
+
+          $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant()
+          Write-Host "Asset $($asset.name): $($asset.size) bytes publicados, SHA-256 $actual"
+          if ($actual -ne $expected) {
+            throw "El asset publicado no coincide con $env:SUMS: esperado $expected, descargado $actual."
+          }
+          Write-Host "El asset publicado coincide con $env:SUMS."
+
       - name: Resumen de la release
         if: always()
         shell: pwsh
