@@ -46,9 +46,11 @@ jobs:
       - name: Compilar instalador NSIS
         run: npm run desktop:build
 
+      # `--published` copia el instalador con el nombre que GitHub admite como asset
+      # (sin espacios), para que las notas y los hashes nombren el fichero real.
       - name: Preparar hashes y notas
         id: artifacts
-        run: node scripts/release-artifacts.cjs --tag "${{ github.ref_name }}"
+        run: node scripts/release-artifacts.cjs --tag "${{ github.ref_name }}" --published
 
       - name: Publicar la release
         shell: pwsh
@@ -56,7 +58,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
           PRERELEASE: ${{ steps.artifacts.outputs.prerelease }}
-          INSTALLER: ${{ steps.artifacts.outputs.installer }}
+          INSTALLER: ${{ steps.artifacts.outputs.asset }}
           SUMS: ${{ steps.artifacts.outputs.sums }}
           NOTES: ${{ steps.artifacts.outputs.notes }}
           VERSION: ${{ steps.artifacts.outputs.version }}
@@ -87,7 +89,8 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
           JOB_STATUS: ${{ job.status }}
-          INSTALLER: ${{ steps.artifacts.outputs.installer }}
+          INSTALLER: ${{ steps.artifacts.outputs.asset }}
+          ASSET_NAME: ${{ steps.artifacts.outputs.assetName }}
           RUN_NUMBER: ${{ github.run_number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -96,7 +99,7 @@ jobs:
           } else {
             'No disponible'
           }
-          $installerName = if ($env:INSTALLER) { Split-Path -Leaf $env:INSTALLER } else { 'No disponible' }
+          $installerName = if ($env:ASSET_NAME) { $env:ASSET_NAME } else { 'No disponible' }
           $lines = @(
             '## Release de Terminus',
             '',
