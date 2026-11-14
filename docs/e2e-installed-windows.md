@@ -115,9 +115,9 @@ No lances dos ejecuciones simultáneas sobre la misma rama: la política de conc
 
 Si el E2E está solicitado, antes de instalar dependencias se ejecuta un preflight que exige una sesión interactiva (`SessionId != 0` y `[Environment]::UserInteractive`). Si falla, el job termina antes de compilar o instalar nada.
 
-Además, tras el checkout se valida la sintaxis y las expresiones de los workflows con actionlint. El binario se descarga con versión y SHA-256 fijados.
+El workflow se parte en dos jobs que corren en paralelo para que el primer veredicto llegue en minutos: `checks` (checkout, Node.js 22, actionlint —binario con versión y SHA-256 fijados—, `npm ci`, `npm run lint`, `npm run test:coverage` con el artefacto `coverage-lcov`, `npm audit` y la prueba Chromium del sandbox Python) y `windows` (gate del E2E, preflight, build, instalador, suites y artefactos). Un tercer job, `requerido`, no ejecuta nada: espera a los dos y falla si alguno falló, y conserva el nombre `Windows - lint, tests, cobertura y E2E opcional`, que es el contexto que exige la protección de `main`, así que el check obligatorio sigue siendo uno solo.
 
-El job `windows` ejecuta, en orden:
+Los pasos 1 a 7 son del job `checks`; el resto, de `windows`, que ejecuta en orden:
 
 1. Checkout, Node.js 22 y, si corresponde, el preflight interactivo.
 2. `npm ci`.
