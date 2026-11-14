@@ -401,6 +401,19 @@ async function main() {
     `la búsqueda del inicio queda como chip reciente (${recent.chips.length} guardada(s), ancla ${RECENT_CHIP}) y el campo recupera el foco al volver con "home".`,
   );
 
+  // Repetir `home` sin cambiar de pantalla también debe devolver el cursor al campo.
+  await runCommand(cdp, 'home');
+  await waitForExpression(
+    cdp,
+    `(() => {
+      const input = document.querySelector(${JSON.stringify(START_INPUT)});
+      return Boolean(input) && document.activeElement === input;
+    })()`,
+    (focused) => focused === true,
+    'el campo del inicio enfocado al repetir "home"',
+    20000,
+  );
+
   assert.equal(
     stepsRun,
     TOTAL_STEPS,

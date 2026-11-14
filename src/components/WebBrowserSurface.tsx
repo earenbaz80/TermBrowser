@@ -3,6 +3,7 @@ import { Bookmark, BrowserTab, PageMode, ThemeConfig } from '../types';
 import { soundEffects } from '../utils/soundEffects';
 import { BOOT_ASCII } from '../utils/bootBanner';
 import { getLatencyGlow } from '../utils/latencyGlow';
+import { HOME_FOCUS_EVENT } from '../utils/commandProcessor';
 import { expectedFrameMessageOrigin, isTrustedFrameMessage } from '../utils/frameMessageSecurity';
 import { RetroAssistantEyes } from './RetroAssistantEyes';
 import {
@@ -671,11 +672,20 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
   const hasExternalPage = hasPage && !isTerminusSearch;
   const startPageVisible = online && !hasPage;
 
+  // `home` avisa aunque la pantalla no cambie, así que el aviso rearma el foco.
+  const [homeFocusRequest, setHomeFocusRequest] = useState(0);
+
+  useEffect(() => {
+    const requestHomeFocus = () => setHomeFocusRequest((count) => count + 1);
+    window.addEventListener(HOME_FOCUS_EVENT, requestHomeFocus);
+    return () => window.removeEventListener(HOME_FOCUS_EVENT, requestHomeFocus);
+  }, []);
+
   // Llegar al inicio (arranque o `home`) deja el campo listo para escribir, como la
   // página de resultados cuando no tiene consulta.
   useEffect(() => {
     if (startPageVisible) startInputRef.current?.focus();
-  }, [startPageVisible]);
+  }, [startPageVisible, homeFocusRequest]);
   const currentUrl = hasPage && tab ? tab.url : '';
   const savedBookmark = bookmarks.find((bm) => sameUrl(bm.url, currentUrl));
   const proxied = (view: PageMode) => `/api/view?url=${encodeURIComponent(tab?.url ?? '')}&mode=${view}`;
