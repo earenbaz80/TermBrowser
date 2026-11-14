@@ -1,21 +1,5 @@
 #!/usr/bin/env node
-/**
- * Ejecuta las suites del E2E instalado y comprueba su recuento de pasos.
- *
- * Sustituye el bloque de PowerShell que vivía en el workflow: lanza cada suite
- * con `npm run`, guarda su salida en `artifacts/e2e/<log>`, y después exige que
- * cada log cierre con «STEPS: n/m» igual al total de su suite. Un guion que sale
- * con 0 pero perdió un paso deja el paso en rojo.
- *
- * Uso:
- *   node scripts/e2e-run.mjs                          # todas las suites
- *   node scripts/e2e-run.mjs --only ctrl-f,ui         # subconjunto (PRs)
- *   node scripts/e2e-run.mjs --report-only            # solo recuento de logs ya escritos
- *   node scripts/e2e-run.mjs --dir artifacts/e2e      # carpeta de logs (por defecto esa)
- *
- * Escribe `result`, `exit_code` y `steps` en `$GITHUB_OUTPUT` cuando existe.
- */
-
+/** Ditto */
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -61,7 +45,6 @@ function runSuite(suite) {
 
     const child = spawn('npm', ['run', suite.script], {
       env,
-      // En Windows `npm` es un .cmd y necesita el shell para resolverse.
       shell: process.platform === 'win32',
       windowsHide: true,
     });
@@ -93,10 +76,18 @@ fs.mkdirSync(outDir, { recursive: true });
 
 let runCode = 0;
 if (!reportOnly) {
-  for (const suite of suites) {
-    const code = await runSuite(suite);
-    if (code !== 0 && runCode === 0) runCode = code;
-  }
+  const codePromise = (async () => {
+    const results = await Promise.allSettled(suites.map((suite) => runSuite(suite)));
+    for (let i = 0; i < results.length; i += 1) {
+      const r = results[i];
+      const code = r.status === 'fulfilled' ? r.value : 1;
+      if (code !== 0 && runCode === 0) runCode = code;
+      if (r.status === 'rejected') {
+        console.log(`[e2e-run] ${suites[i].label}: la suite no terminó (señal/desconexión).`);
+      }
+    }
+  })();
+  await codePromise;
 }
 
 const summary = summarizeLogs(outDir, suites);
