@@ -124,6 +124,33 @@ async function runCommand(client, command) {
   await pressEnter(client);
 }
 
+/**
+ * Espera la página de resultados de `query`.
+ *
+ * Se comprueba por el campo de la página de resultados y por la dirección, no por el
+ * texto visible: sirve igual en cualquier idioma.
+ */
+async function waitForSearchResults(client, query, label) {
+  return waitForExpression(
+    client,
+    `(() => {
+      const form = document.querySelector(${JSON.stringify(START_FORM)});
+      const input = form?.querySelector('input[type="search"]') ?? null;
+      return {
+        onStart: Boolean(document.querySelector(${JSON.stringify(START_INPUT)})),
+        query: input?.value ?? null,
+        address: document.querySelector(${JSON.stringify(ADDRESS_SELECTOR)})?.value ?? null,
+      };
+    })()`,
+    (state) =>
+      !state.onStart &&
+      state.query === query &&
+      /\bterminus:\/\/search\b/.test(state.address ?? ''),
+    label,
+    25000,
+  );
+}
+
 const HEADER_STATE_EXPRESSION = `(() => {
   const headers = document.querySelectorAll('header');
   const header = headers[0] ?? null;
@@ -527,6 +554,106 @@ async function main() {
   pass(
     `ventana de ${NARROW_WIDTH} px: cartel entero (${narrow.fontSize.toFixed(2)} px, sin desbordar su caja) y solo la reciente más nueva («${NARROW_QUERY}») visible, con la etiqueta del grupo oculta.`,
   );
+
+  // 7. Chips del inicio: pulsar una fija y una reciente lanza su búsqueda.
+  const fixedChip = await cdp.evaluate(`(() => {
+    const box = document.querySelector(${JSON.stringify(START_CHIPS)});
+    const chips = [...(box?.querySelectorAll('button') ?? [])];
+    // Las recientes llevan data-e2e; las fijas se distinguen por eso y por estar visibles.
+    const chip = chips.find(
+      (item) => item.getAttribute('data-e2e') !== 'recent-search' && item.getClientRects().length > 0,
+    );
+    if (!chip) return { clicked: false, total: chips.length };
+    const query = (chip.textContent ?? '').trim();
+    chip.click();
+    return { clicked: true, query, total: chips.length };
+  })()`);
+  assert.equal(
+    fixedChip.clicked,
+    true,
+    `No se encontró una chip fija en el inicio (${fixedChip.total} chips).`,
+  );
+  assert.ok(fixedChip.query.length > 0, 'La chip fija del inicio no tiene texto.');
+  const fixedResult = await waitForSearchResults(
+    cdp,
+    fixedChip.query,
+    `los resultados de la chip fija «${fixedChip.query}»`,
+  );
+
+  // Una consulta que ya es chip fija no se repite como reciente: la chip fija sigue
+  // ahí y las recientes no ganan una copia. Es la regla de `mergeStartChips`.
+  await runCommand(cdp, 'home');
+  const afterChip = await waitForExpression(
+    cdp,
+    `(() => {
+      const box = document.querySelector(${JSON.stringify(START_CHIPS)});
+      const chips = [...(box?.querySelectorAll('button') ?? [])].map((chip) => ({
+        text: (chip.textContent ?? '').trim(),
+        recent: chip.getAttribute('data-e2e') === 'recent-search',
+        visible: chip.getClientRects().length > 0,
+      }));
+      return {
+        onStart: Boolean(document.querySelector(${JSON.stringify(START_INPUT)})),
+        recents: chips.filter((chip) => chip.recent).map((chip) => chip.text),
+        fixedVisible: chips.some(
+          (chip) =>
+            !chip.recent &&
+            chip.text === ${JSON.stringify(fixedChip.query)} &&
+            chip.visible,
+        ),
+      };
+    })()`,
+    (state) => state.onStart && state.fixedVisible,
+    `la chip fija «${fixedChip.query}» de vuelta en el inicio`,
+    20000,
+  );
+  assert.equal(
+    afterChip.recents.length,
+    2,
+    `La consulta de una chip fija no debe duplicarse como reciente: ${JSON.stringify(afterChip.recents)}.`,
+  );
+  assert.ok(
+    !afterChip.recents.includes(fixedChip.query),
+    `La chip fija «${fixedChip.query}» se duplicó como reciente.`,
+  );
+
+  const recentClicked = await cdp.evaluate(`(() => {
+    const chip = [...document.querySelectorAll(${JSON.stringify(RECENT_CHIP)})].find(
+      (item) => (item.textContent ?? '').trim() === ${JSON.stringify(SEARCH_QUERY)} &&
+        item.getClientRects().length > 0,
+    );
+    if (!chip) return false;
+    chip.click();
+    return true;
+  })()`);
+  assert.equal(recentClicked, true, 'No se encontró la chip reciente de la primera búsqueda.');
+  const recentResult = await waitForSearchResults(
+    cdp,
+    SEARCH_QUERY,
+    'los resultados de la chip reciente',
+  );
+
+  pass(
+    `chip fija «${fixedChip.query}» (${fixedResult.address}) y reciente «${SEARCH_QUERY}» (${recentResult.address}) abren sus resultados; la fija no se duplica como reciente.`,
+  );
+
+  // 8. El sinónimo `inicio` hace lo mismo que `home` y reenfoca el campo.
+  await runCommand(cdp, 'inicio');
+  await waitForExpression(
+    cdp,
+    `(() => {
+      const input = document.querySelector(${JSON.stringify(START_INPUT)});
+      return {
+        onStart: Boolean(input),
+        focused: Boolean(input) && document.activeElement === input,
+      };
+    })()`,
+    (state) => state.onStart && state.focused,
+    'el inicio con el campo enfocado tras «inicio»',
+    20000,
+  );
+
+  pass('el sinónimo «inicio» vuelve al inicio con el campo enfocado, como «home».');
 
   assert.equal(
     stepsRun,
