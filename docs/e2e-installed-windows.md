@@ -122,7 +122,7 @@ El job `windows` ejecuta, en orden:
 11. Detiene cualquier instancia de Terminus que el instalador haya abierto.
 12. Define `TERMINUS_INSTALLED_EXE` apuntando a `%LOCALAPPDATA%\Programs\Terminus\Terminus.exe`.
 13. Ejecuta `node scripts/e2e-run.mjs`: recorre `scripts/e2e-suites.mjs`, lanza cada suite con `npm run`, guarda su salida en `artifacts/e2e/<log>` y falla con el primer código distinto de cero. En un PR corre `ctrl-f` y `ui`; en `main` y en el nocturno corre también `ui-de`, la UI con `TERMINUS_E2E_LOCALE=de` para ejercer la ruta multiidioma.
-14. Compara el recuento: cada log tiene que cerrar con `STEPS: n/m` igual al total que declara su entrada de `scripts/e2e-suites.mjs`, la misma lista que leen los guiones, así que el esperado no se puede desincronizar. El resumen del paso queda `ctrl-f 3/3 · ui 6/6 · ui-de 6/6`.
+14. Compara el recuento: cada log tiene que cerrar con `STEPS: n/m` igual al total que declara su entrada de `scripts/e2e-suites.mjs`, la misma lista que leen los guiones, así que el esperado no se puede desincronizar. El resumen del paso queda `ctrl-f 5/5 · ui 6/6 · ui-de 6/6`.
 15. Publica los logs del E2E y un resumen del job.
 
 El E2E se ejecuta cuando se cumple una de estas condiciones:
@@ -148,9 +148,12 @@ La línea del runner deja claro dónde corrió el E2E: el preflight solo comprue
 El log debe contener líneas equivalentes a:
 
 ```text
-[e2e-installed-ctrl-f] PASS: Ctrl+F abrió «Buscar en la página» en la app instalada.
-[e2e-installed-ctrl-f] PASS: búsqueda en OSCURO (Coincidencia encontrada).
-[e2e-installed-ctrl-f] PASS: búsqueda en TEXTO (Coincidencia encontrada).
+[e2e-installed-ctrl-f] PASS 1/5: Ctrl+F abrió el buscador en la app instalada. (2,9 s)
+[e2e-installed-ctrl-f] PASS 2/5: búsqueda en OSCURO (Coincidencia encontrada). (1,7 s)
+[e2e-installed-ctrl-f] PASS 3/5: búsqueda en TEXTO (Coincidencia encontrada). (1,5 s)
+[e2e-installed-ctrl-f] PASS 4/5: siguiente y anterior buscan otra coincidencia (1 y 1 búsquedas, Coincidencia encontrada). (1,4 s)
+[e2e-installed-ctrl-f] PASS 5/5: Escape cerró el buscador y el conmutador volvió a su sitio. (0,0 s)
+[e2e-installed-ctrl-f] STEPS: 5/5
 ```
 
 Artefactos relevantes:
@@ -193,7 +196,7 @@ En Git Bash:
 TERMINUS_INSTALLED_EXE="C:\ruta\Terminus.exe" npm run test:e2e:installed
 ```
 
-`npm run test:e2e:installed:ui` comparte requisitos y aislamiento, y añade las comprobaciones de interfaz: cabecera única, cambio de tema persistido tras recargar y búsqueda del inicio en un paso. La búsqueda del inicio se ancla en `[data-e2e="start-search-input"]` dentro de `form[role="search"]`, sin depender de la posición del campo ni del idioma; tras enviar, la comprobación pasa a la página de resultados, que tiene su propio formulario. De vuelta al inicio con `home`, la consulta enviada se comprueba como chip reciente anclado en `[data-e2e="recent-search"]` y se exige que el campo tenga el foco: es la forma de verificar en la app empaquetada que el inicio recuerda la búsqueda y que la dibuja como chip. Después se repite `home` sin cambiar de pantalla y se exige otra vez el foco, para cubrir que el comando reenfoca el campo aunque el inicio ya estuviera abierto. El último paso reduce la ventana con `Emulation.setDeviceMetricsOverride` a 432 px y exige que el cartel ASCII siga entero (no desborda su caja, cabe en el ancho, la fuente baja de 10 px y la página no gana scroll horizontal) y que las nuevas recientes se recorten a la más nueva: la etiqueta del grupo queda oculta, solo esa chip conserva rectángulos de cliente y las sugerencias fijas siguen visibles. Los dos guiones numeran sus pasos (Ctrl+F `PASS 1/3` … `3/3`; UI `PASS 1/6` … `6/6`) y cierran con `STEPS: n/m`; el paso de E2E del CI exige ese mismo recuento en cada log y falla si falta la línea o no coincide, de modo que un paso perdido no pasa por verde. El resumen muestra un recuento por suite (`ctrl-f 3/3 · ui 6/6 · ui-de 6/6`). El recuento también aparece en el resumen, en «Pasos del E2E». Ambos guiones comparten `scripts/lib/installed-app.mjs`: arranque del ejecutable con perfil temporal, cliente CDP, esperas y limpieza. El script crea su propio servidor de fixture, perfil temporal y puerto CDP, y limpia todo al terminar. No requiere que la app esté abierta; de hecho, conviene cerrar instancias previas. Debe ejecutarse en la misma sesión interactiva y sobre el build recién instalado: el script comprueba que `app.asar` contiene el marcador del atajo global y falla si la instalación está desactualizada.
+`npm run test:e2e:installed:ui` comparte requisitos y aislamiento, y añade las comprobaciones de interfaz: cabecera única, cambio de tema persistido tras recargar y búsqueda del inicio en un paso. La búsqueda del inicio se ancla en `[data-e2e="start-search-input"]` dentro de `form[role="search"]`, sin depender de la posición del campo ni del idioma; tras enviar, la comprobación pasa a la página de resultados, que tiene su propio formulario. De vuelta al inicio con `home`, la consulta enviada se comprueba como chip reciente anclado en `[data-e2e="recent-search"]` y se exige que el campo tenga el foco: es la forma de verificar en la app empaquetada que el inicio recuerda la búsqueda y que la dibuja como chip. Después se repite `home` sin cambiar de pantalla y se exige otra vez el foco, para cubrir que el comando reenfoca el campo aunque el inicio ya estuviera abierto. El último paso reduce la ventana con `Emulation.setDeviceMetricsOverride` a 432 px y exige que el cartel ASCII siga entero (no desborda su caja, cabe en el ancho, la fuente baja de 10 px y la página no gana scroll horizontal) y que las nuevas recientes se recorten a la más nueva: la etiqueta del grupo queda oculta, solo esa chip conserva rectángulos de cliente y las sugerencias fijas siguen visibles. Los dos guiones numeran sus pasos (Ctrl+F `PASS 1/5` … `5/5`; UI `PASS 1/6` … `6/6`) y cierran con `STEPS: n/m`; `scripts/e2e-run.mjs` exige ese mismo recuento en cada log y falla si falta la línea o no coincide, de modo que un paso perdido no pasa por verde. El resumen muestra un recuento por suite (`ctrl-f 5/5 · ui 6/6 · ui-de 6/6`). Cada `PASS` anota entre paréntesis lo que tardó, para ver un paso que empieza a rozar su espera. El guion de Ctrl+F cubre además los botones del buscador: con la palabra `cross-origin` (varias veces en el fixture) comprueba que «siguiente» y «anterior» vuelven a buscar y siguen encontrando, y cierra con `Escape`, exigiendo que el diálogo desaparezca y el conmutador quede en `aria-expanded="false"`. Como el iframe va con `sandbox` y su documento no se puede leer desde la app, la navegación se comprueba por el aviso `termbrowser-find-result` que el documento proxied devuelve, no por la selección interna. El recuento también aparece en el resumen, en «Pasos del E2E». Ambos guiones comparten `scripts/lib/installed-app.mjs`: arranque del ejecutable con perfil temporal, cliente CDP, esperas y limpieza. El script crea su propio servidor de fixture, perfil temporal y puerto CDP, y limpia todo al terminar. No requiere que la app esté abierta; de hecho, conviene cerrar instancias previas. Debe ejecutarse en la misma sesión interactiva y sobre el build recién instalado: el script comprueba que `app.asar` contiene el marcador del atajo global y, cuando existe `release/win-unpacked`, que el `app.asar` instalado es idéntico al del build local; si no coincide, falla al principio diciendo que hay que reinstalar. Cuando un paso falla, el guion guarda una captura en `artifacts/e2e/failure-<guion>-<fecha>.png`, que viaja en el artefacto `e2e-installed-logs`.
 
 ## Anclas del E2E de Ctrl+F
 
@@ -224,8 +227,9 @@ Solo aplican al **respaldo**, es decir, a un build instalado anterior a los `dat
 4. **Un solo diálogo con `aria-live`.** El respaldo localiza el buscador por `[role="dialog"]` más `[aria-live="polite"]`.
 5. **El conmutador cambia la vista.** Tras el clic, el guion exige el `mode` esperado en el `src` del iframe y el texto proxificado; el estado `aria-pressed` lo cubre `npm test`, no este guion.
 6. **Texto del fixture.** Las vistas se validan con `Fixture cross-origin` en el HTML proxificado y con las consultas `Fixture` y `buscador`, que viven en el fixture del propio guion, no en la app.
-7. **`Ctrl+F` funciona con el foco dentro del iframe cross-origin.** El paso nativo se envía a propósito con el foco en el iframe REAL. Si el atajo dejara de responder en ese escenario (por ejemplo, al mover el listener de teclado o al aislar el iframe), la prueba falla antes de buscar nada.
-8. **Loopback accesible desde el proxy.** El fixture escucha en `127.0.0.1` y la app arranca con `TERMINUS_BLOCK_PRIVATE=0` y `TERMINUS_NETWORK_POLICY=local`; no depende de la configuración del usuario, pero sí de que el proxy alcance loopback.
+7. **El iframe proxificado va con `sandbox`.** Su documento no es accesible desde la app (`contentDocument` es `null`), así que la navegación entre coincidencias se comprueba con el mensaje `termbrowser-find-result` que el documento proxied envía a la app, no leyendo su selección.
+8. **`Ctrl+F` funciona con el foco dentro del iframe cross-origin.** El paso nativo se envía a propósito con el foco en el iframe REAL. Si el atajo dejara de responder en ese escenario (por ejemplo, al mover el listener de teclado o al aislar el iframe), la prueba falla antes de buscar nada.
+9. **Loopback accesible desde el proxy.** El fixture escucha en `127.0.0.1` y la app arranca con `TERMINUS_BLOCK_PRIVATE=0` y `TERMINUS_NETWORK_POLICY=local`; no depende de la configuración del usuario, pero sí de que el proxy alcance loopback.
 
 ## Diagnóstico
 
@@ -249,7 +253,7 @@ Solo aplican al **respaldo**, es decir, a un build instalado anterior a los `dat
 - [ ] `TERMINUS_CI_RUNNER=terminus-e2e` está definido.
 - [ ] `TERMINUS_RUN_INSTALLED_E2E` está sin definir salvo que se quiera ejecutar en cada push.
 - [ ] El instalador se genera y se instala con `/S`.
-- [ ] El log contiene los tres `PASS`.
-- [ ] Los tres logs cierran con su recuento (`STEPS: 3/3` en Ctrl+F y `STEPS: 6/6` en cada suite de UI); `scripts/e2e-run.mjs` falla si no coincide con el esperado, aunque el guion salga con 0.
+- [ ] El log contiene los cinco `PASS` de Ctrl+F (incluidos navegación y cierre con Escape).
+- [ ] Los tres logs cierran con su recuento (`STEPS: 5/5` en Ctrl+F y `STEPS: 6/6` en cada suite de UI); `scripts/e2e-run.mjs` falla si no coincide con el esperado, aunque el guion salga con 0.
 - [ ] El paso anota la duración de cada `PASS` entre paréntesis, útil para ver un paso que empieza a rozar su espera.
 - [ ] El artefacto `e2e-installed-logs` está disponible.

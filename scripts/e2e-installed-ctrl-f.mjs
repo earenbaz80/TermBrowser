@@ -26,6 +26,7 @@ import path from 'node:path';
 import { suiteSteps } from './e2e-suites.mjs';
 import {
   assertInstalledMatchesBuild,
+  captureFailureScreenshot,
   launchInstalledApp,
   sleep,
   waitForExpression,
@@ -327,6 +328,83 @@ async function searchInView(client, mode, query) {
   return matched;
 }
 
+/**
+ * Recorre las coincidencias con los botones del buscador.
+ *
+ * El estado del buscador no numera coincidencias (solo dice si hay o no) y el
+ * iframe va con `sandbox`, así que no se puede leer su selección desde la app.
+ * Lo que sí se ve es el aviso que el documento proxied devuelve a la app: cada
+ * pulsación de «siguiente» o «anterior» tiene que producir una búsqueda nueva con
+ * resultado, que es lo que distingue un botón conectado de uno que no hace nada.
+ */
+async function stepFindNavigation(client) {
+  const query = 'cross-origin';
+  const before = await client.evaluate(FIND_BAR_EXPRESSION);
+
+  await client.evaluate(`(() => {
+    window.__terminusE2EFindResults = [];
+    if (window.__terminusE2EFindListener) {
+      window.removeEventListener('message', window.__terminusE2EFindListener);
+    }
+    window.__terminusE2EFindListener = (event) => {
+      const data = event.data;
+      if (data && data.source === 'termbrowser-find-result') {
+        window.__terminusE2EFindResults.push(Boolean(data.found));
+      }
+    };
+    window.addEventListener('message', window.__terminusE2EFindListener);
+    return true;
+  })()`);
+
+  await setFindQuery(client, query);
+  const matched = await waitForSettledStatus(client, query, 'text', before.status);
+
+  const clearResults = () => client.evaluate('(window.__terminusE2EFindResults.length = 0)');
+  const takeResults = () => client.evaluate('window.__terminusE2EFindResults.slice()');
+  const press = async (action, index) => {
+    await clearResults();
+    assert.equal(await clickFindControl(client, action, index), true, `No se encontró el botón «${action}».`);
+    await sleep(400);
+    const results = await takeResults();
+    assert.ok(
+      results.length >= 1,
+      `«${action}» no envió ninguna búsqueda al documento proxied: ${JSON.stringify(results)}.`,
+    );
+    assert.ok(
+      results.every(Boolean),
+      `«${action}» encontró el texto unas veces y otras no: ${JSON.stringify(results)}.`,
+    );
+    const state = await client.evaluate(FIND_BAR_EXPRESSION);
+    assert.equal(state.open, true, `El buscador se cerró al pulsar «${action}».`);
+    assert.equal(state.value, query, `El buscador perdió la consulta: «${state.value}».`);
+    assert.equal(state.status, matched.status, `El estado cambió al pulsar «${action}»: «${state.status}».`);
+    return results.length;
+  };
+
+  const nextRuns = await press('next', 1);
+  const prevRuns = await press('prev', 0);
+  return { nextRuns, prevRuns, status: matched.status };
+}
+
+/** Cierra el buscador con Escape, como el usuario, y exige que el conmutador vuelva a su sitio. */
+async function stepEscapeClose(client) {
+  const key = { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 };
+  await client.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...key });
+  await client.send('Input.dispatchKeyEvent', { type: 'keyUp', ...key });
+
+  return waitForExpression(
+    client,
+    `(() => {
+      const bar = ${FIND_BAR_EXPRESSION};
+      const toggle = document.querySelector('${FIND_TOGGLE}');
+      return { open: bar.open, expanded: toggle?.getAttribute('aria-expanded') ?? null };
+    })()`,
+    (state) => !state.open,
+    'el cierre del buscador con Escape',
+    5000,
+  );
+}
+
 function sendNativeCtrlF(pid) {
   const script = [
     "$ErrorActionPreference = 'Stop'",
@@ -611,6 +689,15 @@ async function main() {
   pass(`búsqueda en TEXTO (${text.status}).`);
   console.log(`${LOG} Vista TEXTO: ${text.frameMode}`);
 
+  const navigation = await stepFindNavigation(cdp);
+  pass(
+    `siguiente y anterior buscan otra coincidencia (${navigation.nextRuns} y ${navigation.prevRuns} búsquedas, ${navigation.status}).`,
+  );
+
+  const closed = await stepEscapeClose(cdp);
+  assert.equal(closed.expanded, 'false', 'El conmutador del buscador quedó expandido tras Escape.');
+  pass('Escape cerró el buscador y el conmutador volvió a su sitio.');
+
   assert.equal(
     stepsRun,
     TOTAL_STEPS,
@@ -629,6 +716,8 @@ try {
   if (app?.logs().trim()) {
     console.error(`${LOG} Log de la app (cola):\n${app.logs().trim()}`);
   }
+  // Una imagen del estado en el momento del fallo ahorra adivinar con el JSON del timeout.
+  await captureFailureScreenshot(app?.client, 'ctrl-f');
   process.exitCode = 1;
 } finally {
   // El paso del E2E en CI lee esta línea para comparar con el total esperado.
