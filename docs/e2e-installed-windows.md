@@ -143,6 +143,8 @@ El E2E se ejecuta cuando se cumple una de estas condiciones:
 - `workflow_dispatch` con `run_installed_e2e = true`;
 - la variable `TERMINUS_RUN_INSTALLED_E2E = true`, que es la que activa el E2E en cada push a `main` (salvo en PRs desde forks); hoy vale `true` y se cambia en Settings → Secrets and variables → Actions → Variables.
 
+En push no se filtra por ficheros cambiados (comparar contra `github.event.before`): el E2E añade unos 56 s al job (18 s de instalación y 38 s de suites) y es la única corrida que prueba exactamente el commit publicado, incluidos los merges de solo documentación que en el PR se saltaron el E2E. Un filtro ahorraría esos 56 s en esos merges a cambio de un camino de respaldo para cuando `before` no existe (primer push o fuerza), justo donde un fallo silencioso dejaría `main` sin probar.
+
 Un dispatch sobre una rama ya no cancela la corrida del PR: solo un push nuevo cancela la anterior de la misma referencia. En cualquier otro caso el E2E se omite, pero el build y el instalador sí se generan.
 
 ## Evidencias esperadas
