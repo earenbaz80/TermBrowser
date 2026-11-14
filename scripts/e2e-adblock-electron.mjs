@@ -13,6 +13,9 @@
  *   - código 1: regresión del producto.
  *
  * Para probar el camino sin red: `TERMINUS_E2E_ADBLOCK_PROBE_URLS=http://127.0.0.1:9/`.
+ * Para probar el caso «motor sin listas»: `TERMINUS_E2E_ADBLOCK_SEED_EMPTY_ENGINE=1`
+ * siembra un motor vacío válido en el perfil temporal, así que el producto lo
+ * deserializa sin error, no descarga listas y sus comprobaciones no pueden pasar.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -25,6 +28,7 @@ import {
   UnreachableNetworkError,
 } from './lib/network-preflight.mjs';
 import { isEngineUnusable, readEngineState } from './lib/adblock-engine-state.mjs';
+import { FiltersEngine } from '@ghostery/adblocker';
 
 const fixtureHtml = `<!doctype html>
 <html lang="es">
@@ -121,9 +125,12 @@ function teeOutputTo(file) {
 // tiempo fijo, para que el resultado no dependa de la velocidad de la red.
 async function waitForEngine(file, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
+  // Un `.bin` que deserializa pero no llega al mínimo ya es definitivo: el
+  // producto no vuelve a descargar listas si la caché se puede leer, así que
+  // esperar los 90 s solo retrasaría el veredicto.
   let state = readEngineState(file);
   const started = Date.now();
-  while (!state.healthy && Date.now() < deadline) {
+  while (!state.healthy && !state.filters && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 2000));
     state = readEngineState(file);
   }
@@ -141,6 +148,7 @@ const PROBE_URLS = NETWORK_TARGETS.length
   : ['https://example.com/', `${LIST_ASSETS}/easylist/easylist.txt`, `${LIST_ASSETS}/ublock-origin/resources.json`];
 let electronApp;
 let profileDir;
+let engineState;
 let fixture;
 let privateProbe;
 
@@ -172,6 +180,14 @@ try {
   console.log('ADBLOCK_CACHE_BEFORE', cacheBeforeStart);
   if (cacheBeforeStart) {
     throw new Error('El perfil temporal ya tenía caché del motor: la corrida no es un arranque frío.');
+  }
+
+  // Ensayo del caso «caché presente pero sin listas»: un motor vacío serializado
+  // que el producto deserializa sin error y por tanto no vuelve a descargar. Así
+  // la corrida ve un motor inservible sin depender de cortar la red de las listas.
+  if (process.env.TERMINUS_E2E_ADBLOCK_SEED_EMPTY_ENGINE === '1') {
+    fs.writeFileSync(path.join(profileDir, 'adblock-engine.bin'), FiltersEngine.empty().serialize());
+    console.log('SEED_EMPTY_ENGINE true');
   }
 
   electronApp = await electron.launch({
@@ -248,7 +264,7 @@ try {
 
   // Estado real del motor serializado: cuántos filtros quedaron guardados. Sirve
   // para no confundir una caché sin listas con una regresión de cosméticos.
-  const engineState = await waitForEngine(path.join(userData, 'adblock-engine.bin'), 90000);
+  engineState = await waitForEngine(path.join(userData, 'adblock-engine.bin'), 90000);
   console.log('ENGINE_STATE', JSON.stringify(engineState));
 
   const frames = page.frames().map((frame) => frame.url());
@@ -477,6 +493,14 @@ try {
     // Código 2: el CI lo trata como aviso. Nunca se pierde el motivo exacto.
     console.error(`E2E_ADBLOCK_UNREACHABLE: ${error.message}`);
     console.error('[e2e-adblock] Es un fallo de red del runner, no del producto; el CI lo marca como aviso.');
+    process.exitCode = 2;
+  } else if (engineState && isEngineUnusable(engineState)) {
+    // El motor quedó sin listas utilizables, así que ninguna comprobación de
+    // adblock es concluyente: la de red (que falla antes que la de cosméticos)
+    // también es un fallo de descarga, no una regresión del producto.
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error(`E2E_ADBLOCK_UNREACHABLE: motor sin listas (${engineState.reason}); primera comprobación fallida: ${detail}`);
+    console.error('[e2e-adblock] Sin filtros cargados no se puede distinguir una regresión de una descarga fallida; el CI lo marca como aviso.');
     process.exitCode = 2;
   } else {
     console.error(`[e2e-adblock] FAIL: ${error instanceof Error ? error.message : String(error)}`);
