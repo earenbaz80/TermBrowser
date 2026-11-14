@@ -99,6 +99,9 @@ jobs:
 
   windows:
     name: Windows - build, E2E y artefactos
+    # Espera al veredicto rápido: si el lint o las pruebas fallan, no se gasta el
+    # build ni el E2E. Cuesta el tiempo de `checks` en el camino verde.
+    needs: checks
     outputs:
       pr_comment_url: ${{ steps.pr_summary.outputs.comment_url }}
     # El E2E usa SendKeys y necesita escritorio interactivo: lo comprueba el
