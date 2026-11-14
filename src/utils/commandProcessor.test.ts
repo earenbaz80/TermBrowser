@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BrowserTab } from '../types';
-import {
-  HOME_FOCUS_EVENT,
-  processCommand,
-  type CommandContext,
-} from './commandProcessor';
+import { HOME_FOCUS_EVENT, processCommand, type CommandContext } from './commandProcessor';
 import { translateConsole } from '../i18n';
 
 const makeTab = () =>
@@ -58,7 +54,7 @@ afterEach(() => {
 });
 
 describe('home', () => {
-  it('returns the tab to the start screen and appends it to the history', async () => {
+  it('returns the tab to the start screen and asks the surface to focus its field', async () => {
     const pageTab = {
       ...makeTab(),
       title: 'Example Domain',
@@ -68,25 +64,18 @@ describe('home', () => {
       historyIndex: 1,
     } as BrowserTab;
     const { ctx, tab } = makeContext([pageTab]);
+    const focusRequest = vi.fn();
+    window.addEventListener(HOME_FOCUS_EVENT, focusRequest);
 
     await processCommand('home', ctx);
 
+    window.removeEventListener(HOME_FOCUS_EVENT, focusRequest);
     expect(tab().url).toBe('about:blank');
     expect(tab().displayUrl).toBe('about:blank');
     expect(tab().title).toBe('Nueva Pestaña');
     expect(tab().history).toEqual(['about:blank', 'https://example.com', 'about:blank']);
     expect(tab().historyIndex).toBe(2);
-  });
-
-  it('avisa para que el inicio recupere el foco aunque ya estuviera allí', async () => {
-    const { ctx } = makeContext([makeTab()]);
-    const listener = vi.fn();
-    window.addEventListener(HOME_FOCUS_EVENT, listener);
-
-    await processCommand('home', ctx);
-
-    window.removeEventListener(HOME_FOCUS_EVENT, listener);
-    expect(listener).toHaveBeenCalledTimes(1);
+    expect(focusRequest).toHaveBeenCalledTimes(1);
   });
 });
 

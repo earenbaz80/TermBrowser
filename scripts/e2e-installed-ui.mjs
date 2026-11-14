@@ -397,9 +397,6 @@ async function main() {
     'la búsqueda reciente como chip del inicio y el campo enfocado',
     20000,
   );
-  pass(
-    `la búsqueda del inicio queda como chip reciente (${recent.chips.length} guardada(s), ancla ${RECENT_CHIP}) y el campo recupera el foco al volver con "home".`,
-  );
 
   // Repetir `home` sin cambiar de pantalla también debe devolver el cursor al campo.
   await runCommand(cdp, 'home');
@@ -412,6 +409,10 @@ async function main() {
     (focused) => focused === true,
     'el campo del inicio enfocado al repetir "home"',
     20000,
+  );
+
+  pass(
+    `la búsqueda del inicio queda como chip reciente (${recent.chips.length} guardada(s), ancla ${RECENT_CHIP}) y el campo recupera el foco al volver con "home".`,
   );
 
   assert.equal(
