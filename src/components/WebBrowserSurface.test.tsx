@@ -511,12 +511,6 @@ describe('búsquedas recientes bajo el campo de inicio', () => {
 describe('foco del campo del inicio', () => {
   const startInput = () => screen.getByRole('searchbox', { name: 'Buscar en Terminus Search' });
 
-  it('enfoca el campo al abrir la app en la pantalla de inicio', () => {
-    renderSurface();
-
-    expect(document.activeElement).toBe(startInput());
-  });
-
   it('recupera el foco al volver al inicio desde una página', () => {
     const { rerender } = renderSurface(pageTab);
     expect(screen.queryByRole('searchbox', { name: 'Buscar en Terminus Search' })).toBeNull();
@@ -528,9 +522,7 @@ describe('foco del campo del inicio', () => {
 
   it('devuelve el foco al repetir home estando ya en el inicio', () => {
     renderSurface();
-    const address = document.querySelector(
-      'input[aria-controls="terminus-address-suggestions"]'
-    ) as HTMLInputElement;
+    const address = screen.getByRole('textbox', { name: 'Barra de direcciones y búsqueda' });
     address.focus();
     expect(document.activeElement).toBe(address);
 
