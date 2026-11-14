@@ -36,7 +36,7 @@ import {
 const LOG = '[e2e-installed-ui]';
 // Los pasos se cuentan: el guion cierra con «STEPS: ejecutados/esperados» y el paso
 // del E2E en CI compara ese número con el total, para que un paso perdido no pase.
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 let stepsRun = 0;
 const THEME_KEY = 'termbrowser_theme_v1';
 const HISTORY_KEY = 'termbrowser_cmd_history_v1';
@@ -53,6 +53,13 @@ const START_FORM = 'form[role="search"]';
 const START_INPUT = 'input[data-e2e="start-search-input"]';
 // Ancla de las chips recientes: distingue una búsqueda recordada de una sugerencia fija.
 const RECENT_CHIP = '[data-e2e="recent-search"]';
+// El grupo de chips y su etiqueta: el paso 6 comprueba el recorte en ventana estrecha.
+const START_CHIPS = '[data-e2e="start-chips"]';
+const START_CHIPS_LABEL = '[data-e2e="start-chips-label"]';
+const START_SIGN = 'pre.ascii-sign-start';
+// Por debajo del corte `sm` (640 px) y cerca de un móvil real.
+const NARROW_WIDTH = 432;
+const NARROW_QUERY = 'terminus e2e estrecho';
 const THEMES = {
   msdos: { id: 'ms-dos', bg: '#000080', rgb: 'rgb(0, 0, 128)' },
   matrix: { id: 'matrix-dark', bg: '#020402', rgb: 'rgb(2, 4, 2)' },
@@ -413,6 +420,100 @@ async function main() {
 
   pass(
     `la búsqueda del inicio queda como chip reciente (${recent.chips.length} guardada(s), ancla ${RECENT_CHIP}) y el campo recupera el foco al volver con "home".`,
+  );
+
+  // 6. Ventana estrecha (~430 px): el cartel del inicio cabe entero y las recientes se
+  //    recortan a la más nueva, con la etiqueta del grupo oculta.
+  const narrowTyped = await cdp.evaluate(`(() => {
+    const input = document.querySelector(${JSON.stringify(START_INPUT)});
+    if (!input) return false;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    setter.call(input, ${JSON.stringify(NARROW_QUERY)});
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.focus();
+    return true;
+  })()`);
+  assert.equal(narrowTyped, true, 'No se pudo escribir la segunda búsqueda en el inicio.');
+  await sleep(200);
+  await pressEnter(cdp);
+
+  await waitForExpression(
+    cdp,
+    `(() => ({
+      address: document.querySelector(${JSON.stringify(ADDRESS_SELECTOR)})?.value ?? null,
+      onStart: Boolean(document.querySelector(${JSON.stringify(START_INPUT)})),
+    }))()`,
+    (state) => /terminus:\/\/search/.test(state.address ?? '') && !state.onStart,
+    'los resultados de la segunda búsqueda',
+    25000,
+  );
+
+  // Dos recientes para que el recorte tenga algo que ocultar.
+  await runCommand(cdp, 'home');
+  await waitForExpression(
+    cdp,
+    `document.querySelectorAll(${JSON.stringify(RECENT_CHIP)}).length`,
+    (count) => count >= 2,
+    'las dos búsquedas recientes en el inicio',
+    20000,
+  );
+
+  await cdp.send('Emulation.setDeviceMetricsOverride', {
+    width: NARROW_WIDTH,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+
+  const narrow = await waitForExpression(
+    cdp,
+    `(() => {
+      const sign = document.querySelector(${JSON.stringify(START_SIGN)});
+      const rect = sign?.getBoundingClientRect() ?? null;
+      // Los glifos, no la caja: scrollWidth incluye la copia fantasma del glitch.
+      const glyphs = document.createRange();
+      if (sign) glyphs.selectNodeContents(sign);
+      const glyphRect = glyphs.getBoundingClientRect();
+      const box = document.querySelector(${JSON.stringify(START_CHIPS)});
+      const label = document.querySelector(${JSON.stringify(START_CHIPS_LABEL)});
+      return {
+        width: window.innerWidth,
+        pageWidth: document.documentElement.scrollWidth,
+        fontSize: sign ? parseFloat(getComputedStyle(sign).fontSize) : 0,
+        signFits: Boolean(sign) && glyphRect.width <= (rect?.width ?? 0) + 1,
+        signInside: Boolean(rect) && rect.left >= -0.5 && rect.right <= window.innerWidth + 0.5,
+        labelVisible: Boolean(label) && label.getClientRects().length > 0,
+        chips: [...(box?.querySelectorAll('button') ?? [])].map((chip) => ({
+          text: (chip.textContent ?? '').trim(),
+          recent: chip.getAttribute('data-e2e') === 'recent-search',
+          visible: chip.getClientRects().length > 0,
+        })),
+      };
+    })()`,
+    (state) =>
+      state.width <= NARROW_WIDTH + 8 &&
+      state.pageWidth <= state.width &&
+      state.signFits &&
+      state.signInside &&
+      state.fontSize < 10 &&
+      !state.labelVisible &&
+      state.chips.filter((chip) => chip.recent && chip.visible).length === 1 &&
+      state.chips.some((chip) => chip.recent && !chip.visible) &&
+      state.chips.filter((chip) => !chip.recent).length > 0 &&
+      state.chips.filter((chip) => !chip.recent).every((chip) => chip.visible),
+    `el inicio a ${NARROW_WIDTH} px con el cartel entero`,
+    20000,
+  );
+
+  const visibleRecent = narrow.chips.find((chip) => chip.recent && chip.visible);
+  const hiddenRecent = narrow.chips.find((chip) => chip.recent && !chip.visible);
+  assert.equal(visibleRecent?.text, NARROW_QUERY, 'La reciente visible no es la más nueva.');
+  assert.equal(hiddenRecent?.text, SEARCH_QUERY, 'La reciente oculta no es la anterior.');
+
+  await cdp.send('Emulation.clearDeviceMetricsOverride');
+
+  pass(
+    `ventana de ${NARROW_WIDTH} px: cartel entero (${narrow.fontSize.toFixed(2)} px, sin desbordar su caja) y solo la reciente más nueva («${NARROW_QUERY}») visible, con la etiqueta del grupo oculta.`,
   );
 
   assert.equal(

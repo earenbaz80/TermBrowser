@@ -1107,8 +1107,11 @@ export const WebBrowserSurface: React.FC<WebBrowserSurfaceProps> = ({
                 </button>
               </div>
             </form>
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <span className="hidden text-[9px] uppercase tracking-[0.18em] opacity-45 sm:inline">
+            <div data-e2e="start-chips" className="flex flex-wrap items-center justify-center gap-2">
+              <span
+                data-e2e="start-chips-label"
+                className="hidden text-[9px] uppercase tracking-[0.18em] opacity-45 sm:inline"
+              >
                 {t('start.tryWith')}
               </span>
               {mergeStartChips(
