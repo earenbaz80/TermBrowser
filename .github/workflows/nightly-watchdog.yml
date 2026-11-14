@@ -1,0 +1,45 @@
+name: Nightly watchdog
+
+# El CI tiene un cron diario a las 03:30 UTC. Este workflow, que corre después,
+# falla si ese cron no ha disparado en las últimas 36 h: sin él, que GitHub deje
+# de lanzar el nocturno (o que el YAML pierda `on.schedule`) no lo nota nadie.
+on:
+  schedule:
+    # 09:00 UTC: después del nocturno de las 03:30, con margen por los retrasos
+    # habituales de los crons de GitHub.
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: 'Ventana máxima en horas entre corridas (36 por defecto)'
+        required: false
+        default: '36'
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  watchdog:
+    name: Nocturno en las últimas 36 h
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      # El script solo usa módulos de Node y `fetch`, así que no hace falta
+      # instalar dependencias: el watchdog tarda segundos.
+      - name: Comprobar el cron del CI
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          WINDOW_HOURS: ${{ github.event.inputs.hours || '36' }}
+        run: node scripts/nightly-watchdog.mjs --hours "$WINDOW_HOURS"
