@@ -138,10 +138,10 @@ Los pasos 1 a 7 son del job `checks`; el resto, de `windows`, que ejecuta en ord
 
 El E2E se ejecuta cuando se cumple una de estas condiciones:
 
-- un PR del propio repositorio que toque `src/`, `electron/`, `scripts/`, `assets/`, `package.json`/`package-lock.json` o la configuración del build (corre `ctrl-f` y `ui`);
+- un PR del propio repositorio que toque `src/`, `electron/`, `scripts/`, `assets/`, `package.json`/`package-lock.json` o la configuración del build (corre las tres suites, igual que las demás condiciones);
 - el nocturno de `main` (`cron` a las 03:30 UTC), que corre las tres suites;
 - `workflow_dispatch` con `run_installed_e2e = true`;
-- la variable `TERMINUS_RUN_INSTALLED_E2E = true`, salvo en PRs desde forks.
+- la variable `TERMINUS_RUN_INSTALLED_E2E = true`, que es la que activa el E2E en cada push a `main` (salvo en PRs desde forks); hoy vale `true` y se cambia en Settings → Secrets and variables → Actions → Variables.
 
 Un dispatch sobre una rama ya no cancela la corrida del PR: solo un push nuevo cancela la anterior de la misma referencia. En cualquier otro caso el E2E se omite, pero el build y el instalador sí se generan.
 
